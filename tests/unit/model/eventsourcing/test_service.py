@@ -170,7 +170,7 @@ def test_effective_indices_set_head_ignores_after_upto():
     active_idx = GraphES._effective_indices(evts)
 
     # e2,e3 should be ignored by head policy
-    assert active_idx == [0, 3]
+    assert active_idx == [0]
 
 
 def test_effective_indices_ignore_range_disables_versions():
