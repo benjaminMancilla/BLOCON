@@ -123,3 +123,37 @@ def test_event_from_dict_unknown_kind_raises():
 def test_event_from_dict_missing_version_keeps_none():
     ev = event_from_dict({"kind": "remove_node", "ts": "2025-01-01T00:00:00+00:00", "actor": "a", "node_id": "X"})
     assert ev.version is None
+
+
+def test_edit_component_event_create_returns_expected_fields():
+    ev = EditComponentEvent.create(
+        old_id="A",
+        new_id="B",
+        dist={"kind": "weibull"},
+        actor="tester",
+    )
+
+    assert isinstance(ev, EditComponentEvent)
+    assert ev.kind == "edit_component"
+    assert ev.old_id == "A"
+    assert ev.new_id == "B"
+    assert ev.dist == {"kind": "weibull"}
+    assert ev.actor == "tester"
+    assert isinstance(ev.ts, str) and len(ev.ts) > 0
+    assert ev.version is None
+
+
+def test_edit_gate_event_create_returns_expected_fields():
+    ev = EditGateEvent.create(
+        node_id="G1",
+        params={"k": 2, "subtype": "KOON"},
+        actor="tester",
+    )
+
+    assert isinstance(ev, EditGateEvent)
+    assert ev.kind == "edit_gate"
+    assert ev.node_id == "G1"
+    assert ev.params == {"k": 2, "subtype": "KOON"}
+    assert ev.actor == "tester"
+    assert isinstance(ev.ts, str) and len(ev.ts) > 0
+    assert ev.version is None
