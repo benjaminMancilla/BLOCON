@@ -22,7 +22,7 @@ def assert_graph_invariants(graph: ReliabilityGraph) -> None:
             assert graph.root == node_id
         else:
             assert node_id in graph.children[parent]
-            
+
 
 
 def test_add_node_sets_root_first_time():
@@ -108,6 +108,30 @@ def test_remove_component_under_gate_defers_collapse_until_normalize():
 
     assert g.root is None
     assert "G1" not in g.nodes
+
+
+def test_remove_component_after_gate_collapse_preserves_reparented_parent():
+    g = ReliabilityGraph(auto_normalize=True)
+    g.clear()
+
+    g.add_node(Node(id="G_and", type="gate", subtype="AND"))
+    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(Node(id="G_or", type="gate", subtype="OR"))
+    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+
+    g.add_edge("G_and", "A")
+    g.add_edge("G_and", "G_or")
+    g.add_edge("G_or", "B")
+    g.add_edge("G_or", "C")
+
+    g.remove_node("C")
+
+    assert g.parent["B"] == "G_and"
+
+    g.remove_node("B")
+
+    assert g.root == "A"
 
 
 def test_edit_gate_koon_k_validation():

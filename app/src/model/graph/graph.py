@@ -413,7 +413,8 @@ class ReliabilityGraph:
     def _delete_node(self, node_id: str) -> None:
         """Delete a node and clean up references"""
         for child in self.children.get(node_id, []):
-            self.parent[child] = None
+            if self.parent.get(child) == node_id:
+                self.parent[child] = None
         
         self.children.pop(node_id, None)
         self.parent.pop(node_id, None)
