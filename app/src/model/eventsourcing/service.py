@@ -12,7 +12,7 @@ from .ports import EventStorePort
 
 class GraphES:
     def __init__(self, graph: Optional[ReliabilityGraph]=None, store: Optional[EventStorePort]=None, actor: str="anonymous"):
-        self.graph = graph or ReliabilityGraph()
+        self.graph = graph or ReliabilityGraph(auto_normalize=True)
         self.store = store
         self.actor = actor
 
@@ -153,7 +153,7 @@ class GraphES:
 
     @staticmethod
     def rebuild(events: List[Event]) -> ReliabilityGraph:
-        g = ReliabilityGraph()
+        g = ReliabilityGraph(auto_normalize=True)
         for i in GraphES._effective_indices(events):
             ev = events[i]
             if isinstance(ev, SnapshotEvent):

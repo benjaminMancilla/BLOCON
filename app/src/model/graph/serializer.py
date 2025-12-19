@@ -54,7 +54,7 @@ class GraphSerializer:
         from .graph import ReliabilityGraph
         from .dist import Dist
         
-        g = ReliabilityGraph()
+        g = ReliabilityGraph(auto_normalize=True)
         g.clear()
         
         # Load nodes

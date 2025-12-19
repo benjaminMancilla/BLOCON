@@ -19,7 +19,7 @@ class ReliabilityGraph:
     system reliability. Supports series, parallel, and k-out-of-n configurations.
     """
     
-    def __init__(self):
+    def __init__(self, auto_normalize: bool = False) -> None:
         # Core graph structure
         self.nodes: Dict[str, Node] = {}
         self.children: Dict[str, List[str]] = {}
@@ -27,7 +27,7 @@ class ReliabilityGraph:
         self.root: Optional[str] = None
         self._gate_auto_counter = 1
         self.reliability_total: Optional[float] = None
-        self.auto_normalize: bool = False
+        self.auto_normalize: bool = auto_normalize
         
         # Dependency injection for separated concerns
         self._evaluator = ReliabilityEvaluator(self)

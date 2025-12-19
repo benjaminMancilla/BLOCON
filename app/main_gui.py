@@ -8,7 +8,7 @@ from src.services.cache.event_store import EventStore
 from src.ui.gui import run_gui
 
 def main():
-    g = ReliabilityGraph()
+    g = ReliabilityGraph(auto_normalize=True)
     local = LocalWorkspaceStore()
     store = EventStore(local)
 
