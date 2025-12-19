@@ -1251,10 +1251,19 @@ class ReliabilityGUI(tk.Tk):
                     elif relation == "parallel":
                         self.es.add_parallel(target_id, nid, dist, unit_type=ut)
                     elif relation == "koon":
-                        # (tu lógica actual crea root; no toco más acá)
-                        self.es.add_root_component(nid, dist, unit_type=ut)
+                        try:
+                            kval = int(ent_k.get().strip())
+                        except ValueError:
+                            messagebox.showerror("Error", "k must be an integer"); return
+                        if kval < 1:
+                            messagebox.showerror("Error", "k must be >= 1"); return
+                        self.es.add_koon(target_id, nid, dist, k=kval)
                     else:
                         messagebox.showerror("Error", "not valid relation"); return
+                    
+                elif target_id or relation:
+                    messagebox.showerror("Error", "Missing target or relation"); return
+                
                 else:
                     self.es.add_root_component(nid, dist, unit_type=ut)
 
