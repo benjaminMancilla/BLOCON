@@ -29,3 +29,6 @@ __pycache__/
 *.json
 *.jsonl
 !unit_types.json
+
+# Ignore coverage reports
+.coverage
