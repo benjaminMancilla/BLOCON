@@ -5,6 +5,25 @@ from app.src.model.graph.graph import ReliabilityGraph
 from app.src.model.graph.node import Node
 from app.src.model.graph.dist import Dist
 
+def assert_graph_invariants(graph: ReliabilityGraph) -> None:
+    if graph.root is not None:
+        assert graph.root in graph.nodes
+        assert graph.parent[graph.root] is None
+
+    for parent, children in graph.children.items():
+        assert parent in graph.nodes
+        for child in children:
+            assert child in graph.nodes
+            assert graph.parent[child] == parent
+
+    for node_id, parent in graph.parent.items():
+        assert node_id in graph.nodes
+        if parent is None:
+            assert graph.root == node_id
+        else:
+            assert node_id in graph.children[parent]
+            
+
 
 def test_add_node_sets_root_first_time():
     g = ReliabilityGraph()
@@ -68,7 +87,7 @@ def test_remove_gate_with_one_child_adopts_child_as_root():
     assert g.parent["A"] is None
 
 
-def test_remove_component_under_gate_collapses_gate_if_needed():
+def test_remove_component_under_gate_defers_collapse_until_normalize():
     g = ReliabilityGraph()
     g.clear()
 
@@ -78,9 +97,16 @@ def test_remove_component_under_gate_collapses_gate_if_needed():
 
     g.remove_node("A")
 
-    # G1 queda vacío -> se remueve -> root None
-    assert g.root is None
+    # G1 queda vacío, pero no se colapsa hasta normalize()
+    assert g.root == "G1"
     assert "A" not in g.nodes
+    assert "G1" in g.nodes
+    assert g.children["G1"] == []
+    assert_graph_invariants(g)
+
+    g.normalize()
+
+    assert g.root is None
     assert "G1" not in g.nodes
 
 
@@ -453,6 +479,93 @@ def test_try_collapse_gate_single_child_collapses_to_child_and_updates_root():
     assert "G1" not in g.nodes
     assert g.root == "A"
     assert g.parent["A"] is None
+
+def test_history_add_series_parallel_koon_flow_expression_data_and_evaluate(monkeypatch):
+    g = ReliabilityGraph()
+    g.clear()
+
+    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+
+    g.add_component_relative(
+        target_id="A",
+        new_comp_id="B",
+        relation="series",
+        dist=Dist(kind="exponential"),
+    )
+    g.add_component_relative(
+        target_id="A",
+        new_comp_id="C",
+        relation="parallel",
+        dist=Dist(kind="exponential"),
+    )
+    g.add_component_relative(
+        target_id="A",
+        new_comp_id="D",
+        relation="koon",
+        dist=Dist(kind="exponential"),
+        k=1,
+    )
+
+    assert g.to_expression() == "((KOON[1/2](A, D) || C) & B)"
+
+    data = g.to_data()
+    assert data["root"] == g.root
+    edges = {(edge["from"], edge["to"]) for edge in data["edges"]}
+    assert edges == {
+        ("G_and_1", "G_or_1"),
+        ("G_and_1", "B"),
+        ("G_or_1", "G_koon_1"),
+        ("G_or_1", "C"),
+        ("G_koon_1", "A"),
+        ("G_koon_1", "D"),
+    }
+    assert_graph_invariants(g)
+
+    monkeypatch.setattr(g._evaluator, "evaluate", lambda: 0.75)
+    assert g.evaluate() == 0.75
+    assert g.reliability_total == 0.75
+
+
+def test_remove_intermediate_component_then_normalize_collapses_parent_gate():
+    g = ReliabilityGraph()
+    g.clear()
+
+    g.add_node(Node(id="G1", type="gate", subtype="AND"))
+    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_edge("G1", "A")
+    g.add_edge("G1", "B")
+
+    g.remove_node("B")
+
+    assert g.root == "G1"
+    assert g.children["G1"] == ["A"]
+    assert_graph_invariants(g)
+
+    g.normalize()
+
+    assert g.root == "A"
+    assert "G1" not in g.nodes
+    assert_graph_invariants(g)
+
+
+def test_edit_component_under_gate_updates_expression_and_data():
+    g = ReliabilityGraph()
+    g.clear()
+
+    g.add_node(Node(id="G1", type="gate", subtype="OR"))
+    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_edge("G1", "A")
+    g.add_edge("G1", "B")
+
+    g.edit_component("A", "C", Dist(kind="weibull"))
+
+    assert g.to_expression() == "(C || B)"
+    data = g.to_data()
+    node_ids = {node["id"] for node in data["nodes"]}
+    assert node_ids == {"G1", "B", "C"}
+    assert_graph_invariants(g)
 
 
 def test_interpose_gate_koon_success_with_k_not_none():

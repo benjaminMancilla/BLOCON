@@ -27,6 +27,7 @@ class ReliabilityGraph:
         self.root: Optional[str] = None
         self._gate_auto_counter = 1
         self.reliability_total: Optional[float] = None
+        self.auto_normalize: bool = False
         
         # Dependency injection for separated concerns
         self._evaluator = ReliabilityEvaluator(self)
@@ -114,6 +115,9 @@ class ReliabilityGraph:
             self._remove_gate(node_id)
         else:
             self._remove_component(node_id)
+        
+        if self.auto_normalize:
+            self.normalize()
 
     def edit_gate(self, node_id: str, params: Dict[str, Any]) -> None:
         """
@@ -148,6 +152,9 @@ class ReliabilityGraph:
             
             node.k = k_val
 
+        if self.auto_normalize:
+            self.normalize()
+
     def edit_component(self, old_id: str, new_id: str, dist: Dist) -> None:
         """
         Edit a component node (change ID and/or distribution).
@@ -176,10 +183,15 @@ class ReliabilityGraph:
 
         # If ID unchanged, we're done
         if new_id == old_id:
+            if self.auto_normalize:
+                self.normalize()
             return
 
         # Rename node: update all references
         self._rename_node(old_id, new_id)
+
+        if self.auto_normalize:
+                self.normalize()
 
     def add_component_relative(
         self,
@@ -228,21 +240,46 @@ class ReliabilityGraph:
         # KOON-specific handling
         if relation == "koon":
             if self._handle_koon_insertion(target_id, new_comp_id, target_parent, k):
+                if self.auto_normalize:
+                    self.normalize()
                 return
         
         # Case 1: Parent is already the desired gate type
         if target_parent is not None and self._is_gate(target_parent, want_gate):
             self._insert_child_after(target_parent, target_id, new_comp_id)
+            if self.auto_normalize:
+                self.normalize()
             return
         
         # Case 2: Target itself is the desired gate and is root
         if target_parent is None and self._is_gate(target_id, want_gate):
             self.add_edge(target_id, new_comp_id)
+            if self.auto_normalize:
+                self.normalize()
             return
         
         # Case 3: Need to interpose a new gate
         gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
         self.add_edge(gate_id, new_comp_id)
+
+        if self.auto_normalize:
+                self.normalize()
+
+    def normalize(self) -> None:
+        """Simplify graph by collapsing 0/1-child gates from the root."""
+        if self.root is None:
+            return
+
+        visited: List[str] = []
+        stack = [self.root]
+        while stack:
+            nid = stack.pop()
+            visited.append(nid)
+            stack.extend(self.children.get(nid, []))
+
+        for nid in reversed(visited):
+            if nid in self.nodes and self.nodes[nid].is_gate():
+                self._try_collapse_gate(nid)
 
     # EVALUATION & OUTPUT
 
@@ -324,8 +361,8 @@ class ReliabilityGraph:
             # Gate has parent: replace in parent's children
             self._replace_child(p, node_id, adopt_child)
         
+        self.children[node_id] = []
         self._delete_node(node_id)
-        self._try_collapse_gate(p)
 
     def _remove_component(self, node_id: str) -> None:
         """Remove a component node"""
@@ -341,7 +378,6 @@ class ReliabilityGraph:
         self.children[p] = [c for c in self.children[p] if c != node_id]
         self.parent[node_id] = None
         self._delete_node(node_id)
-        self._try_collapse_gate(p)
 
     def _rename_node(self, old_id: str, new_id: str) -> None:
         """Rename a node, updating all references"""
