@@ -4,3 +4,4 @@ Pillow
 openpyxl
 python-dotenv
 pytest
+pytest-cov
