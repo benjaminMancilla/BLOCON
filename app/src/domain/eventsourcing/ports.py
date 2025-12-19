@@ -1,0 +1,36 @@
+from __future__ import annotations
+
+from typing import List, Optional, Protocol, runtime_checkable
+
+from .events import Event
+
+
+@runtime_checkable
+class EventStorePort(Protocol):
+    """
+    Puerto (interfaz) para un EventStore.
+    El dominio depende SOLO de esto (sin paths, sin open(), sin os).
+    """
+
+    # Estado de versionado local (usado por GUI/draft/version-control)
+    base_version: Optional[int]
+
+    # Índice del último evento "activo" (undo/redo)
+    head: int
+
+    # --- API principal ---
+    def append(self, ev: Event) -> None: ...
+    def all(self) -> List[Event]: ...
+    def active(self) -> List[Event]: ...
+    def replace(self, events: List[Event]) -> None: ...
+    def clear(self) -> None: ...
+
+    # --- helpers de versionado (compat con tu diseño actual) ---
+    def resequence_versions(self, start_from: int) -> None: ...
+    def set_head_to_end(self) -> None: ...
+
+    # --- undo/redo (in-memory) ---
+    def can_undo(self) -> bool: ...
+    def can_redo(self) -> bool: ...
+    def undo(self) -> bool: ...
+    def redo(self) -> bool: ...

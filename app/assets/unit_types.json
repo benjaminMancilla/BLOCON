@@ -1,0 +1,26 @@
+﻿{
+  "unit_types": 
+  [
+    "generic",
+    "motor", 
+    "válvula", 
+    "ventilador", 
+    "bomba", 
+    "transformador", 
+    "batería", 
+    "intercambiador de calor", 
+    "actuador", 
+    "interruptor", 
+    "gabinete", 
+    "turbina", 
+    "barra", 
+    "inversor", 
+    "protección", 
+    "manómetro", "flujómetro", 
+    "termómetro", 
+    "junta de expansión", 
+    "reductor", 
+    "estanque", 
+    "sensor"
+  ]
+}
