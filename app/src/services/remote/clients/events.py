@@ -8,7 +8,7 @@ from ..settings import SPSettings, load_settings
 from ..graph_session import GraphSession, GraphError
 from ..resolver import SPResolver
 
-from ....domain.eventsourcing.events import event_from_dict
+from ....model.eventsourcing.events import event_from_dict
 
 
 class SharePointEventsClient:

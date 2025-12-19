@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import font as tkfont
 
-from ...domain.graph.dist import Dist
+from ...model.graph.dist import Dist
 
 try:
     from PIL import Image, ImageTk

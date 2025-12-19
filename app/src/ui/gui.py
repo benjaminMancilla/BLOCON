@@ -15,14 +15,14 @@ from .components.renderer import ComponentRenderer
 from .components.gates import GateRenderer
 from .components.version_control import VersionControlDialog
 
-from ..domain.graph.graph import ReliabilityGraph
-from ..domain.graph.dist import Dist
-from ..domain.eventsourcing.events import SnapshotEvent 
-from ..domain.eventsourcing.service import GraphES
+from ..model.graph.graph import ReliabilityGraph
+from ..model.graph.dist import Dist
+from ..model.eventsourcing.events import SnapshotEvent 
+from ..model.eventsourcing.service import GraphES
 from ..services.remote.cloud import CloudClient
 from ..services.cache.event_store import EventStore
 
-from ..domain.eventsourcing.events import event_from_dict
+from ..model.eventsourcing.events import event_from_dict
 
 from ..services.failure import FailuresService
 from ..services.cache.repositories.failures import FailuresCacheRepo

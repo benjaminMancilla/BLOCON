@@ -2,9 +2,9 @@ from __future__ import annotations
 from typing import List, Optional
 
 from .event_log import EventLogRepo
-from ....domain.eventsourcing.events import Event
-from ....domain.eventsourcing.ports import EventStorePort
-from ....domain.eventsourcing.in_memory_store import InMemoryEventStore
+from ....model.eventsourcing.events import Event
+from ....model.eventsourcing.ports import EventStorePort
+from ....model.eventsourcing.in_memory_store import InMemoryEventStore
 
 
 class JsonlEventStore(EventStorePort):

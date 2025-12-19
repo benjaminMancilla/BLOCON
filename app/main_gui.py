@@ -1,8 +1,8 @@
 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from src.domain.graph.graph import ReliabilityGraph
-from src.domain.eventsourcing.service import GraphES
+from src.model.graph.graph import ReliabilityGraph
+from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.ui.gui import run_gui

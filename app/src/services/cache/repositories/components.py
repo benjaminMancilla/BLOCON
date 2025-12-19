@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
-from ..cache import load_cache, save_cache, upsert_many, failures_cache_path
+from ..cache import load_cache, save_cache, upsert_many
 
 class ComponentsCacheRepo:
     """

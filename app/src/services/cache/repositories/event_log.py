@@ -4,7 +4,7 @@ from dataclasses import asdict, is_dataclass
 from typing import List
 
 from .jsonl import JsonlRepo
-from ....domain.eventsourcing.events import Event, event_from_dict  # ajusta el import según tu árbol real
+from ....model.eventsourcing.events import Event, event_from_dict  # ajusta el import según tu árbol real
 
 
 def _event_to_dict(ev: Event) -> dict:
