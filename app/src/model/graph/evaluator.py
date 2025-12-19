@@ -5,6 +5,7 @@ from .dist import has_enough_records
 
 if TYPE_CHECKING:
     from .graph import ReliabilityGraph
+    from ..failure.ports import FailuresCachePort
 
 class ReliabilityEvaluator:
     """Separa la lógica de evaluación del grafo"""
@@ -12,6 +13,7 @@ class ReliabilityEvaluator:
     def __init__(self, graph: 'ReliabilityGraph'):
         self.graph = graph
         self.project_root: Optional[str] = None
+        self.failures_cache: Optional["FailuresCachePort"] = None
     
     def set_project_root(self, root: Optional[str]):
         self.project_root = root
@@ -53,13 +55,17 @@ class ReliabilityEvaluator:
         
         # Check records
         try:
-            enough = has_enough_records(node_id, self.project_root)
+            enough = has_enough_records(node_id, self.project_root, cache=self.failures_cache)
             node.conflict = not enough
         except Exception:
             node.conflict = False
         
-        return node.dist.reliability(node_id, datetime.today(), 
-                                    project_root=self.project_root)
+        return node.dist.reliability(
+            node_id,
+            datetime.today(),
+            project_root=self.project_root,
+            cache=self.failures_cache,
+        )
     
     def _eval_gate(self, node: Node, node_id: str, 
                    memo: Dict[str, float]) -> float:

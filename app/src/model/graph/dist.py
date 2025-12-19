@@ -4,7 +4,8 @@ from typing import Dict, Literal, Optional, List, Tuple, Union
 import math
 from datetime import datetime, date
 
-from ..failure import MIN_INTERVALS_FOR_OPT, load_failures_cache
+from ..failure.failure import MIN_INTERVALS_FOR_OPT, load_failures_cache
+from ..failure.ports import FailuresCachePort
 
 FALLBACK_R: float = 0.99
 
@@ -35,10 +36,14 @@ def _days_between(a: datetime, b: datetime) -> float:
 
 # ------------------ lectura historial ------------------
 
-def _get_sorted_fail_dates(comp_id: str, project_root: Optional[str]) -> List[datetime]:
+def _get_sorted_fail_dates(
+    comp_id: str,
+    project_root: Optional[str],
+    cache: Optional[FailuresCachePort],
+) -> List[datetime]:
     """Toma el cache de fallas y retorna las fechas del componente ordenadas asc."""
-    cache = load_failures_cache(project_root or ".")
-    items = (cache.get("items") or {}).get(comp_id, {})
+    cache_data = load_failures_cache(project_root, cache=cache)
+    items = (cache_data.get("items") or {}).get(comp_id, {})
     rows = items.get("rows", [])  # lista de [fecha, tipo]
     out: List[datetime] = []
     for tup in rows:
@@ -56,9 +61,13 @@ def _get_sorted_fail_dates(comp_id: str, project_root: Optional[str]) -> List[da
     out.sort()
     return out
 
-def _build_edad_delta(comp_id: str, project_root: Optional[str]) -> Tuple[List[float], List[int], List[datetime]]:
-    cache = load_failures_cache(project_root or ".")
-    items = (cache.get("items") or {}).get(comp_id, {})
+def _build_edad_delta(
+    comp_id: str,
+    project_root: Optional[str],
+    cache: Optional[FailuresCachePort],
+) -> Tuple[List[float], List[int], List[datetime]]:
+    cache_data = load_failures_cache(project_root, cache=cache)
+    items = (cache_data.get("items") or {}).get(comp_id, {})
     rows = items.get("rows", [])
     
     tmp: List[Tuple[datetime, str]] = []
@@ -97,8 +106,14 @@ def _build_edad_delta(comp_id: str, project_root: Optional[str]) -> Tuple[List[f
     
     return edad, delta, fechas_filtradas
 
-def has_enough_records(comp_id: str, project_root: Optional[str], min_points: int = MIN_INTERVALS_FOR_OPT) -> bool:
-    edad, delta, _ = _build_edad_delta(comp_id, project_root)
+def has_enough_records(
+    comp_id: str,
+    project_root: Optional[str],
+    min_points: int = MIN_INTERVALS_FOR_OPT,
+    *,
+    cache: Optional[FailuresCachePort] = None,
+) -> bool:
+    edad, delta, _ = _build_edad_delta(comp_id, project_root, cache)
     return len(edad) >= min_points
 
 # ------------------ máxima verosimilitud ------------------
@@ -183,6 +198,8 @@ def optimize_curve_params(
     comp_id: str,
     project_root: Optional[str] = None,
     min_points: int = MIN_INTERVALS_FOR_OPT,
+    *,
+    cache: Optional[FailuresCachePort] = None,
 ) -> Optional[Dict[str, float]]:
     """
     Estima parámetros a partir del historial de fallas del componente.
@@ -190,7 +207,7 @@ def optimize_curve_params(
     - Exponential → {'lambda': ...}
     - Weibull     → {'eta': ..., 'beta': ...}
     """
-    edad, delta, _ = _build_edad_delta(comp_id, project_root)
+    edad, delta, _ = _build_edad_delta(comp_id, project_root, cache)
     if len(edad) < min_points:
         print(f"Not enough data points for optimization for component: {comp_id} (have {len(edad)}, need {min_points})")
         return None
@@ -208,7 +225,14 @@ def optimize_curve_params(
 class Dist:
     kind: Literal["exponential", "weibull"]
 
-    def reliability(self, comp_id: str, t: Union[datetime, date, str, float, int], project_root: Optional[str] = None) -> float:
+    def reliability(
+        self,
+        comp_id: str,
+        t: Union[datetime, date, str, float, int],
+        project_root: Optional[str] = None,
+        *,
+        cache: Optional[FailuresCachePort] = None,
+    ) -> float:
         """
         R(t) evaluada para `comp_id`.
         - Si t es fecha/str: se interpreta como 'fecha de evaluación' y se usa
@@ -222,7 +246,7 @@ class Dist:
             edad_dias = float(t)
         else:
             # buscar última falla
-            fechas = _get_sorted_fail_dates(comp_id, project_root)
+            fechas = _get_sorted_fail_dates(comp_id, project_root, cache=cache)
             if not fechas:
                 print("No failure records found for component:", comp_id)
                 return float(FALLBACK_R)
@@ -233,7 +257,7 @@ class Dist:
                 return 1.0
 
         # 2) obtener parámetros
-        params = optimize_curve_params(self.kind, comp_id, project_root=project_root)
+        params = optimize_curve_params(self.kind, comp_id, project_root=project_root, cache=cache)
         if params is None:
             print("Not enough data to optimize parameters for component:", comp_id)
             return float(FALLBACK_R)

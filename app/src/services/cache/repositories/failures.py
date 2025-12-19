@@ -27,6 +27,14 @@ class FailuresCacheRepo:
         text = json.dumps(data if isinstance(data, dict) else {}, ensure_ascii=False, indent=2)
         _atomic_write_text(self.path, text)
 
+    def load_failures_cache(self, project_root: str | None = None) -> Dict[str, Any]:
+        _ = project_root
+        return self.load()
+
+    def save_failures_cache(self, cache: Dict[str, Any], project_root: str | None = None) -> None:
+        _ = project_root
+        self.save(cache)
+
     def _rows_for_component(self, entry: Any) -> List[Any]:
         # soporta:
         # - {"rows": [...], "last_update": "..."}

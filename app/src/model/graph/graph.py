@@ -5,6 +5,7 @@ from .dist import Dist
 from .evaluator import ReliabilityEvaluator
 from .serializer import GraphSerializer
 from .validator import GraphValidator
+from ..failure.ports import FailuresCachePort
 
 GateType = Literal["AND", "OR", "KOON"]
 RelType = Literal["series", "parallel", "koon"]
@@ -34,6 +35,8 @@ class ReliabilityGraph:
         
         # Backward compatibility: allow external code to set project_root
         self.project_root: Optional[str] = None
+
+        self.failures_cache: Optional[FailuresCachePort] = None
 
     # PUBLIC API - Core graph operations
 
@@ -252,6 +255,7 @@ class ReliabilityGraph:
         """
         # Set project_root in evaluator for proper cache access
         self._evaluator.project_root = getattr(self, "project_root", None)
+        self._evaluator.failures_cache = getattr(self, "failures_cache", None)
         
         result = self._evaluator.evaluate()
         self.reliability_total = result

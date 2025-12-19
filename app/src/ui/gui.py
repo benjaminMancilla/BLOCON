@@ -449,6 +449,7 @@ class ReliabilityGUI(tk.Tk):
             print("ensure_min_records failed:", e)
         try:
             g.project_root = self._project_root()
+            g.failures_cache = self._failures.local_repo
             r = self.es.evaluate()
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -518,6 +519,7 @@ class ReliabilityGUI(tk.Tk):
             # 2) Snapshot → reconstrucción del grafo
             snap = cloud.load_snapshot() or {}
             g = ReliabilityGraph.from_data(snap)
+            g.failures_cache = self._failures.local_repo
 
             # Completar unit_type desde cache local (AppData)
             try:
@@ -556,6 +558,7 @@ class ReliabilityGUI(tk.Tk):
             # 1) Evaluar para asegurar que 'reliability' y 'conflict' estén actualizados en el snapshot
             try:
                 g.project_root = self._project_root()
+                g.failures_cache = self._failures.local_repo
                 self.es.evaluate()
             except Exception:
                 pass
@@ -626,6 +629,7 @@ class ReliabilityGUI(tk.Tk):
             # 3) Re-evaluar para reflejar flags de 'conflict' y porcentajes en UI
             try:
                 g.project_root = self._project_root()
+                g.failures_cache = self._failures.local_repo
                 self.es.evaluate()
             except Exception:
                 pass
