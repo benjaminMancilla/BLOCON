@@ -40,7 +40,6 @@ const H_SPACING = 56;
 const V_SPACING = 32;
 const GATE_PADDING_Y = 36;
 const RAIL_PADDING = 64;
-const RAIL_GAP = 24;
 const LAYOUT_PADDING = 96;
 
 const normalizeSubtype = (node: GraphNode | undefined) =>
@@ -190,10 +189,13 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
           .map((child) => sizeCache.get(child)?.height ?? COMPONENT_SIZE.height)
           .reduce((acc, value) => acc + value, 0) +
         V_SPACING * (children.length - 1);
-      const railXLeft = originX + (RAIL_PADDING - RAIL_GAP);
-      const railXRight = originX + size.width - (RAIL_PADDING - RAIL_GAP);
+      
+      // Rails en los bordes del nodo (sin padding interno)
+      const railXLeft = originX;
+      const railXRight = originX + size.width;
       const railYTop = originY + GATE_LABEL_SIZE.height + GATE_PADDING_Y;
       const railYBottom = railYTop + totalChildrenHeight;
+      
       layoutLines.push({
         x1: railXLeft,
         y1: railYTop,
@@ -212,7 +214,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       setAnchor(nodeId, {
         leftX: railXLeft,
         rightX: railXRight,
-        centerY: railYTop + totalChildrenHeight / 2,
+        centerY: originY + size.height / 2,
       });
 
       let cursorY = railYTop;
@@ -221,28 +223,36 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
         const childX = originX + (size.width - childSize.width) / 2;
         const childY = cursorY;
         place(childId, childX, childY, new Set(stack));
-        const childAnchor = anchorMap.get(childId);
+        
+        const midY = childY + childSize.height / 2;
+        
+        // Determinar posiciones de conexión según el tipo de hijo
         const childNode = nodeMap.get(childId);
         const childSubtype = normalizeSubtype(childNode);
-        const midY =
-          childAnchor?.centerY ?? childY + childSize.height / 2;
-        const leftX = childAnchor?.leftX ?? childX;
-        const rightX = childAnchor?.rightX ?? childX + childSize.width;
-        const centerX = (leftX + rightX) / 2;
-        const targetX =
-          childNode?.type === "gate" &&
-          (childSubtype === "or" || childSubtype === "koon")
-            ? centerX
-            : undefined;
+        const childAnchor = anchorMap.get(childId);
+        
+        let leftX: number;
+        let rightX: number;
+        
+        // Para OR/KOON: usar anchors (apuntan a los rails)
+        // Para AND o componentes: usar posiciones visuales
+        if (childNode?.type === "gate" && (childSubtype === "or" || childSubtype === "koon")) {
+          leftX = childAnchor?.leftX ?? childX;
+          rightX = childAnchor?.rightX ?? childX + childSize.width;
+        } else {
+          leftX = childX;
+          rightX = childX + childSize.width;
+        }
+        
         layoutLines.push({
           x1: railXLeft,
           y1: midY,
-          x2: targetX ?? leftX,
+          x2: leftX,
           y2: midY,
           kind: "connector",
         });
         layoutLines.push({
-          x1: targetX ?? rightX,
+          x1: rightX,
           y1: midY,
           x2: railXRight,
           y2: midY,
