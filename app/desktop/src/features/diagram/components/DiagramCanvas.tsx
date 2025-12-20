@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { DiagramComponentNode } from "./DiagramComponentNode";
 import { DiagramGateNode } from "./DiagramGateNode";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
@@ -14,6 +14,20 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
   const { graph, status, errorMessage } = useDiagramGraph();
   const layout = useMemo(() => buildDiagramLayout(graph), [graph]);
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
+  const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
+  const gateAreasById = useMemo(
+    () => new Map(layout.gateAreas.map((area) => [area.id, area])),
+    [layout.gateAreas]
+  );
+  const parentGateId = hoveredGateId
+    ? gateAreasById.get(hoveredGateId)?.parentId ?? null
+    : null;
+  const visibleGateIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (hoveredGateId) ids.add(hoveredGateId);
+    if (parentGateId) ids.add(parentGateId);
+    return ids;
+  }, [hoveredGateId, parentGateId]);
 
   return (
     <section className="diagram-canvas" aria-label={label}>
@@ -40,7 +54,24 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
             <div
               className="diagram-canvas__diagram"
               style={{ width: layout.width, height: layout.height }}
+              onPointerLeave={() => setHoveredGateId(null)}
             >
+              {layout.gateAreas.map((area) => (
+                <div
+                  key={`gate-area-${area.id}`}
+                  className="diagram-gate-area"
+                  style={{
+                    left: area.x,
+                    top: area.y,
+                    width: area.width,
+                    height: area.height,
+                    zIndex: area.depth + 1,
+                  }}
+                  onPointerEnter={() => setHoveredGateId(area.id)}
+                  onPointerLeave={() => setHoveredGateId(null)}
+                  aria-hidden="true"
+                />
+              ))}
               <svg
                 className="diagram-canvas__edges"
                 width={layout.width}
@@ -63,7 +94,11 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                 node.type === "component" ? (
                   <DiagramComponentNode key={node.id} node={node} />
                 ) : (
-                  <DiagramGateNode key={node.id} node={node} />
+                  <DiagramGateNode
+                    key={node.id}
+                    node={node}
+                    isLabelVisible={visibleGateIds.has(node.id)}
+                  />
                 )
               )}
             </div>

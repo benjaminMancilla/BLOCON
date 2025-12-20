@@ -22,9 +22,20 @@ export type DiagramLayoutLine = {
   kind: "series" | "rail" | "connector";
 };
 
+export type DiagramGateArea = {
+  id: string;
+  parentId: string | null;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  depth: number;
+};
+
 type LayoutResult = {
   nodes: DiagramLayoutNode[];
   lines: DiagramLayoutLine[];
+  gateAreas: DiagramGateArea[];
   width: number;
   height: number;
 };
@@ -59,7 +70,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
 
   const rootId = graph.root ?? graph.nodes[0]?.id ?? null;
   if (!rootId) {
-    return { nodes: [], lines: [], width: 0, height: 0 };
+    return { nodes: [], lines: [], gateAreas: [], width: 0, height: 0 };
   }
 
   const sizeCache = new Map<string, Size>();
@@ -117,6 +128,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
 
   const layoutNodes: DiagramLayoutNode[] = [];
   const layoutLines: DiagramLayoutLine[] = [];
+  const gateAreas: DiagramGateArea[] = [];
   const anchorMap = new Map<
     string,
     { leftX: number; rightX: number; centerY: number }
@@ -133,7 +145,9 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
     nodeId: string,
     originX: number,
     originY: number,
-    stack = new Set<string>()
+    stack = new Set<string>(),
+    depth = 0,
+    parentGateId: string | null = null
   ) => {
     if (stack.has(nodeId)) return;
     stack.add(nodeId);
@@ -159,6 +173,16 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       });
       return;
     }
+
+    gateAreas.push({
+      id: nodeId,
+      parentId: parentGateId,
+      x: originX,
+      y: originY,
+      width: size.width,
+      height: size.height,
+      depth,
+    });
 
     const children = childrenMap.get(nodeId) ?? [];
     layoutNodes.push({
@@ -222,12 +246,19 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
         const childSize = sizeCache.get(childId) ?? COMPONENT_SIZE;
         const childX = originX + (size.width - childSize.width) / 2;
         const childY = cursorY;
-        place(childId, childX, childY, new Set(stack));
+        const childNode = nodeMap.get(childId);
+        place(
+          childId,
+          childX,
+          childY,
+          new Set(stack),
+          depth + 1,
+          childNode?.type === "gate" ? nodeId : null
+        );
         
         const midY = childY + childSize.height / 2;
         
         // Determinar posiciones de conexión según el tipo de hijo
-        const childNode = nodeMap.get(childId);
         const childSubtype = normalizeSubtype(childNode);
         const childAnchor = anchorMap.get(childId);
         
@@ -278,7 +309,15 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
         GATE_LABEL_SIZE.height +
         GATE_PADDING_Y +
         (maxChildHeight - childSize.height) / 2;
-      place(childId, cursorX, childY, new Set(stack));
+      const childNode = nodeMap.get(childId);
+      place(
+        childId,
+        cursorX,
+        childY,
+        new Set(stack),
+        depth + 1,
+        childNode?.type === "gate" ? nodeId : null
+      );
       const nextAnchor = anchorMap.get(childId) ?? {
         leftX: cursorX,
         rightX: cursorX + childSize.width,
@@ -328,6 +367,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
   return {
     nodes: layoutNodes,
     lines: layoutLines,
+    gateAreas,
     width,
     height,
   };

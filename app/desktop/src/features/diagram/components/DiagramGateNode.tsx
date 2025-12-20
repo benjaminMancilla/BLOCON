@@ -2,6 +2,7 @@ import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 
 type DiagramGateNodeProps = {
   node: DiagramLayoutNode;
+  isLabelVisible: boolean;
 };
 
 const formatGateLabel = (node: DiagramLayoutNode) => {
@@ -9,7 +10,10 @@ const formatGateLabel = (node: DiagramLayoutNode) => {
   return `${node.id} <${subtype}>`;
 };
 
-export const DiagramGateNode = ({ node }: DiagramGateNodeProps) => {
+export const DiagramGateNode = ({
+  node,
+  isLabelVisible,
+}: DiagramGateNodeProps) => {
   const isKoon = node.subtype?.toLowerCase() === "koon";
   const koonLabel =
     node.childCount !== undefined
@@ -18,7 +22,8 @@ export const DiagramGateNode = ({ node }: DiagramGateNodeProps) => {
 
   return (
     <div
-      className="diagram-node diagram-node--gate"
+      className={`diagram-node diagram-node--gate${isLabelVisible ? 
+        " diagram-node--gate-visible" : ""}`}
       style={{
         left: node.x,
         top: node.y,

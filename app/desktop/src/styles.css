@@ -233,6 +233,19 @@ body {
   flex-direction: row;
   gap: 8px;
   padding: 4px 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.diagram-node--gate-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.diagram-gate-area {
+  position: absolute;
+  background: transparent;
 }
 
 .diagram-gate__badge {
