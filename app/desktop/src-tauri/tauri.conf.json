@@ -1,0 +1,34 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "BLOCON Desktop",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      }
+    },
+    "windows": [
+      {
+        "title": "BLOCON Desktop",
+        "width": 1200,
+        "height": 900
+      }
+    ],
+    "bundle": {
+      "active": true,
+      "identifier": "com.blocon.desktop",
+      "externalBin": ["bin/api_server"],
+      "icon": ["icons/icon.ico", "icons/icon.png"]
+    }
+  }
+}
