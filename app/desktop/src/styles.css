@@ -126,3 +126,122 @@ body {
   font-weight: 600;
   background: #ffffff;
 }
+
+.diagram-canvas__diagram {
+  position: relative;
+}
+
+.diagram-canvas__edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.diagram-edge {
+  stroke: #1f2937;
+  stroke-width: 1.5;
+}
+
+.diagram-edge--rail {
+  stroke-width: 2;
+}
+
+.diagram-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 2px solid #0a5fb8;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  text-align: center;
+  gap: 6px;
+  padding: 10px 16px;
+}
+
+.diagram-node--component {
+  background: #1e90ff;
+  color: #ffffff;
+  border-color: #0a5fb8;
+}
+
+.diagram-node__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.diagram-node__meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.diagram-node__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.diagram-node__meta-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+.diagram-node__reliability {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diagram-node__reliability-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.diagram-node__reliability-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.diagram-node--gate {
+  background: #f0f6ff;
+  color: #0a5fb8;
+  border-color: #0a5fb8;
+  border-radius: 999px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-direction: row;
+  gap: 8px;
+  padding: 4px 12px;
+}
+
+.diagram-gate__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1e90ff;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+}
