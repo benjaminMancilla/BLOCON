@@ -2,6 +2,8 @@ import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 
 type DiagramComponentNodeProps = {
   node: DiagramLayoutNode;
+  onHoverStart?: (gateId: string | null) => void;
+  onHoverEnd?: () => void;
 };
 
 const formatReliability = (reliability?: number | null) => {
@@ -19,7 +21,11 @@ const renderDistIcon = (distKind?: string | null) => {
   return <span className="diagram-node__icon">λ</span>;
 };
 
-export const DiagramComponentNode = ({ node }: DiagramComponentNodeProps) => {
+export const DiagramComponentNode = ({
+  node,
+  onHoverStart,
+  onHoverEnd,
+}: DiagramComponentNodeProps) => {
   return (
     <div
       className="diagram-node diagram-node--component"
@@ -30,6 +36,8 @@ export const DiagramComponentNode = ({ node }: DiagramComponentNodeProps) => {
         height: node.height,
       }}
       data-node-id={node.id}
+      onPointerEnter={() => onHoverStart?.(node.parentGateId ?? null)}
+      onPointerLeave={() => onHoverEnd?.()}
     >
       <div className="diagram-node__title">{node.id}</div>
       <div className="diagram-node__meta">

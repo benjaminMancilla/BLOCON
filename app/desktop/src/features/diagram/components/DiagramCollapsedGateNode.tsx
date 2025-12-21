@@ -5,6 +5,8 @@ import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 type DiagramCollapsedGateNodeProps = {
   node: DiagramLayoutNode;
   onExpand: (gateId: string) => void;
+  onHoverStart?: (gateId: string | null) => void;
+  onHoverEnd?: () => void;
 };
 
 const formatGateMeta = (node: DiagramLayoutNode) => {
@@ -26,6 +28,8 @@ const formatGateMeta = (node: DiagramLayoutNode) => {
 export const DiagramCollapsedGateNode = ({
   node,
   onExpand,
+  onHoverStart,
+  onHoverEnd,
 }: DiagramCollapsedGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -42,6 +46,8 @@ export const DiagramCollapsedGateNode = ({
         ...colorVars,
       }}
       data-node-id={node.id}
+      onPointerEnter={() => onHoverStart?.(node.parentGateId ?? null)}
+      onPointerLeave={() => onHoverEnd?.()}
     >
       <button
         type="button"

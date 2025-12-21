@@ -6,6 +6,7 @@ export type DiagramLayoutNode = {
   subtype?: string | null;
   k?: number | null;
   color?: string | null;
+  parentGateId?: string | null;
   x: number;
   y: number;
   width: number;
@@ -170,6 +171,7 @@ export const buildDiagramLayout = (
       layoutNodes.push({
         id: nodeId,
         type: "component",
+        parentGateId,
         x: originX,
         y: originY,
         width: size.width,
@@ -192,6 +194,7 @@ export const buildDiagramLayout = (
         k: node.k ?? null,
         color: node.color ?? null,
         childCount: childrenMap.get(nodeId)?.length ?? 0,
+        parentGateId,
         x: originX,
         y: originY,
         width: size.width,
@@ -226,6 +229,7 @@ export const buildDiagramLayout = (
       k: node.k ?? null,
       color: node.color ?? null,
       childCount: children.length,
+      parentGateId,
       x: originX + (size.width - GATE_LABEL_SIZE.width) / 2,
       y: originY,
       width: GATE_LABEL_SIZE.width,
@@ -295,7 +299,7 @@ export const buildDiagramLayout = (
           childY,
           new Set(stack),
           depth + 1,
-          childNode?.type === "gate" ? nodeId : null
+          nodeId
         );
         
         const midY = childY + childSize.height / 2;
@@ -386,14 +390,13 @@ export const buildDiagramLayout = (
     children.forEach((childId) => {
       const childSize = sizeCache.get(childId) ?? COMPONENT_SIZE;
       const childY = baselineY - getAnchorOffset(childId);
-      const childNode = nodeMap.get(childId);
       place(
         childId,
         cursorX,
         childY,
         new Set(stack),
         depth + 1,
-        childNode?.type === "gate" ? nodeId : null
+        nodeId
       );
       const nextAnchor = anchorMap.get(childId) ?? {
         leftX: cursorX,

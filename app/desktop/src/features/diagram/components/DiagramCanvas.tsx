@@ -134,9 +134,16 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                       key={node.id}
                       node={node}
                       onExpand={expandGate}
+                      onHoverStart={setHoveredGateId}
+                      onHoverEnd={() => setHoveredGateId(null)}
                     />
                   ) : (
-                    <DiagramComponentNode key={node.id} node={node} />
+                    <DiagramComponentNode
+                      key={node.id}
+                      node={node}
+                      onHoverStart={setHoveredGateId}
+                      onHoverEnd={() => setHoveredGateId(null)}
+                    />
                   )
                 ) : (
                   <DiagramGateNode
