@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional, List
 from ..graph.graph import ReliabilityGraph
-from ..graph.node import Node
+from ..graph.node import ComponentNode
 from ..graph.dist import Dist
 from .events import (
     Event, SnapshotEvent, AddComponentRelativeEvent, RemoveNodeEvent,
@@ -68,7 +68,7 @@ class GraphES:
     # ---------- Mutadores + registro de eventos (sin params, sólo kind) ----------
 
     def add_root_component(self, new_id: str, dist: Dist, unit_type: str | None = None) -> None:
-        self.graph.add_node(Node(id=new_id, type="component", dist=dist, unit_type=unit_type))
+        self.graph.add_node(ComponentNode(id=new_id, dist=dist, unit_type=unit_type))
         if self.store:
             self.store.append(AddRootComponentEvent.create(
                 new_comp_id=new_id,
@@ -162,9 +162,8 @@ class GraphES:
                 d = ev.dist or {}
                 kind = d.get("kind", "exponential")
                 dist = Dist(kind=kind)
-                g.add_node(Node(
+                g.add_node(ComponentNode(
                     id=ev.new_comp_id,
-                    type="component",
                     dist=dist,
                     unit_type=getattr(ev, 'unit_type', None)
                 ))
@@ -202,4 +201,3 @@ class GraphES:
                 except KeyError:
                     pass
         return g
-

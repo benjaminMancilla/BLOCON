@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING, Dict, Any
-from .node import Node
+from .node import Node, ComponentNode, create_gate_node
 
 if TYPE_CHECKING:
     from .graph import ReliabilityGraph
@@ -28,24 +28,8 @@ class GraphSerializer:
     
     @staticmethod
     def _serialize_node(node_id: str, node: Node) -> Dict[str, Any]:
-        data = {"id": node_id, "type": node.type}
-        
-        if node.is_gate():
-            data.update({
-                "subtype": node.subtype,
-                "k": node.k
-            })
-        elif node.is_component():
-            data.update({
-                "unit_type": node.unit_type,
-                "dist": {"kind": node.dist.kind} if node.dist else None
-            })
-            if node.conflict:
-                data["conflict"] = True
-        
-        if node.reliability is not None:
-            data["reliability"] = node.reliability
-        
+        data = node.to_dict()
+        data["id"] = node_id
         return data
     
     @staticmethod
@@ -65,9 +49,8 @@ class GraphSerializer:
                 if dist:
                     d = Dist(kind=dist["kind"])
                 
-                node = Node(
+                node = ComponentNode(
                     id=nd["id"],
-                    type="component",
                     dist=d,
                     unit_type=nd.get("unit_type")
                 )
@@ -81,12 +64,14 @@ class GraphSerializer:
                 g.nodes[nd["id"]].conflict = bool(nd.get("conflict", False))
                 
             elif nd["type"] == "gate":
-                node = Node(
-                    id=nd["id"],
-                    type="gate",
-                    subtype=nd.get("subtype"),
-                    k=nd.get("k")
-                )
+                subtype = nd.get("subtype", "AND")
+                gate_kwargs: Dict[str, Any] = {
+                    "name": nd.get("name"),
+                    "label": nd.get("label"),
+                }
+                if subtype == "KOON":
+                    gate_kwargs["k"] = nd.get("k") or 1
+                node = create_gate_node(subtype, nd["id"], **gate_kwargs)
                 g.add_node(node)
                 
                 # Restore reliability if present

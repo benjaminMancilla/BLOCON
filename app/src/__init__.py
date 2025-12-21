@@ -1,6 +1,6 @@
 
 from .model.graph.dist import Dist
-from .model.graph.node import Node
+from .model.graph.node import Node, ComponentNode, GateNode
 from .model.graph.graph import ReliabilityGraph
 from .model.eventsourcing.events import (
     BaseEvent, SnapshotEvent, AddComponentRelativeEvent, RemoveNodeEvent,
