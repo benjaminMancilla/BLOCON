@@ -5,6 +5,7 @@ import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 type DiagramGateNodeProps = {
   node: DiagramLayoutNode;
   isLabelVisible: boolean;
+  onCollapse: (gateId: string) => void;
 };
 
 const formatGateLabel = (node: DiagramLayoutNode) => {
@@ -15,6 +16,7 @@ const formatGateLabel = (node: DiagramLayoutNode) => {
 export const DiagramGateNode = ({
   node,
   isLabelVisible,
+  onCollapse,
 }: DiagramGateNodeProps) => {
   const isKoon = node.subtype?.toLowerCase() === "koon";
   const koonLabel =
@@ -37,7 +39,14 @@ export const DiagramGateNode = ({
       }}
       data-node-id={node.id}
     >
-      <span className="diagram-gate__label">{formatGateLabel(node)}</span>
+      <button
+        type="button"
+        className="diagram-gate__label"
+        onClick={() => onCollapse(node.id)}
+        aria-label={`Colapsar gate ${node.id}`}
+      >
+        {formatGateLabel(node)}
+      </button>
       {isKoon && <span className="diagram-gate__badge">{koonLabel}</span>}
     </div>
   );

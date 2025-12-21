@@ -13,6 +13,7 @@ export type DiagramLayoutNode = {
   distKind?: string | null;
   reliability?: number | null;
   childCount?: number;
+  isCollapsed?: boolean;
 };
 
 export type DiagramLayoutLine = {
@@ -59,7 +60,10 @@ const LAYOUT_PADDING = 96;
 const normalizeSubtype = (node: GraphNode | undefined) =>
   node?.subtype?.toLowerCase() ?? "and";
 
-export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
+export const buildDiagramLayout = (
+  graph: GraphData,
+  collapsedGateIds?: Set<string>
+): LayoutResult => {
   const nodeMap = new Map<string, GraphNode>(
     graph.nodes.map((node) => [node.id, node])
   );
@@ -88,6 +92,10 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
 
     const node = nodeMap.get(nodeId);
     if (!node || node.type !== "gate") {
+      sizeCache.set(nodeId, COMPONENT_SIZE);
+      return COMPONENT_SIZE;
+    }
+    if (collapsedGateIds?.has(nodeId)) {
       sizeCache.set(nodeId, COMPONENT_SIZE);
       return COMPONENT_SIZE;
     }
@@ -168,6 +176,27 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
         height: size.height,
         distKind: node?.dist?.kind ?? null,
         reliability: node?.reliability ?? null,
+      });
+      setAnchor(nodeId, {
+        leftX: originX,
+        rightX: originX + size.width,
+        centerY: originY + size.height / 2,
+      });
+      return;
+    }
+    if (collapsedGateIds?.has(nodeId)) {
+      layoutNodes.push({
+        id: nodeId,
+        type: "component",
+        subtype: node.subtype ?? null,
+        k: node.k ?? null,
+        color: node.color ?? null,
+        childCount: childrenMap.get(nodeId)?.length ?? 0,
+        x: originX,
+        y: originY,
+        width: size.width,
+        height: size.height,
+        isCollapsed: true,
       });
       setAnchor(nodeId, {
         leftX: originX,

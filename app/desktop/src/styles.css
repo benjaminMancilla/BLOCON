@@ -173,6 +173,19 @@ body {
   border-color: #0a5fb8;
 }
 
+.diagram-node--collapsed-gate {
+  background: var(--gate-color-soft, #eef5ff);
+  color: var(--gate-color, #0a5fb8);
+  border-color: var(--gate-color-border, #0a5fb8);
+  box-shadow: 0 10px 22px var(--gate-color-shadow, rgba(15, 23, 42, 0.12));
+}
+
+.diagram-node--collapsed-gate .diagram-node__icon {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: var(--gate-color-border, rgba(15, 23, 42, 0.2));
+  color: var(--gate-color, #0a5fb8);
+}
+
 .diagram-node__title {
   font-weight: 600;
   font-size: 0.95rem;
@@ -248,6 +261,15 @@ body {
   pointer-events: auto;
 }
 
+.diagram-gate__label {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .diagram-gate-area {
   position: absolute;
   background: transparent;
@@ -278,4 +300,24 @@ body {
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 0.7rem;
+}
+
+.diagram-node__expand {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--gate-color-border, rgba(15, 23, 42, 0.2));
+  background: #ffffff;
+  color: var(--gate-color, #0a5fb8);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+}
+
+.diagram-node__collapsed-label {
+  font-size: 0.85rem;
+  font-weight: 600;
 }

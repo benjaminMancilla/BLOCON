@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { DiagramComponentNode } from "./DiagramComponentNode";
+import { DiagramCollapsedGateNode } from "./DiagramCollapsedGateNode";
 import { CSSProperties } from "react";
 import { DiagramGateNode } from "./DiagramGateNode";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
 import { useDiagramGraph } from "../hooks/useDiagramGraph";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
+import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
 type DiagramCanvasProps = {
@@ -14,7 +16,11 @@ type DiagramCanvasProps = {
 export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
   const { cameraStyle, handlers } = useDiagramCamera();
   const { graph, status, errorMessage } = useDiagramGraph();
-  const layout = useMemo(() => buildDiagramLayout(graph), [graph]);
+  const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
+  const layout = useMemo(
+    () => buildDiagramLayout(graph, collapsedGateIdSet),
+    [graph, collapsedGateIdSet]
+  );
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
   const gateAreasById = useMemo(
@@ -123,12 +129,21 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
               </svg>      
               {layout.nodes.map((node) =>
                 node.type === "component" ? (
-                  <DiagramComponentNode key={node.id} node={node} />
+                  node.isCollapsed ? (
+                    <DiagramCollapsedGateNode
+                      key={node.id}
+                      node={node}
+                      onExpand={expandGate}
+                    />
+                  ) : (
+                    <DiagramComponentNode key={node.id} node={node} />
+                  )
                 ) : (
                   <DiagramGateNode
                     key={node.id}
                     node={node}
                     isLabelVisible={visibleGateIds.has(node.id)}
+                    onCollapse={collapseGate}
                   />
                 )
               )}
