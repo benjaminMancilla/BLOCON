@@ -10,7 +10,8 @@ from .repositories import (
     FailuresCacheRepo,
     JsonRepo,
     JsonlRepo,
-    DraftRepo
+    DraftRepo,
+    DiagramViewRepo,
 )
 
 
@@ -57,6 +58,7 @@ class LocalWorkspaceStore:
         self.components_cache = ComponentsCacheRepo(data_dir=self.cache_dir)
         self.failures_cache = FailuresCacheRepo(data_dir=self.cache_dir)
         self.draft = DraftRepo(data_dir=self.data_dir)
+        self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
 
     # --- snapshot ---
     def load_snapshot(self) -> Dict[str, Any]:
@@ -104,6 +106,14 @@ class LocalWorkspaceStore:
 
     def save_failures_cache(self, data: Dict[str, Any]) -> None:
         self.failures_cache.save(data)
+    
+        # --- diagram view ---
+    def load_diagram_view(self) -> Dict[str, Any]:
+        view = self.diagram_view.load()
+        return view if isinstance(view, dict) else {"collapsedGateIds": []}
+
+    def save_diagram_view(self, view: Dict[str, Any]) -> None:
+        self.diagram_view.save(view or {})
 
     # --- components (fallback local) ---
     def fetch_components(self, ids: List[str]) -> Dict[str, Dict[str, Any]]:

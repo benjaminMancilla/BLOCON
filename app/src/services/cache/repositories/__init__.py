@@ -5,6 +5,7 @@ from .jsonl import JsonlRepo
 from .draft import DraftRepo
 from .event_log import EventLogRepo
 from .event_store_jsonl import JsonlEventStore
+from .diagram_view import DiagramViewRepo
 
 __all__ = [
     "ComponentsCacheRepo",
@@ -14,4 +15,5 @@ __all__ = [
     "DraftRepo",
     "EventLogRepo",
     "EventStoreJsonlRepo",
+    "DiagramViewRepo",
 ]

@@ -16,8 +16,8 @@ HOST = "127.0.0.1"
 PORT = 8000
 
 
-def build_graph_es() -> GraphES:
-    local = LocalWorkspaceStore()
+def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
+    local = local or LocalWorkspaceStore()
     store = EventStore(local)
     snapshot = local.load_snapshot()
     if snapshot:
@@ -29,10 +29,11 @@ def build_graph_es() -> GraphES:
 
 class GraphRequestHandler(BaseHTTPRequestHandler):
     es: GraphES
+    local: LocalWorkspaceStore
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, status_code: int, payload: dict) -> None:
@@ -48,6 +49,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self._send_cors_headers()
         self.end_headers()
+
+    def _read_json_body(self) -> dict | None:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0:
+                return None
+            raw = self.rfile.read(length)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return None            
 
     def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         parsed = urlparse(self.path)
@@ -72,13 +86,34 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, node_data)
             return
+        
+        if path == "/diagram-view":
+            self._send_json(200, self.local.load_diagram_view())
+            return
+
+        self._send_json(404, {"error": "not found"})
+
+    def do_PUT(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/diagram-view":
+            payload = self._read_json_body()
+            if payload is None or not isinstance(payload, dict):
+                self._send_json(400, {"error": "invalid payload"})
+                return
+            self.local.save_diagram_view(payload)
+            self._send_json(200, self.local.load_diagram_view())
+            return
 
         self._send_json(404, {"error": "not found"})
 
 
 def main() -> None:
-    es = build_graph_es()
+    local = LocalWorkspaceStore()
+    es = build_graph_es(local)
     GraphRequestHandler.es = es
+    GraphRequestHandler.local = local
     server = HTTPServer((HOST, PORT), GraphRequestHandler)
     print(f"API server listening on http://{HOST}:{PORT}")
     server.serve_forever()
