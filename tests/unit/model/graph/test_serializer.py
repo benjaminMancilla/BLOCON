@@ -1,7 +1,7 @@
 import pytest
 
 from app.src.model.graph.graph import ReliabilityGraph
-from app.src.model.graph.node import Node
+from app.src.model.graph.node import ComponentNode, AndGateNode
 from app.src.model.graph.dist import Dist
 from app.src.model.graph.serializer import GraphSerializer
 
@@ -10,9 +10,9 @@ def test_to_data_serializes_nodes_edges_root_and_totals():
     g = ReliabilityGraph()
     g.clear()
 
-    a = Node(id="A", type="component", dist=Dist(kind="exponential"), unit_type="Pump")
-    b = Node(id="B", type="component", dist=Dist(kind="weibull"))
-    gate = Node(id="G1", type="gate", subtype="AND")
+    a = ComponentNode(id="A", dist=Dist(kind="exponential"), unit_type="Pump")
+    b = ComponentNode(id="B", dist=Dist(kind="weibull"))
+    gate = AndGateNode(id="G1")
 
     g.add_node(gate)
     g.add_node(a)
@@ -54,7 +54,14 @@ def test_from_data_roundtrip_restores_graph():
     payload = {
         "nodes": [
             {"id": "G1", "type": "gate", "subtype": "OR", "k": None, "reliability": 0.95},
-            {"id": "C1", "type": "component", "unit_type": "Valve", "dist": {"kind": "exponential"}, "reliability": 0.9, "conflict": True},
+            {
+                "id": "C1",
+                "type": "component",
+                "unit_type": "Valve",
+                "dist": {"kind": "exponential"},
+                "reliability": 0.9,
+                "conflict": True,
+            },
             {"id": "C2", "type": "component", "unit_type": None, "dist": {"kind": "weibull"}},
         ],
         "edges": [{"from": "G1", "to": "C1"}, {"from": "G1", "to": "C2"}],
