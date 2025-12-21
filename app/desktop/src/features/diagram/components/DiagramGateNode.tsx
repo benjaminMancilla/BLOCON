@@ -1,4 +1,6 @@
+import { CSSProperties } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
+import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
 type DiagramGateNodeProps = {
   node: DiagramLayoutNode;
@@ -19,6 +21,8 @@ export const DiagramGateNode = ({
     node.childCount !== undefined
       ? `${node.k ?? 1}/${node.childCount}`
       : `${node.k ?? 1}`;
+  const gateColor = resolveGateColor(node.subtype, node.color ?? null);
+  const colorVars = buildGateColorVars(gateColor) as CSSProperties;
 
   return (
     <div
@@ -29,6 +33,7 @@ export const DiagramGateNode = ({
         top: node.y,
         width: node.width,
         height: node.height,
+        ...colorVars,
       }}
       data-node-id={node.id}
     >

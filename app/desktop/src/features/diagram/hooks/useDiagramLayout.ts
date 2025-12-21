@@ -5,6 +5,7 @@ export type DiagramLayoutNode = {
   type: "component" | "gate";
   subtype?: string | null;
   k?: number | null;
+  color?: string | null;
   x: number;
   y: number;
   width: number;
@@ -25,6 +26,8 @@ export type DiagramLayoutLine = {
 export type DiagramGateArea = {
   id: string;
   parentId: string | null;
+  subtype?: string | null;
+  color?: string | null;
   x: number;
   y: number;
   width: number;
@@ -177,6 +180,8 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
     gateAreas.push({
       id: nodeId,
       parentId: parentGateId,
+      subtype: node.subtype ?? null,
+      color: node.color ?? null,
       x: originX,
       y: originY,
       width: size.width,
@@ -190,6 +195,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       type: "gate",
       subtype: node.subtype,
       k: node.k ?? null,
+      color: node.color ?? null,
       childCount: children.length,
       x: originX + (size.width - GATE_LABEL_SIZE.width) / 2,
       y: originY,

@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { DiagramComponentNode } from "./DiagramComponentNode";
+import { CSSProperties } from "react";
 import { DiagramGateNode } from "./DiagramGateNode";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
 import { useDiagramGraph } from "../hooks/useDiagramGraph";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
+import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
 type DiagramCanvasProps = {
   label?: string;
@@ -57,20 +59,30 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
               onPointerLeave={() => setHoveredGateId(null)}
             >
               {layout.gateAreas.map((area) => (
-                <div
-                  key={`gate-area-${area.id}`}
-                  className="diagram-gate-area"
-                  style={{
-                    left: area.x,
-                    top: area.y,
-                    width: area.width,
-                    height: area.height,
-                    zIndex: area.depth + 1,
-                  }}
-                  onPointerEnter={() => setHoveredGateId(area.id)}
-                  onPointerLeave={() => setHoveredGateId(null)}
-                  aria-hidden="true"
-                />
+                 (() => {
+                  const isVisible = visibleGateIds.has(area.id);
+                  const gateColor = resolveGateColor(area.subtype, area.color ?? null);
+                  const colorVars = buildGateColorVars(gateColor) as CSSProperties;
+                  return (
+                    <div
+                      key={`gate-area-${area.id}`}
+                      className={`diagram-gate-area${
+                        isVisible ? " diagram-gate-area--active" : ""
+                      }`}
+                      style={{
+                        left: area.x,
+                        top: area.y,
+                        width: area.width,
+                        height: area.height,
+                        zIndex: area.depth + 1,
+                        ...colorVars,
+                      }}
+                      onPointerEnter={() => setHoveredGateId(area.id)}
+                      onPointerLeave={() => setHoveredGateId(null)}
+                      aria-hidden="true"
+                    />
+                  );
+                })()
               ))}
               <svg
                 className="diagram-canvas__edges"

@@ -7,6 +7,7 @@ export type GraphNode = {
   dist?: { kind?: string | null } | null;
   reliability?: number | null;
   conflict?: boolean;
+  color?: string | null;
 };
 
 export type GraphEdge = {
