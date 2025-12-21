@@ -343,6 +343,10 @@ export const buildDiagramLayout = (
         return childSize.height / 2;
       }
 
+      if (collapsedGateIds?.has(childId)) {
+        return childSize.height / 2;
+      }
+
       const grandChildren = childrenMap.get(childId) ?? [];
       if (grandChildren.length === 0) {
         return childSize.height / 2;
