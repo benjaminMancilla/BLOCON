@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GraphData } from "../../../core/graph";
 import {
   DiagramViewState,
@@ -29,6 +29,8 @@ const normalizeCollapsedIds = (ids: string[]): string[] => {
 export const useDiagramView = (graph: GraphData) => {
   const [collapsedGateIds, setCollapsedGateIds] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
+  const hasHydratedRef = useRef(false);
+  const hasUserInteractionRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -37,6 +39,7 @@ export const useDiagramView = (graph: GraphData) => {
         if (!active) {
           return;
         }
+        hasHydratedRef.current = true;
         setCollapsedGateIds(normalizeCollapsedIds(data.collapsedGateIds ?? []));
       })
       .catch(() => {
@@ -73,6 +76,9 @@ export const useDiagramView = (graph: GraphData) => {
     if (!isLoaded) {
       return;
     }
+    if (!hasHydratedRef.current && !hasUserInteractionRef.current) {
+      return;
+    }
     void saveDiagramView({ collapsedGateIds });
   }, [collapsedGateIds, isLoaded]);
 
@@ -82,12 +88,14 @@ export const useDiagramView = (graph: GraphData) => {
   );
 
   const collapseGate = useCallback((gateId: string) => {
+    hasUserInteractionRef.current = true;
     setCollapsedGateIds((prev) =>
       prev.includes(gateId) ? prev : [...prev, gateId]
     );
   }, []);
 
   const expandGate = useCallback((gateId: string) => {
+    hasUserInteractionRef.current = true;
     setCollapsedGateIds((prev) => prev.filter((id) => id !== gateId));
   }, []);
 
