@@ -92,8 +92,8 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
     const children = childrenMap.get(nodeId) ?? [];
     if (children.length === 0) {
       const gateSize = {
-        width: GATE_LABEL_SIZE.width,
-        height: GATE_LABEL_SIZE.height + COMPONENT_SIZE.height,
+        width: Math.max(GATE_LABEL_SIZE.width, COMPONENT_SIZE.width),
+        height: Math.max(GATE_LABEL_SIZE.height, COMPONENT_SIZE.height),
       };
       sizeCache.set(nodeId, gateSize);
       return gateSize;
@@ -108,7 +108,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
         V_SPACING * (childSizes.length - 1);
       const gateSize = {
         width: maxWidth + RAIL_PADDING * 2,
-        height: GATE_LABEL_SIZE.height + GATE_PADDING_Y + totalHeight,
+        height: GATE_PADDING_Y + totalHeight,
       };
       sizeCache.set(nodeId, gateSize);
       return gateSize;
@@ -120,7 +120,7 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
     const maxHeight = Math.max(...childSizes.map((child) => child.height));
     const gateSize = {
       width: totalWidth,
-      height: GATE_LABEL_SIZE.height + GATE_PADDING_Y + maxHeight,
+      height: GATE_PADDING_Y + maxHeight,
     };
     sizeCache.set(nodeId, gateSize);
     return gateSize;
@@ -217,28 +217,35 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       // Rails en los bordes del nodo (sin padding interno)
       const railXLeft = originX;
       const railXRight = originX + size.width;
-      const railYTop = originY + GATE_LABEL_SIZE.height + GATE_PADDING_Y;
+      const railYTop = originY + GATE_PADDING_Y;
+      const firstChildHeight =
+        sizeCache.get(children[0])?.height ?? COMPONENT_SIZE.height;
+      const lastChildHeight =
+        sizeCache.get(children[children.length - 1])?.height ??
+        COMPONENT_SIZE.height;
       const railYBottom = railYTop + totalChildrenHeight;
+      const railYStart = railYTop + firstChildHeight / 2;
+      const railYEnd = railYBottom - lastChildHeight / 2;
       
       layoutLines.push({
         x1: railXLeft,
-        y1: railYTop,
+        y1: railYStart,
         x2: railXLeft,
-        y2: railYBottom,
+        y2: railYEnd,
         kind: "rail",
       });
       layoutLines.push({
         x1: railXRight,
-        y1: railYTop,
+        y1: railYStart,
         x2: railXRight,
-        y2: railYBottom,
+        y2: railYEnd,
         kind: "rail",
       });
 
       setAnchor(nodeId, {
         leftX: railXLeft,
         rightX: railXRight,
-        centerY: originY + size.height / 2,
+        centerY: railYTop + totalChildrenHeight / 2,
       });
 
       let cursorY = railYTop;
@@ -294,21 +301,52 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       return;
     }
 
+    const getAnchorOffset = (childId: string) => {
+      const childNode = nodeMap.get(childId);
+      const childSize = sizeCache.get(childId) ?? COMPONENT_SIZE;
+      if (!childNode || childNode.type !== "gate") {
+        return childSize.height / 2;
+      }
+
+      const grandChildren = childrenMap.get(childId) ?? [];
+      if (grandChildren.length === 0) {
+        return childSize.height / 2;
+      }
+
+      const childSubtype = normalizeSubtype(childNode);
+      if (childSubtype === "or" || childSubtype === "koon") {
+        const totalChildrenHeight =
+          grandChildren
+            .map(
+              (grandChildId) =>
+                sizeCache.get(grandChildId)?.height ?? COMPONENT_SIZE.height
+            )
+            .reduce((acc, value) => acc + value, 0) +
+          V_SPACING * (grandChildren.length - 1);
+        return GATE_PADDING_Y + totalChildrenHeight / 2;
+      }
+
+      const maxGrandChildHeight = Math.max(
+        ...grandChildren.map(
+          (grandChildId) =>
+            sizeCache.get(grandChildId)?.height ?? COMPONENT_SIZE.height
+        )
+      );
+      return GATE_PADDING_Y + maxGrandChildHeight / 2;
+    };
+
     const maxChildHeight = Math.max(
       ...children.map(
         (childId) => sizeCache.get(childId)?.height ?? COMPONENT_SIZE.height
       )
     );
+    const baselineY = originY + GATE_PADDING_Y + maxChildHeight / 2;
     let cursorX = originX;
     let previousAnchor: { leftX: number; rightX: number; centerY: number } | null =
       null;
     children.forEach((childId) => {
       const childSize = sizeCache.get(childId) ?? COMPONENT_SIZE;
-      const childY =
-        originY +
-        GATE_LABEL_SIZE.height +
-        GATE_PADDING_Y +
-        (maxChildHeight - childSize.height) / 2;
+      const childY = baselineY - getAnchorOffset(childId);
       const childNode = nodeMap.get(childId);
       place(
         childId,
@@ -343,7 +381,6 @@ export const buildDiagramLayout = (graph: GraphData): LayoutResult => {
       rightX: originX + size.width,
       centerY:
         originY +
-        GATE_LABEL_SIZE.height +
         GATE_PADDING_Y +
         maxChildHeight / 2,
     });

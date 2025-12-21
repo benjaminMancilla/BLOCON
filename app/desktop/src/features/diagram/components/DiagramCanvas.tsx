@@ -79,6 +79,22 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                 viewBox={`0 0 ${layout.width} ${layout.height}`}
                 aria-hidden="true"
               >
+                <defs>
+                  <marker
+                    id="diagram-arrow"
+                    markerWidth="6"
+                    markerHeight="6"
+                    refX="5"
+                    refY="3"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path
+                      d="M0,0 L6,3 L0,6 Z"
+                      className="diagram-edge__arrow"
+                    />
+                  </marker>
+                </defs>
                 {layout.lines.map((line, index) => (
                   <line
                     key={`${line.kind}-${index}`}
@@ -86,10 +102,13 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                     y1={line.y1}
                     x2={line.x2}
                     y2={line.y2}
+                    markerEnd={
+                      line.kind === "rail" ? undefined : "url(#diagram-arrow)"
+                    }
                     className={`diagram-edge diagram-edge--${line.kind}`}
                   />
                 ))}
-              </svg>
+              </svg>      
               {layout.nodes.map((node) =>
                 node.type === "component" ? (
                   <DiagramComponentNode key={node.id} node={node} />

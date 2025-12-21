@@ -143,6 +143,11 @@ body {
   stroke-width: 1.5;
 }
 
+.diagram-edge__arrow {
+  fill: #1f2937;
+}
+
+
 .diagram-edge--rail {
   stroke-width: 2;
 }
