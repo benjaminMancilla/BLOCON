@@ -80,7 +80,7 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                         top: area.y,
                         width: area.width,
                         height: area.height,
-                        zIndex: area.depth + 1,
+                        zIndex: area.depth,
                         ...colorVars,
                       }}
                       onPointerEnter={() => setHoveredGateId(area.id)}
@@ -144,6 +144,8 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                     node={node}
                     isLabelVisible={visibleGateIds.has(node.id)}
                     onCollapse={collapseGate}
+                    onHoverStart={setHoveredGateId}
+                    onHoverEnd={() => setHoveredGateId(null)}
                   />
                 )
               )}

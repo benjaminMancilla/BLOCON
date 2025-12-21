@@ -38,6 +38,7 @@ export const DiagramCollapsedGateNode = ({
         top: node.y,
         width: node.width,
         height: node.height,
+        zIndex: 1000,
         ...colorVars,
       }}
       data-node-id={node.id}
@@ -45,6 +46,7 @@ export const DiagramCollapsedGateNode = ({
       <button
         type="button"
         className="diagram-node__expand"
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={() => onExpand(node.id)}
         aria-label={`Expandir gate ${node.id}`}
       >

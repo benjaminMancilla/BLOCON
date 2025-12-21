@@ -6,6 +6,8 @@ type DiagramGateNodeProps = {
   node: DiagramLayoutNode;
   isLabelVisible: boolean;
   onCollapse: (gateId: string) => void;
+  onHoverStart?: (gateId: string) => void;
+  onHoverEnd?: () => void;
 };
 
 const formatGateLabel = (node: DiagramLayoutNode) => {
@@ -17,6 +19,8 @@ export const DiagramGateNode = ({
   node,
   isLabelVisible,
   onCollapse,
+  onHoverStart,
+  onHoverEnd,
 }: DiagramGateNodeProps) => {
   const isKoon = node.subtype?.toLowerCase() === "koon";
   const koonLabel =
@@ -35,13 +39,17 @@ export const DiagramGateNode = ({
         top: node.y,
         width: node.width,
         height: node.height,
+        zIndex: 1000,
         ...colorVars,
       }}
       data-node-id={node.id}
+      onPointerEnter={() => onHoverStart?.(node.id)}
+      onPointerLeave={() => onHoverEnd?.()}
     >
       <button
         type="button"
         className="diagram-gate__label"
+        onPointerDown={(event) => event.stopPropagation()}
         onClick={() => onCollapse(node.id)}
         aria-label={`Colapsar gate ${node.id}`}
       >
