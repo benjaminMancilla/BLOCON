@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import os
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from src.model.graph.graph import ReliabilityGraph
 from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
+from src.services.remote.cloud import CloudClient
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -30,6 +32,7 @@ def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
 class GraphRequestHandler(BaseHTTPRequestHandler):
     es: GraphES
     local: LocalWorkspaceStore
+    cloud: CloudClient
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -90,6 +93,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/diagram-view":
             self._send_json(200, self.local.load_diagram_view())
             return
+        
+        if path == "/remote/components/search":
+            params = parse_qs(parsed.query)
+            query = (params.get("query") or [""])[0]
+            try:
+                page = int((params.get("page") or ["1"])[0])
+            except ValueError:
+                page = 1
+            try:
+                page_size = int((params.get("page_size") or ["20"])[0])
+            except ValueError:
+                page_size = 20
+            items, total = self.cloud.search_components(query, page=page, page_size=page_size)
+            self._send_json(200, {"items": items, "total": total})
+            return
 
         self._send_json(404, {"error": "not found"})
 
@@ -112,8 +130,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 def main() -> None:
     local = LocalWorkspaceStore()
     es = build_graph_es(local)
+    base_dir = os.path.abspath(os.path.dirname(__file__))
     GraphRequestHandler.es = es
     GraphRequestHandler.local = local
+    GraphRequestHandler.cloud = CloudClient(base_dir=base_dir)
     server = HTTPServer((HOST, PORT), GraphRequestHandler)
     print(f"API server listening on http://{HOST}:{PORT}")
     server.serve_forever()
