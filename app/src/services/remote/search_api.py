@@ -15,7 +15,9 @@ def build_contains_query(field_id: str, field_name: str, query: str) -> str:
     if not q:
         return "*"
     q = q.replace('"', '\\"')
-    return f"({field_id}:*{q}* OR {field_name}:*{q}*)"
+    if "*" in q:
+        return q
+    return f"\"{q}\""
 
 
 def extract_search_hits(resp: Dict[str, Any]) -> List[Dict[str, Any]]:
