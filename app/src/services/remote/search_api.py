@@ -14,10 +14,22 @@ def build_contains_query(field_id: str, field_name: str, query: str) -> str:
     q = (query or "").strip()
     if not q:
         return "*"
-    q = q.replace('"', '\\"')
+    
+    def quote_term(term: str) -> str:
+        return f"\"{term.replace('\"', '\\\\\"')}\""
+    
     if "*" in q:
-        return q
-    return f"\"{q}\""
+        term = q
+    else:
+        term = f"{q}*"
+
+    quoted = quote_term(term)
+    clauses = [
+        f"{field_id}:{quoted}",
+        f"{field_name}:{quoted}",
+        quoted,
+    ]
+    return " OR ".join(clauses)
 
 
 def extract_search_hits(resp: Dict[str, Any]) -> List[Dict[str, Any]]:

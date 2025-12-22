@@ -46,7 +46,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as exc:
+            self.log_message("Client disconnected before response was sent: %s", exc)
 
     def do_OPTIONS(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         self.send_response(204)

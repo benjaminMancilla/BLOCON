@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
+import unicodedata
 
 from ..settings import SPSettings, load_settings
 from ..graph_session import GraphSession, GraphError
@@ -17,6 +18,13 @@ from ..search_api import (
     search_query,
 )
 from ...cache.repositories.region import RegionCacheRepo
+
+def _norm(s: str) -> str:
+    s = (s or "").strip().lower()
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 class SharePointComponentsClient:
@@ -173,9 +181,9 @@ class SharePointComponentsClient:
 
         cid = str(fields.get(self.field_id) or "").strip()
         if not cid:
-            cid = str(fields.get("Title") or "").strip()
+            cid = str(fields.get("Title") or fields.get("title") or "").strip()
 
-        name = str(fields.get(self.field_name) or fields.get("title") or cid).strip()
+        name = str(fields.get(self.field_name) or fields.get("Title") or fields.get("title") or cid).strip()
 
         subtype = self._unpack_value(fields, self.field_subtype, self.field_subtype_value) or ""
         main_type = self._unpack_value(fields, self.field_type, self.field_type_value) or ""
@@ -234,6 +242,7 @@ class SharePointComponentsClient:
             )
 
         hits = extract_search_hits(search_resp)
+        print(hits)
         item_ids: List[str] = []
         for hit in hits:
             hit_site_id, hit_list_id, hit_item_id = get_sp_ids_from_hit(hit)
@@ -249,6 +258,7 @@ class SharePointComponentsClient:
             list_id=list_id,
             item_ids=item_ids,
             select_fields=[
+                "Title",
                 self.field_id,
                 self.field_name,
                 self.field_subtype,
@@ -257,7 +267,7 @@ class SharePointComponentsClient:
             ],
         )
 
-        q_norm = q.lower()
+        q_norm = _norm(q)
         items: List[Dict[str, Any]] = []
         for item_id in item_ids:
             fields = fields_map.get(item_id) or {}
@@ -268,8 +278,8 @@ class SharePointComponentsClient:
             if not cid:
                 continue
             if q:
-                name = str(meta.get("kks_name") or "").lower()
-                cid_norm = cid.lower()
+                name = _norm(str(meta.get("kks_name") or ""))
+                cid_norm = _norm(cid)
                 if q_norm not in cid_norm and q_norm not in name:
                     continue
             items.append({"id": cid, **meta})
