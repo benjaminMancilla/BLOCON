@@ -3,6 +3,10 @@ import {
   type RemoteComponent,
   searchRemoteComponents,
 } from "../../../services/remote/componentsService";
+import {
+  DiagramElementSelector,
+  type DiagramNodeSelection,
+} from "./DiagramElementSelector";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
@@ -30,6 +34,8 @@ export const AddComponentPanel = () => {
   });
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
+  const [diagramSelection, setDiagramSelection] =
+    useState<DiagramNodeSelection | null>(null);
 
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
@@ -125,6 +131,7 @@ export const AddComponentPanel = () => {
     }));
     setIsSelectedSectionOpen(true);
     setIsCalcSectionOpen(true);
+    setDiagramSelection(null);
   }, []);
 
   const calculationOptions = [
@@ -255,6 +262,16 @@ export const AddComponentPanel = () => {
               </div>
             ) : null}
           </fieldset>
+
+          <DiagramElementSelector
+            externalSelection={diagramSelection}
+            onSelectionConfirmed={(selection) => {
+              setDiagramSelection(selection);
+            }}
+            onSelectionCleared={() => {
+              setDiagramSelection(null);
+            }}
+          />
         </>
       ) : (
         <>

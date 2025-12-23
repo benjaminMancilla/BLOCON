@@ -639,3 +639,79 @@ body {
 .add-component-panel__calc-text {
   font-weight: 500;
 }
+
+.add-component-panel__diagram-selector {
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.add-component-panel__diagram-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+.add-component-panel__diagram-status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7f56d9;
+}
+
+.add-component-panel__diagram-card {
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8f9fc;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+}
+
+.add-component-panel__diagram-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.add-component-panel__diagram-meta {
+  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #667085;
+}
+
+.add-component-panel__diagram-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.add-component-panel__diagram-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #1d2939;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.add-component-panel__diagram-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.add-component-panel__diagram-button--ghost {
+  background: transparent;
+}
