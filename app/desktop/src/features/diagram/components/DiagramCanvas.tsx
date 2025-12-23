@@ -18,6 +18,7 @@ const V_SPACING = 32;
 const GATE_LABEL_HEIGHT = 30;
 const GATE_PADDING_Y = 36;
 const PLACEHOLDER_SIZE = { width: 200, height: 120 };
+const ORGANIZATION_PADDING = 32;
 
 const buildChildrenMap = (graph: GraphData) => {
   const map = new Map<string, string[]>();
@@ -283,6 +284,49 @@ export const DiagramCanvas = ({
     organizationSelectionNode,
     virtualGateArea,
   ]);
+  const organizationArea = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    const expand = (area: { x: number; y: number; width: number; height: number }) => ({
+      x: area.x - ORGANIZATION_PADDING,
+      y: area.y - ORGANIZATION_PADDING,
+      width: area.width + ORGANIZATION_PADDING * 2,
+      height: area.height + ORGANIZATION_PADDING * 2,
+    });
+    if (organizationGateArea && organizationGateId) {
+      let minX = organizationGateArea.x;
+      let minY = organizationGateArea.y;
+      let maxX = organizationGateArea.x + organizationGateArea.width;
+      let maxY = organizationGateArea.y + organizationGateArea.height;
+      if (organizationPlaceholder) {
+        minX = Math.min(minX, organizationPlaceholder.x);
+        minY = Math.min(minY, organizationPlaceholder.y);
+        maxX = Math.max(
+          maxX,
+          organizationPlaceholder.x + organizationPlaceholder.width
+        );
+        maxY = Math.max(
+          maxY,
+          organizationPlaceholder.y + organizationPlaceholder.height
+        );
+      }
+      return expand({
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY,
+      });
+    }
+    if (virtualGateArea) {
+      return expand(virtualGateArea);
+    }
+    return null;
+  }, [
+    isOrganizationMode,
+    organizationGateArea,
+    organizationGateId,
+    organizationPlaceholder,
+    virtualGateArea,
+  ]);
   const parentGateId = hoveredGateId
     ? gateAreasById.get(hoveredGateId)?.parentId ?? null
     : null;
@@ -425,6 +469,9 @@ export const DiagramCanvas = ({
                   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
                   const isOrganizingGate =
                     isOrganizationMode && organizationGateId === area.id;
+                  const activeArea = isOrganizingGate && organizationArea
+                    ? organizationArea
+                    : area;
                   const isWithinOrganization =
                     isOrganizationMode && organizationGateId
                       ? isGateWithinOrganization(area.id)
@@ -447,10 +494,10 @@ export const DiagramCanvas = ({
                       }`}
                       data-gate-area-id={area.id}
                       style={{
-                        left: area.x,
-                        top: area.y,
-                        width: area.width,
-                        height: area.height,
+                        left: activeArea.x,
+                        top: activeArea.y,
+                        width: activeArea.width,
+                        height: activeArea.height,
                         zIndex: area.depth,
                         ...colorVars,
                       }}
@@ -512,10 +559,10 @@ export const DiagramCanvas = ({
                 <div
                   className="diagram-gate-area diagram-gate-area--organization diagram-gate-area--virtual"
                   style={{
-                    left: virtualGateArea.x,
-                    top: virtualGateArea.y,
-                    width: virtualGateArea.width,
-                    height: virtualGateArea.height,
+                    left: organizationArea?.x ?? virtualGateArea.x,
+                    top: organizationArea?.y ?? virtualGateArea.y,
+                    width: organizationArea?.width ?? virtualGateArea.width,
+                    height: organizationArea?.height ?? virtualGateArea.height,
                   }}
                   aria-hidden="true"
                 />
@@ -596,7 +643,10 @@ export const DiagramCanvas = ({
                       isSelected={isSelected}
                       isDimmed={isDimmed}
                       isOrganizationLocked={isLocked}
-                      allowExpand={!isLocked}
+                      allowExpand={
+                        !isLocked &&
+                        !(isOrganizationMode && organizationGateId === node.id)
+                      }
                       onSelectHover={handleSelectHover}
                       onSelectHoverEnd={handleSelectHoverEnd}
                       onPreselect={handlePreselect}
@@ -679,7 +729,8 @@ export const DiagramCanvas = ({
                   }}
                 >
                   {!(isOrganizationMode &&
-                    organizationLockedGateIds.has(hoveredGateArea.id)) ? (
+                    (organizationLockedGateIds.has(hoveredGateArea.id) ||
+                      hoveredGateArea.id === organizationGateId)) ? (
                     <button
                       type="button"
                       className="diagram-gate__collapse-button"
