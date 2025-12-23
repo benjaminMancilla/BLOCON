@@ -291,7 +291,7 @@ body {
   padding: 0;
   color: inherit;
   font: inherit;
-  cursor: pointer;
+  cursor: default;
   position: relative;
   z-index: 1;
 }
@@ -306,7 +306,7 @@ body {
   border-radius: 24px;
   border: 1px solid transparent;
   transition: background-color 0.15s ease, border-color 0.15s ease,
-    box-shadow 0.15s ease;
+  box-shadow 0.15s ease;
   pointer-events: auto;
   mix-blend-mode: normal;
   isolation: isolate;
@@ -344,6 +344,29 @@ body {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.1);
+  z-index: 1;
+}
+
+.diagram-gate__collapse-hitbox {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diagram-gate__collapse-button {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--gate-color-border, rgba(15, 23, 42, 0.2));
+  background: #ffffff;
+  color: var(--gate-color, #0a5fb8);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.18);
   z-index: 1;
 }
 

@@ -27,6 +27,9 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
   );
+  const hoveredGateArea = hoveredGateId
+    ? gateAreasById.get(hoveredGateId) ?? null
+    : null;
   const parentGateId = hoveredGateId
     ? gateAreasById.get(hoveredGateId)?.parentId ?? null
     : null;
@@ -65,7 +68,7 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
               onPointerLeave={() => setHoveredGateId(null)}
             >
               {layout.gateAreas.map((area) => (
-                 (() => {
+                (() => {
                   const isVisible = visibleGateIds.has(area.id);
                   const gateColor = resolveGateColor(area.subtype, area.color ?? null);
                   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -75,6 +78,7 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                       className={`diagram-gate-area${
                         isVisible ? " diagram-gate-area--active" : ""
                       }`}
+                      data-gate-area-id={area.id}
                       style={{
                         left: area.x,
                         top: area.y,
@@ -84,7 +88,17 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                         ...colorVars,
                       }}
                       onPointerEnter={() => setHoveredGateId(area.id)}
-                      onPointerLeave={() => setHoveredGateId(null)}
+                      onPointerLeave={(event) => {
+                        const nextTarget = event.relatedTarget as HTMLElement | null;
+                        if (
+                          nextTarget?.closest(
+                            `[data-collapse-hitbox="${area.id}"]`
+                          )
+                        ) {
+                          return;
+                        }
+                        setHoveredGateId(null);
+                      }}
                       aria-hidden="true"
                     />
                   );
@@ -150,11 +164,42 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                     key={node.id}
                     node={node}
                     isLabelVisible={visibleGateIds.has(node.id)}
-                    onCollapse={collapseGate}
                     onHoverStart={setHoveredGateId}
                     onHoverEnd={() => setHoveredGateId(null)}
                   />
                 )
+              )}
+              {hoveredGateArea && (
+                <div
+                  className="diagram-gate__collapse-hitbox"
+                  data-collapse-hitbox={hoveredGateArea.id}
+                  style={{
+                    left: hoveredGateArea.x + hoveredGateArea.width - 36,
+                    top: hoveredGateArea.y + 4,
+                  }}
+                  onPointerEnter={() => setHoveredGateId(hoveredGateArea.id)}
+                  onPointerLeave={(event) => {
+                    const nextTarget = event.relatedTarget as HTMLElement | null;
+                    if (
+                      nextTarget?.closest(
+                        `[data-gate-area-id="${hoveredGateArea.id}"]`
+                      )
+                    ) {
+                      return;
+                    }
+                    setHoveredGateId(null);
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="diagram-gate__collapse-button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => collapseGate(hoveredGateArea.id)}
+                    aria-label={`Colapsar gate ${hoveredGateArea.id}`}
+                  >
+                    -
+                  </button>
+                </div>
               )}
             </div>
           )}
