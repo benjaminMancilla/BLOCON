@@ -10,11 +10,54 @@ import { buildDiagramLayout } from "../hooks/useDiagramLayout";
 import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 import type { DiagramNodeSelection } from "../types/selection";
+import type { GateType } from "../types/gates";
+import type { GraphData } from "../../../core/graph";
+
+const H_SPACING = 56;
+const V_SPACING = 32;
+const GATE_LABEL_HEIGHT = 30;
+const GATE_PADDING_Y = 36;
+const PLACEHOLDER_SIZE = { width: 200, height: 120 };
+
+const buildChildrenMap = (graph: GraphData) => {
+  const map = new Map<string, string[]>();
+  graph.edges.forEach((edge) => {
+    if (!map.has(edge.from)) {
+      map.set(edge.from, []);
+    }
+    map.get(edge.from)?.push(edge.to);
+  });
+  return map;
+};
+
+const getDescendantGateIds = (graph: GraphData, gateId: string) => {
+  const nodeMap = new Map(graph.nodes.map((node) => [node.id, node]));
+  const childrenMap = buildChildrenMap(graph);
+  const stack = [...(childrenMap.get(gateId) ?? [])];
+  const descendants = new Set<string>();
+
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || descendants.has(current)) continue;
+    descendants.add(current);
+    const node = nodeMap.get(current);
+    if (node?.type === "gate") {
+      const nextChildren = childrenMap.get(current) ?? [];
+      stack.push(...nextChildren);
+    }
+  }
+
+  return [...descendants].filter(
+    (id) => nodeMap.get(id)?.type === "gate"
+  );
+};
 
 type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
+  organizationSelection?: DiagramNodeSelection | null;
+  organizationGateType?: GateType | null;
   hoveredNodeId?: string | null;
   preselectedNodeId?: string | null;
   selectedNodeId?: string | null;
@@ -24,12 +67,15 @@ type DiagramCanvasProps = {
   onNodePreselect?: (selection: DiagramNodeSelection) => void;
   onNodeConfirm?: (selection: DiagramNodeSelection) => void;
   onSelectionCancel?: () => void;
+  onOrganizationCancel?: () => void;
 };
 
 export const DiagramCanvas = ({
   label = "Canvas",
   isSelectionMode = false,
   isOrganizationMode = false,
+  organizationSelection = null,
+  organizationGateType = null,
   hoveredNodeId = null,
   preselectedNodeId = null,
   selectedNodeId = null,
@@ -39,13 +85,33 @@ export const DiagramCanvas = ({
   onNodePreselect,
   onNodeConfirm,
   onSelectionCancel,
+  onOrganizationCancel,
 }: DiagramCanvasProps) => {
   const { cameraStyle, handlers } = useDiagramCamera();
   const { graph, status, errorMessage } = useDiagramGraph();
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
+ const organizationGateId = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    if (organizationSelection?.type === "gate") {
+      return organizationSelection.id;
+    }
+    return null;
+  }, [isOrganizationMode, organizationSelection]);
+  const organizationDescendantGateIds = useMemo(() => {
+    if (!isOrganizationMode || !organizationGateId) return [];
+    return getDescendantGateIds(graph, organizationGateId);
+  }, [graph, isOrganizationMode, organizationGateId]);
+  const organizationCollapsedGateIdSet = useMemo(() => {
+    const merged = new Set<string>(collapsedGateIdSet);
+    organizationDescendantGateIds.forEach((id) => merged.add(id));
+    if (organizationGateId) {
+      merged.delete(organizationGateId);
+    }
+    return merged;
+  }, [collapsedGateIdSet, organizationDescendantGateIds, organizationGateId]);
   const layout = useMemo(
-    () => buildDiagramLayout(graph, collapsedGateIdSet),
-    [graph, collapsedGateIdSet]
+    () => buildDiagramLayout(graph, organizationCollapsedGateIdSet),
+    [graph, organizationCollapsedGateIdSet]
   );
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
@@ -55,9 +121,168 @@ export const DiagramCanvas = ({
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
   );
+  const gateParentById = useMemo(
+    () => new Map(layout.gateAreas.map((area) => [area.id, area.parentId])),
+    [layout.gateAreas]
+  );
+  const organizationGateArea = useMemo(() => {
+    if (!organizationGateId) return null;
+    return gateAreasById.get(organizationGateId) ?? null;
+  }, [gateAreasById, organizationGateId]);
+  const organizationLockedGateIds = useMemo(
+    () => new Set(organizationDescendantGateIds),
+    [organizationDescendantGateIds]
+  );
+  const isGateWithinOrganization = useMemo(() => {
+    if (!isOrganizationMode || !organizationGateId) {
+      return () => false;
+    }
+    return (gateId: string) => {
+      let current: string | null = gateId;
+      while (current) {
+        if (current === organizationGateId) return true;
+        current = gateParentById.get(current) ?? null;
+      }
+      return false;
+    };
+  }, [gateParentById, isOrganizationMode, organizationGateId]);
+  const isNodeWithinOrganization = useMemo(() => {
+    if (!isOrganizationMode || !organizationGateId) {
+      return () => false;
+    }
+    return (nodeId: string, parentGateId: string | null) => {
+      if (nodeId === organizationGateId) return true;
+      let current: string | null = parentGateId;
+      while (current) {
+        if (current === organizationGateId) return true;
+        current = gateParentById.get(current) ?? null;
+      }
+      return false;
+    };
+  }, [gateParentById, isOrganizationMode, organizationGateId]);
   const hoveredGateArea = hoveredGateId
     ? gateAreasById.get(hoveredGateId) ?? null
     : null;
+  const organizationSelectionNode = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    if (organizationSelection?.type !== "component") return null;
+    return layout.nodes.find((node) => node.id === organizationSelection.id) ?? null;
+  }, [isOrganizationMode, layout.nodes, organizationSelection]);
+  const organizationGateSubtype = useMemo(() => {
+    if (organizationGateArea?.subtype) return organizationGateArea.subtype;
+    if (organizationGateType) return organizationGateType;
+    return null;
+  }, [organizationGateArea?.subtype, organizationGateType]);
+  const virtualGateArea = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    if (
+      organizationSelection?.type !== "component" ||
+      !organizationGateType ||
+      !organizationSelectionNode
+    ) {
+      return null;
+    }
+    const isSeries = organizationGateType === "and";
+    const maxChildWidth = Math.max(
+      organizationSelectionNode.width,
+      PLACEHOLDER_SIZE.width
+    );
+    const maxChildHeight = Math.max(
+      organizationSelectionNode.height,
+      PLACEHOLDER_SIZE.height
+    );
+    const width = isSeries
+      ? organizationSelectionNode.width + PLACEHOLDER_SIZE.width + H_SPACING
+      : maxChildWidth + 128;
+    const height = isSeries
+      ? GATE_PADDING_Y + maxChildHeight
+      : GATE_PADDING_Y +
+        organizationSelectionNode.height +
+        PLACEHOLDER_SIZE.height +
+        V_SPACING;
+    const x = isSeries
+      ? organizationSelectionNode.x
+      : organizationSelectionNode.x - (width - organizationSelectionNode.width) / 2;
+    const y = organizationSelectionNode.y - GATE_PADDING_Y;
+    return {
+      x,
+      y,
+      width,
+      height,
+    };
+  }, [
+    isOrganizationMode,
+    organizationGateType,
+    organizationSelection,
+    organizationSelectionNode,
+  ]);
+  const organizationPlaceholder = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    const subtype = organizationGateSubtype?.toLowerCase() ?? "and";
+    if (organizationGateArea && organizationGateId) {
+      const childNodes = layout.nodes.filter(
+        (node) => node.parentGateId === organizationGateId
+      );
+      if (subtype === "or" || subtype === "koon") {
+        const maxBottom = childNodes.length
+          ? Math.max(...childNodes.map((node) => node.y + node.height))
+          : organizationGateArea.y + GATE_PADDING_Y;
+        return {
+          x:
+            organizationGateArea.x +
+            (organizationGateArea.width - PLACEHOLDER_SIZE.width) / 2,
+          y: maxBottom + V_SPACING,
+          width: PLACEHOLDER_SIZE.width,
+          height: PLACEHOLDER_SIZE.height,
+        };
+      }
+      const maxRight = childNodes.length
+        ? Math.max(...childNodes.map((node) => node.x + node.width))
+        : organizationGateArea.x;
+      const baseY = childNodes.length
+        ? childNodes[0].y
+        : organizationGateArea.y + GATE_PADDING_Y;
+      return {
+        x: maxRight + H_SPACING,
+        y: baseY,
+        width: PLACEHOLDER_SIZE.width,
+        height: PLACEHOLDER_SIZE.height,
+      };
+    }
+    if (virtualGateArea && organizationSelectionNode) {
+      if (subtype === "or" || subtype === "koon") {
+        return {
+          x:
+            virtualGateArea.x +
+            (virtualGateArea.width - PLACEHOLDER_SIZE.width) / 2,
+          y:
+            organizationSelectionNode.y +
+            organizationSelectionNode.height +
+            V_SPACING,
+          width: PLACEHOLDER_SIZE.width,
+          height: PLACEHOLDER_SIZE.height,
+        };
+      }
+      return {
+        x:
+          organizationSelectionNode.x +
+          organizationSelectionNode.width +
+          H_SPACING,
+        y: organizationSelectionNode.y,
+        width: PLACEHOLDER_SIZE.width,
+        height: PLACEHOLDER_SIZE.height,
+      };
+    }
+    return null;
+  }, [
+    isOrganizationMode,
+    layout.nodes,
+    organizationGateArea,
+    organizationGateId,
+    organizationGateSubtype,
+    organizationSelectionNode,
+    virtualGateArea,
+  ]);
   const parentGateId = hoveredGateId
     ? gateAreasById.get(hoveredGateId)?.parentId ?? null
     : null;
@@ -98,6 +323,20 @@ export const DiagramCanvas = ({
     };
   }, [isSelectionMode, onSelectionCancel]);
 
+  useEffect(() => {
+    if (!isOrganizationMode) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOrganizationCancel?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOrganizationMode, onOrganizationCancel]);
   const selectionHandlers = useMemo(() => {
     const wrapPointer =
       <T extends (event: PointerEvent<HTMLDivElement>) => void>(handler: T) =>
@@ -132,6 +371,16 @@ export const DiagramCanvas = ({
     []
   );
 
+  const organizationIndicator = useMemo(() => {
+    if (!isOrganizationMode) return null;
+    if (organizationGateId) {
+      return `Organizando ${organizationGateId}`;
+    }
+    if (organizationGateType) {
+      return `Organizando nuevo ${organizationGateType.toUpperCase()}`;
+    }
+    return "Organizando";
+  }, [isOrganizationMode, organizationGateId, organizationGateType]);
   return (
     <section className="diagram-canvas" aria-label={label}>
       <div
@@ -142,7 +391,7 @@ export const DiagramCanvas = ({
       >
         {isOrganizationMode ? (
           <div className="diagram-canvas__mode-indicator">
-            Modo organización · Placeholder
+            {organizationIndicator}
           </div>
         ) : null}
         <div className="diagram-canvas__viewport" style={cameraStyle}>
@@ -174,11 +423,27 @@ export const DiagramCanvas = ({
                   const isVisible = visibleGateIds.has(area.id);
                   const gateColor = resolveGateColor(area.subtype, area.color ?? null);
                   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
+                  const isOrganizingGate =
+                    isOrganizationMode && organizationGateId === area.id;
+                  const isWithinOrganization =
+                    isOrganizationMode && organizationGateId
+                      ? isGateWithinOrganization(area.id)
+                      : !isOrganizationMode &&
+                        organizationSelection?.type === "component" &&
+                        !!organizationSelectionNode
+                        ? area.id === organizationSelectionNode.parentGateId
+                        : false;
+                  const shouldDim =
+                    isOrganizationMode &&
+                    organizationGateId &&
+                    !isWithinOrganization;
                   return (
                     <div
                       key={`gate-area-${area.id}`}
                       className={`diagram-gate-area${
                         isVisible ? " diagram-gate-area--active" : ""
+                      }${isOrganizingGate ? " diagram-gate-area--organization" : ""}${
+                        shouldDim ? " diagram-gate-area--dimmed" : ""
                       }`}
                       data-gate-area-id={area.id}
                       style={{
@@ -242,7 +507,45 @@ export const DiagramCanvas = ({
                     className={`diagram-edge diagram-edge--${line.kind}`}
                   />
                 ))}
-              </svg>      
+              </svg>     
+              {isOrganizationMode && virtualGateArea && (
+                <div
+                  className="diagram-gate-area diagram-gate-area--organization diagram-gate-area--virtual"
+                  style={{
+                    left: virtualGateArea.x,
+                    top: virtualGateArea.y,
+                    width: virtualGateArea.width,
+                    height: virtualGateArea.height,
+                  }}
+                  aria-hidden="true"
+                />
+              )}
+              {isOrganizationMode && virtualGateArea && organizationGateType && (
+                (() => {
+                  const gateColor = resolveGateColor(organizationGateType, null);
+                  const colorVars = buildGateColorVars(gateColor) as CSSProperties;
+                  return (
+                    <div
+                      className="diagram-node diagram-node--gate diagram-node--organization"
+                      style={{
+                        left:
+                          virtualGateArea.x +
+                          (virtualGateArea.width - 180) / 2,
+                        top: virtualGateArea.y,
+                        width: 180,
+                        height: GATE_LABEL_HEIGHT,
+                        zIndex: 1200,
+                        ...colorVars,
+                      }}
+                      aria-hidden="true"
+                    >
+                      <span className="diagram-gate__label">
+                        Nuevo {organizationGateType.toUpperCase()}
+                      </span>
+                    </div>
+                  );
+                })()
+              )} 
               {layout.nodes.map((node) => {
                 const isGate = node.type === "gate" || !!node.isCollapsed;
                 const isHovered =
@@ -251,6 +554,15 @@ export const DiagramCanvas = ({
                 const isPreselected =
                   isSelectionMode && preselectedNodeId === node.id;
                 const isSelected = isSelectionMode && selectedNodeId === node.id;
+                const isDimmed = isOrganizationMode
+                  ? organizationGateId
+                    ? !isNodeWithinOrganization(node.id, node.parentGateId ?? null)
+                    : organizationSelectionNode
+                      ? node.id !== organizationSelectionNode.id
+                      : false
+                  : false;
+                const isLocked =
+                  isOrganizationMode && organizationLockedGateIds.has(node.id);
                 const handleSelectHover = () => {
                   if (!isSelectionMode) return;
                   setHoveredSelectableId(node.id);
@@ -282,6 +594,9 @@ export const DiagramCanvas = ({
                       isHovered={isHovered}
                       isPreselected={isPreselected}
                       isSelected={isSelected}
+                      isDimmed={isDimmed}
+                      isOrganizationLocked={isLocked}
+                      allowExpand={!isLocked}
                       onSelectHover={handleSelectHover}
                       onSelectHoverEnd={handleSelectHoverEnd}
                       onPreselect={handlePreselect}
@@ -297,6 +612,7 @@ export const DiagramCanvas = ({
                       isHovered={isHovered}
                       isPreselected={isPreselected}
                       isSelected={isSelected}
+                      isDimmed={isDimmed}
                       onSelectHover={handleSelectHover}
                       onSelectHoverEnd={handleSelectHoverEnd}
                       onPreselect={handlePreselect}
@@ -314,6 +630,8 @@ export const DiagramCanvas = ({
                     isHovered={isHovered}
                     isPreselected={isPreselected}
                     isSelected={isSelected}
+                    isDimmed={isDimmed}
+                    isOrganizationLocked={isLocked}
                     onSelectHover={handleSelectHover}
                     onSelectHoverEnd={handleSelectHoverEnd}
                     onPreselect={handlePreselect}
@@ -321,6 +639,24 @@ export const DiagramCanvas = ({
                   />
                 );
               })}
+              {isOrganizationMode && organizationPlaceholder && (
+                <div
+                  className="diagram-node diagram-node--component diagram-node--organization-placeholder"
+                  style={{
+                    left: organizationPlaceholder.x,
+                    top: organizationPlaceholder.y,
+                    width: organizationPlaceholder.width,
+                    height: organizationPlaceholder.height,
+                  }}
+                  aria-hidden="true"
+                >
+                  <div className="diagram-node__title">Nuevo componente</div>
+                  <div className="diagram-node__meta">
+                    <span className="diagram-node__icon">★</span>
+                    <span className="diagram-node__meta-text">Pendiente</span>
+                  </div>
+                </div>
+              )}
               {hoveredGateArea && (
                 <div
                   className="diagram-gate__collapse-hitbox"
@@ -342,15 +678,18 @@ export const DiagramCanvas = ({
                     setHoveredGateId(null);
                   }}
                 >
-                  <button
-                    type="button"
-                    className="diagram-gate__collapse-button"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => collapseGate(hoveredGateArea.id)}
-                    aria-label={`Colapsar gate ${hoveredGateArea.id}`}
-                  >
-                    -
-                  </button>
+                  {!(isOrganizationMode &&
+                    organizationLockedGateIds.has(hoveredGateArea.id)) ? (
+                    <button
+                      type="button"
+                      className="diagram-gate__collapse-button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => collapseGate(hoveredGateArea.id)}
+                      aria-label={`Colapsar gate ${hoveredGateArea.id}`}
+                    >
+                      -
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>

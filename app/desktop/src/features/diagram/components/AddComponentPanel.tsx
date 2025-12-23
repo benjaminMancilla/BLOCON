@@ -18,17 +18,15 @@ import type {
   DiagramNodeSelection,
   SelectionStatus,
 } from "../types/selection";
+import type { GateType } from "../types/gates";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
 type CalculationType = "exponential" | "weibull";
 
-type GateType = "and" | "or" | "koon";
-
 type AddComponentFormState = {
   componentId: string | null;
   calculationType: CalculationType;
-  gateType: GateType | null;
 };
 
 type AddComponentStep = "selection" | "gateType" | "organization";
@@ -37,11 +35,16 @@ type AddComponentPanelProps = {
   step: AddComponentStep;
   selectionStatus: SelectionStatus;
   draftSelection: DiagramNodeSelection | null;
+  gateType: GateType | null;
+  isOrganizing: boolean;
   confirmedSelection: DiagramNodeSelection | null;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
+  onGateTypeChange: (gateType: GateType | null) => void;
   onSelectionReset: () => void;
+  onOrganizationStart: () => void;
+  onOrganizationCancel: () => void;
   onGateTypeConfirm: () => void;
 };
 
@@ -52,11 +55,16 @@ export const AddComponentPanel = ({
   step,
   selectionStatus,
   draftSelection,
+  gateType,
+  isOrganizing,
   confirmedSelection,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
+  onGateTypeChange,
   onSelectionReset,
+  onOrganizationStart,
+  onOrganizationCancel,
   onGateTypeConfirm,
 }: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
@@ -69,7 +77,6 @@ export const AddComponentPanel = ({
   const [formState, setFormState] = useState<AddComponentFormState>({
     componentId: null,
     calculationType: "exponential",
-    gateType: null,
   });
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
@@ -140,18 +147,18 @@ export const AddComponentPanel = ({
   useEffect(() => {
     if (selectionResetRef.current === confirmedSelection?.id) return;
     selectionResetRef.current = confirmedSelection?.id ?? null;
-    setFormState((prev) => ({ ...prev, gateType: null }));
     setIsGateSectionOpen(true);
-  }, [confirmedSelection?.id]);
+    onGateTypeChange(null);
+  }, [confirmedSelection?.id, onGateTypeChange]);
 
   useEffect(() => {
     if (stepResetRef.current === step) return;
     stepResetRef.current = step;
     if (step === "gateType") {
-      setFormState((prev) => ({ ...prev, gateType: null }));
+      onGateTypeChange(null);
       setIsGateSectionOpen(true);
     }
-  }, [step]);
+  }, [onGateTypeChange, step]);
 
   const summary = useMemo(() => {
     if (state === "idle") {
@@ -174,14 +181,14 @@ export const AddComponentPanel = ({
       setFormState({
         componentId: item.id,
         calculationType: "exponential",
-        gateType: null,
       });
       setIsSelectedSectionOpen(true);
       setIsCalcSectionOpen(true);
       setIsGateSectionOpen(true);
+      onGateTypeChange(null);
       onSelectionStart();
     },
-    [onSelectionStart],
+    [onGateTypeChange, onSelectionStart],
   );
 
   const handleClearSelection = useCallback(() => {
@@ -189,13 +196,13 @@ export const AddComponentPanel = ({
     setFormState((prev) => ({
       ...prev,
       componentId: null,
-      gateType: null,
     }));
     setIsSelectedSectionOpen(true);
     setIsCalcSectionOpen(true);
     setIsGateSectionOpen(true);
+    onGateTypeChange(null);
     onSelectionReset();
-  }, [onSelectionReset]);
+  }, [onGateTypeChange, onSelectionReset]);
 
   const calculationOptions = [
     {
@@ -234,8 +241,14 @@ export const AddComponentPanel = ({
     : "Busca componentes remotos para añadirlos al diagrama.";
 
   const shouldShowGateSection =
-    confirmedSelection?.type === "component" && step === "gateType";
+    confirmedSelection?.type === "component" &&
+    (step === "gateType" || step === "organization");
   const shouldShowOrganizationSection = step === "organization";
+  const organizationLabel = confirmedSelection?.type === "gate"
+    ? `la gate ${confirmedSelection.id}`
+    : gateType
+      ? `el nuevo ${gateType.toUpperCase()}`
+      : "el nuevo gate";
 
   return (
     <section className="add-component-panel">
@@ -391,16 +404,12 @@ export const AddComponentPanel = ({
                       >
                         <input
                           type="radio"
-                          name="gate-type"
-                          value={option.value}
-                          checked={formState.gateType === option.value}
-                          onChange={() =>
-                            setFormState((prev) => ({
-                              ...prev,
-                              gateType: option.value,
-                            }))
-                          }
-                        />
+                      value={option.value}
+                      checked={gateType === option.value}
+                      onChange={() =>
+                        onGateTypeChange(option.value)
+                      }
+                    />                          
                         <span
                           className="add-component-panel__gate-icon"
                           style={colorVars}
@@ -418,10 +427,10 @@ export const AddComponentPanel = ({
                       className="add-component-panel__diagram-button"
                       type="button"
                       onClick={() => {
-                        if (!formState.gateType) return;
+                        if (!gateType) return;
                         onGateTypeConfirm();
                       }}
-                      disabled={!formState.gateType}
+                      disabled={!gateType}
                     >
                       Continuar a organización
                     </button>
@@ -436,16 +445,47 @@ export const AddComponentPanel = ({
               <div className="add-component-panel__organization-header">
                 <span>Organización</span>
                 <span className="add-component-panel__organization-pill">
-                  Placeholder
+                  {isOrganizing ? "Organizando" : "Inactivo"}
                 </span>
               </div>
-              <p className="add-component-panel__organization-text">
-                Entraste en modo organización. Aquí podrás reordenar los
-                elementos del diagrama antes de confirmar la inserción.
-              </p>
-              <div className="add-component-panel__organization-hint">
-                Próximamente: drag &amp; drop, confirmación y cancelación.
-              </div>
+              {isOrganizing ? (
+                <>
+                  <p className="add-component-panel__organization-text">
+                    Organiza los elementos dentro de {organizationLabel}.
+                  </p>
+                  <div className="add-component-panel__organization-actions">
+                    <button
+                      className="add-component-panel__diagram-button add-component-panel__diagram-button--ghost"
+                      type="button"
+                      onClick={onOrganizationCancel}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="add-component-panel__diagram-button add-component-panel__diagram-button--primary"
+                      type="button"
+                      onClick={() => undefined}
+                    >
+                      Insertar
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="add-component-panel__organization-text">
+                    Organiza los elementos dentro de {organizationLabel}.
+                  </p>
+                  <div className="add-component-panel__organization-actions">
+                    <button
+                      className="add-component-panel__diagram-button"
+                      type="button"
+                      onClick={onOrganizationStart}
+                    >
+                      Organizar
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
           ) : null}
         </>

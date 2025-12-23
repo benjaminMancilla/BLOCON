@@ -11,6 +11,9 @@ type DiagramCollapsedGateNodeProps = {
   isHovered?: boolean;
   isPreselected?: boolean;
   isSelected?: boolean;
+  isDimmed?: boolean;
+  isOrganizationLocked?: boolean;
+  allowExpand?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
@@ -42,6 +45,9 @@ export const DiagramCollapsedGateNode = ({
   isHovered = false,
   isPreselected = false,
   isSelected = false,
+  isDimmed = false,
+  isOrganizationLocked = false,
+  allowExpand = true,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
@@ -56,7 +62,9 @@ export const DiagramCollapsedGateNode = ({
         isSelectionMode ? " diagram-node--selectable" : ""
       }${isHovered ? " diagram-node--hovered" : ""}${
         isPreselected ? " diagram-node--preselected" : ""
-      }${isSelected ? " diagram-node--selected" : ""}`}
+      }${isSelected ? " diagram-node--selected" : ""}${
+        isDimmed ? " diagram-node--dimmed" : ""
+      }${isOrganizationLocked ? " diagram-node--locked" : ""}`}
       style={{
         left: node.x,
         top: node.y,
@@ -85,18 +93,20 @@ export const DiagramCollapsedGateNode = ({
         onConfirm?.();
       }}
     >
-      <button
-        type="button"
-        className="diagram-node__expand"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          onExpand(node.id);
-        }}
-        aria-label={`Expandir gate ${node.id}`}
-      >
-        +
-      </button>
+      {allowExpand ? (
+        <button
+          type="button"
+          className="diagram-node__expand"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onExpand(node.id);
+          }}
+          aria-label={`Expandir gate ${node.id}`}
+        >
+          +
+        </button>
+      ) : null}
       <div className="diagram-node__title">{node.id}</div>
       <div className="diagram-node__meta">
         <span className="diagram-node__icon">⟲</span>

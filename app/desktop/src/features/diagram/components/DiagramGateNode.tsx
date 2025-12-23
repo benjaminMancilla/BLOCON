@@ -11,6 +11,8 @@ type DiagramGateNodeProps = {
   isHovered?: boolean;
   isPreselected?: boolean;
   isSelected?: boolean;
+  isDimmed?: boolean;
+  isOrganizationLocked?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
@@ -31,6 +33,8 @@ export const DiagramGateNode = ({
   isHovered = false,
   isPreselected = false,
   isSelected = false,
+  isDimmed = false,
+  isOrganizationLocked = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
@@ -52,6 +56,8 @@ export const DiagramGateNode = ({
         isHovered ? " diagram-node--hovered" : ""
       }${isPreselected ? " diagram-node--preselected" : ""}${
         isSelected ? " diagram-node--selected" : ""
+      }${isDimmed ? " diagram-node--dimmed" : ""}${
+        isOrganizationLocked ? " diagram-node--locked" : ""
       }`}
       style={{
         left: node.x,

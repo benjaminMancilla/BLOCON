@@ -7,6 +7,7 @@ import type {
   DiagramNodeSelection,
   SelectionStatus,
 } from "./features/diagram/types/selection";
+import type { GateType } from "./features/diagram/types/gates";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 
@@ -20,6 +21,9 @@ function App() {
     useState<DiagramNodeSelection | null>(null);
   const [confirmedSelection, setConfirmedSelection] =
     useState<DiagramNodeSelection | null>(null);
+  const [selectedGateType, setSelectedGateType] =
+    useState<GateType | null>(null);
+  const [isOrganizationActive, setIsOrganizationActive] = useState(false);
   const [hoveredSelectionId, setHoveredSelectionId] = useState<string | null>(
     null,
   );
@@ -28,7 +32,10 @@ function App() {
     isAddMode &&
     addComponentStep === "selection" &&
     selectionStatus === "selecting";
-  const isOrganizationMode = isAddMode && addComponentStep === "organization";
+  const isOrganizationStage =
+    isAddMode && addComponentStep === "organization";
+  const isOrganizationMode =
+    isOrganizationStage && isOrganizationActive;
 
   useEffect(() => {
     if (!isAddMode) {
@@ -36,9 +43,17 @@ function App() {
       setSelectionStatus("selecting");
       setDraftSelection(null);
       setConfirmedSelection(null);
+      setSelectedGateType(null);
+      setIsOrganizationActive(false);
       setHoveredSelectionId(null);
     }
   }, [isAddMode]);
+
+  useEffect(() => {
+    if (addComponentStep !== "organization") {
+      setIsOrganizationActive(false);
+    }
+  }, [addComponentStep]);
 
   const handleSelectionStart = useCallback(() => {
     setAddComponentStep("selection");
@@ -46,6 +61,8 @@ function App() {
     setDraftSelection(null);
     setConfirmedSelection(null);
     setHoveredSelectionId(null);
+    setSelectedGateType(null);
+    setIsOrganizationActive(false);
   }, []);
 
   const handleSelectionCancel = useCallback(() => {
@@ -53,6 +70,8 @@ function App() {
     setSelectionStatus("idle");
     setDraftSelection(null);
     setConfirmedSelection(null);
+    setSelectedGateType(null);
+    setIsOrganizationActive(false);
     setHoveredSelectionId(null);
   }, []);
 
@@ -62,6 +81,8 @@ function App() {
       setConfirmedSelection(selection);
       setSelectionStatus("selected");
       setHoveredSelectionId(null);
+      setSelectedGateType(null);
+      setIsOrganizationActive(false);
       setAddComponentStep(
         selection.type === "gate" ? "organization" : "gateType",
       );
@@ -74,6 +95,8 @@ function App() {
     setSelectionStatus("idle");
     setDraftSelection(null);
     setConfirmedSelection(null);
+    setSelectedGateType(null);
+    setIsOrganizationActive(false);
     setHoveredSelectionId(null);
   }, []);
 
@@ -112,6 +135,19 @@ function App() {
 
   const handleGateTypeConfirm = useCallback(() => {
     setAddComponentStep("organization");
+    setIsOrganizationActive(false);
+  }, []);
+
+  const handleGateTypeChange = useCallback((gateType: GateType | null) => {
+    setSelectedGateType(gateType);
+  }, []);
+
+  const handleOrganizationStart = useCallback(() => {
+    setIsOrganizationActive(true);
+  }, []);
+
+  const handleOrganizationCancel = useCallback(() => {
+    setIsOrganizationActive(false);
   }, []);
 
   const selectionMeta = useMemo(
@@ -128,12 +164,15 @@ function App() {
       <DiagramTopBar
         isAddMode={isAddMode}
         isSelectionMode={isSelectionMode}
+        isOrganizationMode={isOrganizationMode}
         onToggleAddMode={() => setIsAddMode((current) => !current)}
       />
       <div className="diagram-workspace">
         <DiagramCanvas
           isSelectionMode={isSelectionMode}
           isOrganizationMode={isOrganizationMode}
+          organizationSelection={confirmedSelection}
+          organizationGateType={selectedGateType}
           preselectedNodeId={selectionMeta.preselectedId}
           selectedNodeId={selectionMeta.selectedId}
           hoveredNodeId={selectionMeta.hoveredId}
@@ -143,6 +182,7 @@ function App() {
           onNodePreselect={handleNodePreselect}
           onNodeConfirm={handleNodeConfirm}
           onSelectionCancel={handleSelectionCancel}
+          onOrganizationCancel={handleOrganizationCancel}
         />
         {isAddMode ? (
           <DiagramSidePanel>
@@ -151,11 +191,16 @@ function App() {
               selectionStatus={selectionStatus}
               draftSelection={draftSelection}
               confirmedSelection={confirmedSelection}
+              gateType={selectedGateType}
+              isOrganizing={isOrganizationMode}
               onSelectionConfirm={handleSelectionConfirm}
               onSelectionCancel={handleSelectionCancel}
               onSelectionStart={handleSelectionStart}
               onSelectionReset={handleSelectionReset}
+              onGateTypeChange={handleGateTypeChange}
               onGateTypeConfirm={handleGateTypeConfirm}
+              onOrganizationStart={handleOrganizationStart}
+              onOrganizationCancel={handleOrganizationCancel}
             />
           </DiagramSidePanel>
         ) : null}

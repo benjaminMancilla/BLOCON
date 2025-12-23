@@ -8,6 +8,7 @@ type DiagramComponentNodeProps = {
   isHovered?: boolean;
   isPreselected?: boolean;
   isSelected?: boolean;
+  isDimmed?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
@@ -37,6 +38,7 @@ export const DiagramComponentNode = ({
   isHovered = false,
   isPreselected = false,
   isSelected = false,
+  isDimmed = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
@@ -48,7 +50,9 @@ export const DiagramComponentNode = ({
         isSelectionMode ? " diagram-node--selectable" : ""
       }${isHovered ? " diagram-node--hovered" : ""}${
         isPreselected ? " diagram-node--preselected" : ""
-      }${isSelected ? " diagram-node--selected" : ""}`}
+      }${isSelected ? " diagram-node--selected" : ""}${
+        isDimmed ? " diagram-node--dimmed" : ""
+      }`}
       style={{
         left: node.x,
         top: node.y,

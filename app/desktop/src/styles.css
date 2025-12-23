@@ -252,6 +252,15 @@ body {
   box-shadow: 0 18px 34px rgba(34, 197, 94, 0.22);
 }
 
+.diagram-node--dimmed {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.diagram-node--locked {
+  pointer-events: none;
+}
+
 .diagram-node--component {
   background: #1e90ff;
   color: #ffffff;
@@ -342,6 +351,11 @@ body {
   z-index: 100;
 }
 
+.diagram-node--organization {
+  opacity: 1;
+  pointer-events: none;
+}
+
 .diagram-node--gate-visible {
   opacity: 1;
   pointer-events: auto;
@@ -388,6 +402,21 @@ body {
   background-color: var(--gate-color-soft, rgba(59, 130, 246, 0.08));
   border-color: var(--gate-color-border, rgba(59, 130, 246, 0.25));
   box-shadow: 0 6px 16px var(--gate-color-shadow, rgba(59, 130, 246, 0.15));
+}
+
+.diagram-gate-area--organization {
+  background-color: rgba(250, 204, 21, 0.15);
+  border: 2px dashed rgba(245, 158, 11, 0.8);
+  box-shadow: 0 10px 20px rgba(245, 158, 11, 0.25);
+}
+
+.diagram-gate-area--virtual {
+  pointer-events: none;
+  z-index: 900;
+}
+
+.diagram-gate-area--dimmed {
+  opacity: 0.35;
 }
 
 .diagram-gate__badge {
@@ -443,6 +472,14 @@ body {
 .diagram-node__collapsed-label {
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.diagram-node--organization-placeholder {
+  background: #fef3c7;
+  color: #92400e;
+  border: 2px dashed #f59e0b;
+  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.22);
+  z-index: 1400;
 }
 
 .diagram-side-panel {
@@ -811,6 +848,22 @@ body {
 .add-component-panel__organization-hint {
   font-size: 0.8rem;
   color: #b45309;
+}
+
+.add-component-panel__organization-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.add-component-panel__diagram-button--primary {
+  background: #1d4ed8;
+  color: #ffffff;
+  border-color: #1d4ed8;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 0.95rem;
 }
 
 .add-component-panel__diagram-selector {
