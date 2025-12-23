@@ -6,6 +6,13 @@ import {
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
+type CalculationType = "exponential" | "weibull";
+
+type AddComponentFormState = {
+  componentId: string | null;
+  calculationType: CalculationType;
+};
+
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
 
@@ -15,6 +22,12 @@ export const AddComponentPanel = () => {
   const [total, setTotal] = useState(0);
   const [state, setState] = useState<SearchState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [selectedComponent, setSelectedComponent] =
+    useState<RemoteComponent | null>(null);
+  const [formState, setFormState] = useState<AddComponentFormState>({
+    componentId: null,
+    calculationType: "exponential",
+  });
 
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
@@ -92,6 +105,35 @@ export const AddComponentPanel = () => {
     return `Resultados: ${results.length} de ${total}`;
   }, [error, query, results.length, state, total]);
 
+  const handleSelectComponent = useCallback((item: RemoteComponent) => {
+    setSelectedComponent(item);
+    setFormState({
+      componentId: item.id,
+      calculationType: "exponential",
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedComponent(null);
+    setFormState((prev) => ({
+      ...prev,
+      componentId: null,
+    }));
+  }, []);
+
+  const calculationOptions = [
+    {
+      value: "exponential" as const,
+      label: "Exponencial",
+      icon: "λ",
+    },
+    {
+      value: "weibull" as const,
+      label: "Weibull",
+      icon: "β",
+    },
+  ];
+
   return (
     <section className="add-component-panel">
       <header className="add-component-panel__header">
@@ -101,59 +143,143 @@ export const AddComponentPanel = () => {
         </p>
       </header>
 
-      <div className="add-component-panel__search">
-        <label className="add-component-panel__label" htmlFor="component-search">
-          Buscar
-        </label>
-
-        <input
-          id="component-search"
-          className="add-component-panel__input"
-          type="search"
-          placeholder="Ingresa un ID o nombre"
-          value={query}
-          onChange={(event) => {
-            const value = event.target.value;
-            setQuery(value);
-
-            if (!value.trim()) {
-              // Keep UX tidy when clearing the box.
-              clearPending();
-              setResults([]);
-              setTotal(0);
-              setState("idle");
-              setError(null);
-            }
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
-            event.preventDefault();
-            scheduleSearch();
-          }}
-        />
-
-        <p className="add-component-panel__summary">{summary}</p>
-      </div>
-
-      <div className="add-component-panel__results" role="list">
-        {results.map((item) => {
-          const title = item.title ?? item.kks_name ?? item.id;
-          const meta = [item.type, item.SubType].filter(Boolean).join(" • ");
-          return (
-            <div
-              className="add-component-panel__result"
-              role="listitem"
-              key={item.id}
-            >
-              <div className="add-component-panel__result-title">{title}</div>
-              <div className="add-component-panel__result-meta">
-                <span>{item.id}</span>
-                {meta ? <span>{meta}</span> : null}
+      {selectedComponent ? (
+        <>
+          <div className="add-component-panel__selected">
+            <p className="add-component-panel__selected-label">
+              Componente seleccionado:
+              <span className="add-component-panel__section-toggle">▾</span>
+            </p>
+            <div className="add-component-panel__selected-card">
+              <div className="add-component-panel__selected-header">
+                <div>
+                  <div className="add-component-panel__selected-title">
+                    {selectedComponent.title ??
+                      selectedComponent.kks_name ??
+                      selectedComponent.id}
+                  </div>
+                  <div className="add-component-panel__selected-meta">
+                    <span>{selectedComponent.id}</span>
+                    {[
+                      selectedComponent.type,
+                      selectedComponent.SubType,
+                    ].filter(Boolean).length ? (
+                      <span>
+                        {[selectedComponent.type, selectedComponent.SubType]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  className="add-component-panel__selected-clear"
+                  type="button"
+                  onClick={handleClearSelection}
+                  aria-label="Deseleccionar componente"
+                >
+                  ×
+                </button>
               </div>
             </div>
-          );
-        })}
-      </div>
+          </div>
+
+          <fieldset className="add-component-panel__calc">
+            <legend className="add-component-panel__calc-label">
+              Tipo de cálculo
+              <span className="add-component-panel__section-toggle">▾</span>
+            </legend>
+            <div className="add-component-panel__calc-options">
+              {calculationOptions.map((option) => (
+                <label
+                  key={option.value}
+                  className="add-component-panel__calc-option"
+                >
+                  <input
+                    type="radio"
+                    name="calculation-type"
+                    value={option.value}
+                    checked={formState.calculationType === option.value}
+                    onChange={() =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        calculationType: option.value,
+                      }))
+                    }
+                  />
+                  <span className="diagram-node__icon">{option.icon}</span>
+                  <span className="add-component-panel__calc-text">
+                    {option.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </>
+      ) : (
+        <>
+          <div className="add-component-panel__search">
+            <label
+              className="add-component-panel__label"
+              htmlFor="component-search"
+            >
+              Buscar
+            </label>
+
+            <input
+              id="component-search"
+              className="add-component-panel__input"
+              type="search"
+              placeholder="Ingresa un ID o nombre"
+              value={query}
+              onChange={(event) => {
+                const value = event.target.value;
+                setQuery(value);
+
+                if (!value.trim()) {
+                  // Keep UX tidy when clearing the box.
+                  clearPending();
+                  setResults([]);
+                  setTotal(0);
+                  setState("idle");
+                  setError(null);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                scheduleSearch();
+              }}
+            />
+
+            <p className="add-component-panel__summary">{summary}</p>
+          </div>
+
+          <div className="add-component-panel__results" role="list">
+            {results.map((item) => {
+              const title = item.title ?? item.kks_name ?? item.id;
+              const meta = [item.type, item.SubType].filter(Boolean).join(" • ");
+              return (
+                <button
+                  className="add-component-panel__result"
+                  role="listitem"
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelectComponent(item)}
+                >
+                  <div className="add-component-panel__result-title">
+                    {title}
+                  </div>
+                  <div className="add-component-panel__result-meta">
+                    <span>{item.id}</span>
+                    {meta ? <span>{meta}</span> : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </section>
   );
 };

@@ -463,6 +463,7 @@ body {
 }
 
 .add-component-panel__result {
+  appearance: none;
   border: 1px solid #e4e7ec;
   border-radius: 12px;
   padding: 12px 14px;
@@ -470,6 +471,9 @@ body {
   flex-direction: column;
   gap: 4px;
   background: #f8f9fc;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
 }
 
 .add-component-panel__result-title {
@@ -482,4 +486,105 @@ body {
   gap: 8px;
   font-size: 0.8rem;
   color: #667085;
+}
+
+.add-component-panel__result:focus {
+  outline: 2px solid #7f56d9;
+  outline-offset: 2px;
+}
+
+.add-component-panel__selected {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-component-panel__selected-label {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+.add-component-panel__selected-card {
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: #f8f9fc;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+}
+
+.add-component-panel__selected-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.add-component-panel__selected-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.add-component-panel__selected-meta {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #667085;
+}
+
+.add-component-panel__selected-clear {
+  border: none;
+  background: #ffffff;
+  color: #344054;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+}
+
+.add-component-panel__selected-clear:focus {
+  outline: 2px solid #7f56d9;
+  outline-offset: 2px;
+}
+
+.add-component-panel__calc {
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  padding: 12px 16px 16px;
+  margin: 0;
+}
+
+.add-component-panel__calc-label {
+  padding: 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+.add-component-panel__calc-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.add-component-panel__calc-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #101828;
+}
+
+.add-component-panel__calc-option input {
+  margin: 0;
+}
+
+.add-component-panel__calc-text {
+  font-weight: 500;
 }
