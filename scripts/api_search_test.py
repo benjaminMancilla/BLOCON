@@ -127,6 +127,12 @@ def resolve_list_id(session: requests.Session, site_id: str, list_title: str) ->
             return lst["id"]
     die(f'List "{list_title}" not found in site {site_id}. Got: {[l.get("displayName") for l in data.get("value", [])]}')
 
+def resolve_list_weburl(session: requests.Session, site_id: str, list_id: str) -> str:
+    """Get the list webUrl (used to scope Search API results with Path: KQL)."""
+    url = f"{GRAPH_V1}/sites/{site_id}/lists/{list_id}"
+    lst = graph_get(session, url, params={"$select": "webUrl"})
+    return (lst.get("webUrl") or "").rstrip("/")
+
 
 def extract_search_hits(resp: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
@@ -244,13 +250,19 @@ def main() -> None:
     list_id = resolve_list_id(session, site_id, args.list_title)
     print(f"  list_id = {list_id}")
 
+    # IMPORTANT: Microsoft Search API returns tenant-wide results (within the selected region) for app-only calls.
+    # Scope the query to THIS list (fallback to site) using a KQL Path filter via queryTemplate.
+    list_web_url = resolve_list_weburl(session, site_id, list_id)
+    scope_url = list_web_url or args.site_url.rstrip('/')
+    query_template = f'({{searchTerms}}) Path:"{scope_url}"'
+
     # Search (application permissions flow -> beta + region)
     print("Running Graph Search (beta/search/query)...")
     body = {
         "requests": [
             {
                 "entityTypes": ["listItem"],
-                "query": {"queryString": args.q},
+                "query": {"queryString": args.q, "queryTemplate": query_template},
                 "from": 0,
                 "size": min(max(args.top, 1), 200),
                 "region": region,
@@ -267,9 +279,9 @@ def main() -> None:
         h_site_id, h_list_id, h_item_id = get_sp_ids_from_hit(h)
         if not h_item_id:
             continue
-        if h_site_id != site_id:
-            continue
         if h_list_id != list_id:
+            continue
+        if h_site_id and h_site_id != site_id:
             continue
         filtered.append(h)
         item_ids.append(str(h_item_id))
