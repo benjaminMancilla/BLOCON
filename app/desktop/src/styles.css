@@ -504,6 +504,9 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: #475467;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .add-component-panel__selected-card {
@@ -564,6 +567,14 @@ body {
   font-size: 0.85rem;
   font-weight: 600;
   color: #475467;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.add-component-panel__section-toggle {
+  font-size: 0.95rem;
+  color: #98a2b3;
 }
 
 .add-component-panel__calc-options {
