@@ -1,3 +1,4 @@
+import type { PointerEvent } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 
 type DiagramComponentNodeProps = {
@@ -9,10 +10,13 @@ type DiagramComponentNodeProps = {
   isPreselected?: boolean;
   isSelected?: boolean;
   isDimmed?: boolean;
+  isDraggable?: boolean;
+  isDragging?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
+  onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
 const formatReliability = (reliability?: number | null) => {
@@ -39,10 +43,13 @@ export const DiagramComponentNode = ({
   isPreselected = false,
   isSelected = false,
   isDimmed = false,
+  isDraggable = false,
+  isDragging = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
+  onDragStart,
 }: DiagramComponentNodeProps) => {
   return (
     <div
@@ -52,6 +59,8 @@ export const DiagramComponentNode = ({
         isPreselected ? " diagram-node--preselected" : ""
       }${isSelected ? " diagram-node--selected" : ""}${
         isDimmed ? " diagram-node--dimmed" : ""
+      }${isDraggable ? " diagram-node--draggable" : ""}${
+        isDragging ? " diagram-node--dragging" : ""
       }`}
       style={{
         left: node.x,
@@ -77,6 +86,10 @@ export const DiagramComponentNode = ({
         if (!isSelectionMode) return;
         event.stopPropagation();
         onConfirm?.();
+      }}
+      onPointerDown={(event) => {
+        if (!isDraggable) return;
+        onDragStart?.(event);
       }}
     >
       <div className="diagram-node__title">{node.id}</div>

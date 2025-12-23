@@ -19,15 +19,9 @@ import type {
   SelectionStatus,
 } from "../types/selection";
 import type { GateType } from "../types/gates";
+import type { AddComponentFormState } from "../types/addComponent";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
-
-type CalculationType = "exponential" | "weibull";
-
-type AddComponentFormState = {
-  componentId: string | null;
-  calculationType: CalculationType;
-};
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 
@@ -38,11 +32,13 @@ type AddComponentPanelProps = {
   gateType: GateType | null;
   isOrganizing: boolean;
   confirmedSelection: DiagramNodeSelection | null;
+  formState: AddComponentFormState;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
   onGateTypeChange: (gateType: GateType | null) => void;
   onSelectionReset: () => void;
+  onFormStateChange: (nextState: AddComponentFormState) => void;
   onOrganizationStart: () => void;
   onOrganizationCancel: () => void;
 };
@@ -57,11 +53,13 @@ export const AddComponentPanel = ({
   gateType,
   isOrganizing,
   confirmedSelection,
+  formState,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
   onGateTypeChange,
   onSelectionReset,
+  onFormStateChange,
   onOrganizationStart,
   onOrganizationCancel,
 }: AddComponentPanelProps) => {
@@ -72,10 +70,6 @@ export const AddComponentPanel = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedComponent, setSelectedComponent] =
     useState<RemoteComponent | null>(null);
-  const [formState, setFormState] = useState<AddComponentFormState>({
-    componentId: null,
-    calculationType: "exponential",
-  });
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
   const [isGateSectionOpen, setIsGateSectionOpen] = useState(true);
@@ -176,7 +170,7 @@ export const AddComponentPanel = ({
   const handleSelectComponent = useCallback(
     (item: RemoteComponent) => {
       setSelectedComponent(item);
-      setFormState({
+      onFormStateChange({
         componentId: item.id,
         calculationType: "exponential",
       });
@@ -186,21 +180,21 @@ export const AddComponentPanel = ({
       onGateTypeChange(null);
       onSelectionStart();
     },
-    [onGateTypeChange, onSelectionStart],
+    [onFormStateChange, onGateTypeChange, onSelectionStart],
   );
 
   const handleClearSelection = useCallback(() => {
     setSelectedComponent(null);
-    setFormState((prev) => ({
-      ...prev,
+    onFormStateChange({
       componentId: null,
-    }));
+      calculationType: "exponential",
+    });
     setIsSelectedSectionOpen(true);
     setIsCalcSectionOpen(true);
     setIsGateSectionOpen(true);
     onGateTypeChange(null);
     onSelectionReset();
-  }, [onGateTypeChange, onSelectionReset]);
+  }, [onFormStateChange, onGateTypeChange, onSelectionReset]);
 
   const calculationOptions = [
     {
@@ -344,10 +338,10 @@ export const AddComponentPanel = ({
                       value={option.value}
                       checked={formState.calculationType === option.value}
                       onChange={() =>
-                        setFormState((prev) => ({
-                          ...prev,
+                        onFormStateChange({
+                          ...formState,
                           calculationType: option.value,
-                        }))
+                        })
                       }
                     />
                     <span className="diagram-node__icon">{option.icon}</span>

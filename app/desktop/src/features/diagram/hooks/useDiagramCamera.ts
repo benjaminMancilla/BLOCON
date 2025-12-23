@@ -18,6 +18,7 @@ type CameraHandlers = {
 type UseDiagramCameraResult = {
   cameraStyle: React.CSSProperties;
   handlers: CameraHandlers;
+  camera: CameraState;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -108,5 +109,6 @@ export const useDiagramCamera = (): UseDiagramCameraResult => {
       onPointerLeave,
       onWheel,
     },
+    camera,
   };
 };

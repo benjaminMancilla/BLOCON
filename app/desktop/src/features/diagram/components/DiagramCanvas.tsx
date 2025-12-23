@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 import { DiagramComponentNode } from "./DiagramComponentNode";
 import { DiagramCollapsedGateNode } from "./DiagramCollapsedGateNode";
@@ -11,6 +11,7 @@ import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 import type { DiagramNodeSelection } from "../types/selection";
 import type { GateType } from "../types/gates";
+import type { OrganizationUiState } from "../types/organization";
 import type { GraphData } from "../../../core/graph";
 
 const ORGANIZATION_PADDING = 32;
@@ -50,6 +51,38 @@ const getDescendantGateIds = (graph: GraphData, gateId: string) => {
   );
 };
 
+const normalizeGateType = (value: string | null | undefined): GateType | null => {
+  const normalized = value?.toLowerCase() ?? null;
+  if (normalized === "and" || normalized === "or" || normalized === "koon") {
+    return normalized;
+  }
+  return null;
+};
+
+const getDirectChildren = (graph: GraphData, gateId: string) =>
+  graph.edges.filter((edge) => edge.from === gateId).map((edge) => edge.to);
+
+const applyGateOrder = (
+  graph: GraphData,
+  gateId: string,
+  order: string[]
+) => {
+  const children = getDirectChildren(graph, gateId);
+  const orderSet = new Set(order);
+  const normalizedOrder = [
+    ...order.filter((id) => children.includes(id)),
+    ...children.filter((id) => !orderSet.has(id)),
+  ];
+  const edges = graph.edges.filter((edge) => edge.from !== gateId);
+  normalizedOrder.forEach((childId) => {
+    edges.push({ from: gateId, to: childId });
+  });
+  return {
+    ...graph,
+    edges,
+  };
+};
+
 type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
@@ -66,6 +99,7 @@ type DiagramCanvasProps = {
   onNodeConfirm?: (selection: DiagramNodeSelection) => void;
   onSelectionCancel?: () => void;
   onOrganizationCancel?: () => void;
+  onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
 };
 
 export const DiagramCanvas = ({
@@ -84,12 +118,13 @@ export const DiagramCanvas = ({
   onNodeConfirm,
   onSelectionCancel,
   onOrganizationCancel,
+  onOrganizationStateChange,
 }: DiagramCanvasProps) => {
-  const { cameraStyle, handlers } = useDiagramCamera();
+  const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { graph, status, errorMessage } = useDiagramGraph();
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
   const {
-    graph: organizationGraph,
+    graph: organizationBaseGraph,
     organizationGateId,
     organizationPlaceholderId,
     isVirtualOrganizationGate,
@@ -181,6 +216,99 @@ export const DiagramCanvas = ({
       isVirtualOrganizationGate: isVirtualGate,
     };
   }, [graph, isOrganizationMode, organizationGateType, organizationSelection]);
+  const [organizationOrder, setOrganizationOrder] = useState<string[] | null>(
+    null,
+  );
+  const [organizationInitialOrder, setOrganizationInitialOrder] = useState<
+    string[] | null
+  >(null);
+  const organizationGateIdRef = useRef<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const defaultOrganizationOrder = useMemo(() => {
+    if (!isOrganizationMode || !organizationGateId) return [];
+    return getDirectChildren(organizationBaseGraph, organizationGateId);
+  }, [isOrganizationMode, organizationBaseGraph, organizationGateId]);
+
+  useEffect(() => {
+    if (!isOrganizationMode || !organizationGateId) {
+      organizationGateIdRef.current = null;
+      setOrganizationOrder(null);
+      setOrganizationInitialOrder(null);
+      return;
+    }
+
+    if (organizationGateIdRef.current !== organizationGateId) {
+      organizationGateIdRef.current = organizationGateId;
+      setOrganizationOrder(defaultOrganizationOrder);
+      setOrganizationInitialOrder(defaultOrganizationOrder);
+      return;
+    }
+
+    if (!organizationOrder) {
+      setOrganizationOrder(defaultOrganizationOrder);
+    }
+    if (!organizationInitialOrder) {
+      setOrganizationInitialOrder(defaultOrganizationOrder);
+    }
+  }, [
+    defaultOrganizationOrder,
+    isOrganizationMode,
+    organizationGateId,
+    organizationInitialOrder,
+    organizationOrder,
+  ]);
+  const organizationGraph = useMemo(() => {
+    if (!isOrganizationMode || !organizationGateId) return organizationBaseGraph;
+    if (!organizationOrder || organizationOrder.length === 0) {
+      return organizationBaseGraph;
+    }
+    return applyGateOrder(
+      organizationBaseGraph,
+      organizationGateId,
+      organizationOrder
+    );
+  }, [
+    isOrganizationMode,
+    organizationBaseGraph,
+    organizationGateId,
+    organizationOrder,
+  ]);
+  const organizationGateSubtype = useMemo(() => {
+    if (!organizationGateId) return null;
+    const node = organizationBaseGraph.nodes.find(
+      (entry) => entry.id === organizationGateId
+    );
+    return normalizeGateType(node?.subtype ?? organizationGateType ?? null);
+  }, [organizationBaseGraph.nodes, organizationGateId, organizationGateType]);
+
+  useEffect(() => {
+    if (
+      !isOrganizationMode ||
+      !organizationGateId ||
+      !organizationPlaceholderId ||
+      !organizationOrder ||
+      !organizationInitialOrder
+    ) {
+      onOrganizationStateChange?.(null);
+      return;
+    }
+
+    onOrganizationStateChange?.({
+      gateId: organizationGateId,
+      placeholderId: organizationPlaceholderId,
+      gateSubtype: organizationGateSubtype,
+      order: organizationOrder,
+      initialOrder: organizationInitialOrder,
+    });
+  }, [
+    isOrganizationMode,
+    onOrganizationStateChange,
+    organizationGateId,
+    organizationGateSubtype,
+    organizationInitialOrder,
+    organizationOrder,
+    organizationPlaceholderId,
+  ]);
   const organizationDescendantGateIds = useMemo(() => {
     if (!isOrganizationMode || !organizationGateId) return [];
     return getDescendantGateIds(organizationGraph, organizationGateId);
@@ -198,9 +326,23 @@ export const DiagramCanvas = ({
     [organizationGraph, organizationCollapsedGateIdSet]
   );
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
+  const layoutNodeById = useMemo(
+    () => new Map(layout.nodes.map((node) => [node.id, node])),
+    [layout.nodes]
+  );
+  const organizationChildIds = useMemo(() => {
+    if (!organizationGateId) return new Set<string>();
+    return new Set(
+      layout.nodes
+        .filter((node) => node.parentGateId === organizationGateId)
+        .map((node) => node.id)
+    );
+  }, [layout.nodes, organizationGateId]);
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
   const [hoveredSelectableId, setHoveredSelectableId] =
     useState<string | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragPointerId, setDragPointerId] = useState<number | null>(null);
   const gateAreasById = useMemo(
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
@@ -269,6 +411,25 @@ export const DiagramCanvas = ({
     if (parentGateId) ids.add(parentGateId);
     return ids;
   }, [hoveredGateId, parentGateId]);
+  const organizationAxis = useMemo(() => {
+    if (!organizationGateSubtype) return "horizontal";
+    if (organizationGateSubtype === "or" || organizationGateSubtype === "koon") {
+      return "vertical";
+    }
+    return "horizontal";
+  }, [organizationGateSubtype]);
+  const getDiagramPoint = useCallback(
+    (event: PointerEvent<HTMLDivElement> | globalThis.PointerEvent) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return null;
+      const rect = viewport.getBoundingClientRect();
+      return {
+        x: (event.clientX - rect.left - camera.x) / camera.scale,
+        y: (event.clientY - rect.top - camera.y) / camera.scale,
+      };
+    },
+    [camera.scale, camera.x, camera.y]
+  );
 
   useEffect(() => {
     if (isSelectionMode) {
@@ -284,6 +445,12 @@ export const DiagramCanvas = ({
       onNodeHover?.(null);
     }
   }, [isSelectionMode, onNodeHover]);
+
+  useEffect(() => {
+    if (isOrganizationMode) return;
+    setDraggingNodeId(null);
+    setDragPointerId(null);
+  }, [isOrganizationMode]);
 
   useEffect(() => {
     if (!isSelectionMode) return;
@@ -340,6 +507,90 @@ export const DiagramCanvas = ({
     };
   }, [handlers, hoveredSelectableId, isSelectionMode]);
 
+  const handleOrganizationDragStart = useCallback(
+    (
+      event: PointerEvent<HTMLDivElement>,
+      nodeId: string
+    ) => {
+      if (!isOrganizationMode || !organizationGateId) return;
+      if (!organizationChildIds.has(nodeId)) return;
+      event.stopPropagation();
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDraggingNodeId(nodeId);
+      setDragPointerId(event.pointerId);
+    },
+    [isOrganizationMode, organizationGateId, organizationChildIds]
+  );
+
+  useEffect(() => {
+    if (!draggingNodeId || dragPointerId === null) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerId !== dragPointerId) return;
+      if (!organizationArea) return;
+      const point = getDiagramPoint(event);
+      if (!point) return;
+      const isInside =
+        point.x >= organizationArea.x &&
+        point.x <= organizationArea.x + organizationArea.width &&
+        point.y >= organizationArea.y &&
+        point.y <= organizationArea.y + organizationArea.height;
+      if (!isInside) return;
+
+      const currentOrder = organizationOrder ?? defaultOrganizationOrder;
+      if (!currentOrder.includes(draggingNodeId)) return;
+      const remaining = currentOrder.filter((id) => id !== draggingNodeId);
+      const axisValue = organizationAxis === "vertical" ? point.y : point.x;
+      let insertIndex = remaining.length;
+      for (let index = 0; index < remaining.length; index += 1) {
+        const node = layoutNodeById.get(remaining[index]);
+        if (!node) continue;
+        const center =
+          organizationAxis === "vertical"
+            ? node.y + node.height / 2
+            : node.x + node.width / 2;
+        if (axisValue < center) {
+          insertIndex = index;
+          break;
+        }
+      }
+      const nextOrder = [
+        ...remaining.slice(0, insertIndex),
+        draggingNodeId,
+        ...remaining.slice(insertIndex),
+      ];
+      const hasChanged =
+        nextOrder.length !== currentOrder.length ||
+        nextOrder.some((value, index) => value !== currentOrder[index]);
+      if (hasChanged) {
+        setOrganizationOrder(nextOrder);
+      }
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (event.pointerId !== dragPointerId) return;
+      setDraggingNodeId(null);
+      setDragPointerId(null);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [
+    defaultOrganizationOrder,
+    dragPointerId,
+    draggingNodeId,
+    getDiagramPoint,
+    layoutNodeById,
+    organizationArea,
+    organizationAxis,
+    organizationOrder,
+  ]);
+
   const toSelection = useMemo(
     () => (nodeId: string, isGate: boolean): DiagramNodeSelection => ({
       id: nodeId,
@@ -371,7 +622,11 @@ export const DiagramCanvas = ({
             {organizationIndicator}
           </div>
         ) : null}
-        <div className="diagram-canvas__viewport" style={cameraStyle}>
+        <div
+          className="diagram-canvas__viewport"
+          style={cameraStyle}
+          ref={viewportRef}
+        >
           {status !== "ready" && (
             <div className="diagram-canvas__placeholder">
               <div className="diagram-canvas__node">Nodo ejemplo</div>
@@ -499,8 +754,16 @@ export const DiagramCanvas = ({
                   isOrganizationMode && organizationGateId
                     ? !isNodeWithinOrganization(node.id, node.parentGateId ?? null)
                     : false;
+                const isDirectChild =
+                  isOrganizationMode && organizationGateId
+                    ? node.parentGateId === organizationGateId
+                    : false;
                 const isLocked =
-                  isOrganizationMode && organizationLockedGateIds.has(node.id);
+                  isOrganizationMode &&
+                  organizationLockedGateIds.has(node.id) &&
+                  node.parentGateId !== organizationGateId;
+                const isDraggable = isDirectChild;
+                const isDragging = draggingNodeId === node.id;
                 const handleSelectHover = () => {
                   if (!isSelectionMode) return;
                   setHoveredSelectableId(node.id);
@@ -524,12 +787,18 @@ export const DiagramCanvas = ({
                   return (
                     <div
                       key={node.id}
-                      className="diagram-node diagram-node--component diagram-node--organization-placeholder"
+                      className={`diagram-node diagram-node--component diagram-node--organization-placeholder${
+                        isDraggable ? " diagram-node--draggable" : ""
+                      }${isDragging ? " diagram-node--dragging" : ""}`}
                       style={{
                         left: node.x,
                         top: node.y,
                         width: node.width,
                         height: node.height,
+                      }}
+                      onPointerDown={(event) => {
+                        if (!isDraggable) return;
+                        handleOrganizationDragStart(event, node.id);
                       }}
                       aria-hidden="true"
                     >
@@ -556,9 +825,14 @@ export const DiagramCanvas = ({
                       isSelected={isSelected}
                       isDimmed={isDimmed}
                       isOrganizationLocked={isLocked}
+                      isDraggable={isDraggable}
+                      isDragging={isDragging}
                       allowExpand={
                         !isLocked &&
                         !(isOrganizationMode && organizationGateId === node.id)
+                      }
+                      onDragStart={(event) =>
+                        handleOrganizationDragStart(event, node.id)
                       }
                       onSelectHover={handleSelectHover}
                       onSelectHoverEnd={handleSelectHoverEnd}
@@ -576,6 +850,11 @@ export const DiagramCanvas = ({
                       isPreselected={isPreselected}
                       isSelected={isSelected}
                       isDimmed={isDimmed}
+                      isDraggable={isDraggable}
+                      isDragging={isDragging}
+                      onDragStart={(event) =>
+                        handleOrganizationDragStart(event, node.id)
+                      }
                       onSelectHover={handleSelectHover}
                       onSelectHoverEnd={handleSelectHoverEnd}
                       onPreselect={handlePreselect}
@@ -595,6 +874,11 @@ export const DiagramCanvas = ({
                     isSelected={isSelected}
                     isDimmed={isDimmed}
                     isOrganizationLocked={isLocked}
+                    isDraggable={isDraggable}
+                    isDragging={isDragging}
+                    onDragStart={(event) =>
+                      handleOrganizationDragStart(event, node.id)
+                    }
                     onSelectHover={handleSelectHover}
                     onSelectHoverEnd={handleSelectHoverEnd}
                     onPreselect={handlePreselect}

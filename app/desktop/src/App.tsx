@@ -8,6 +8,11 @@ import type {
   SelectionStatus,
 } from "./features/diagram/types/selection";
 import type { GateType } from "./features/diagram/types/gates";
+import type { AddComponentFormState } from "./features/diagram/types/addComponent";
+import type {
+  OrganizationPayload,
+  OrganizationUiState,
+} from "./features/diagram/types/organization";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 
@@ -27,6 +32,14 @@ function App() {
   const [hoveredSelectionId, setHoveredSelectionId] = useState<string | null>(
     null,
   );
+  const [formState, setFormState] = useState<AddComponentFormState>({
+    componentId: null,
+    calculationType: "exponential",
+  });
+  const [organizationUiState, setOrganizationUiState] =
+    useState<OrganizationUiState | null>(null);
+  const [organizationPayload, setOrganizationPayload] =
+    useState<OrganizationPayload | null>(null);
 
   const isSelectionMode =
     isAddMode &&
@@ -46,12 +59,20 @@ function App() {
       setSelectedGateType(null);
       setIsOrganizationActive(false);
       setHoveredSelectionId(null);
+      setFormState({
+        componentId: null,
+        calculationType: "exponential",
+      });
+      setOrganizationUiState(null);
+      setOrganizationPayload(null);
     }
   }, [isAddMode]);
 
   useEffect(() => {
     if (addComponentStep !== "organization") {
       setIsOrganizationActive(false);
+      setOrganizationUiState(null);
+      setOrganizationPayload(null);
     }
   }, [addComponentStep]);
 
@@ -63,6 +84,8 @@ function App() {
     setHoveredSelectionId(null);
     setSelectedGateType(null);
     setIsOrganizationActive(false);
+    setOrganizationUiState(null);
+    setOrganizationPayload(null);
   }, []);
 
   const handleSelectionCancel = useCallback(() => {
@@ -73,6 +96,8 @@ function App() {
     setSelectedGateType(null);
     setIsOrganizationActive(false);
     setHoveredSelectionId(null);
+    setOrganizationUiState(null);
+    setOrganizationPayload(null);
   }, []);
 
   const handleSelectionConfirm = useCallback(
@@ -82,6 +107,8 @@ function App() {
       setSelectionStatus("selected");
       setHoveredSelectionId(null);
       setSelectedGateType(null);
+      setOrganizationUiState(null);
+      setOrganizationPayload(null);
       if (selection.type === "gate") {
         setAddComponentStep("organization");
         setIsOrganizationActive(true);
@@ -101,6 +128,8 @@ function App() {
     setSelectedGateType(null);
     setIsOrganizationActive(false);
     setHoveredSelectionId(null);
+    setOrganizationUiState(null);
+    setOrganizationPayload(null);
   }, []);
 
   const handleNodePreselect = useCallback(
@@ -153,6 +182,8 @@ function App() {
 
   const handleOrganizationCancel = useCallback(() => {
     setIsOrganizationActive(false);
+    setOrganizationUiState(null);
+    setOrganizationPayload(null);
   }, []);
 
   const selectionMeta = useMemo(
@@ -163,6 +194,68 @@ function App() {
     }),
     [confirmedSelection?.id, draftSelection?.id, hoveredSelectionId],
   );
+
+  useEffect(() => {
+    if (!isOrganizationMode || !organizationUiState) {
+      setOrganizationPayload(null);
+      return;
+    }
+
+    const placeholderIndex = organizationUiState.order.indexOf(
+      organizationUiState.placeholderId,
+    );
+    const positionIndex =
+      placeholderIndex >= 0 ? placeholderIndex + 1 : null;
+    const target =
+      confirmedSelection?.id
+        ? {
+            hostId: confirmedSelection.id,
+            hostType: confirmedSelection.type,
+            relationType:
+              confirmedSelection.type === "gate"
+                ? organizationUiState.gateSubtype
+                : selectedGateType,
+          }
+        : null;
+
+    const insert = {
+      ...formState,
+      target,
+      position: {
+        index: positionIndex,
+        referenceId:
+          placeholderIndex >= 0 ? organizationUiState.placeholderId : null,
+      },
+    };
+
+    const orderChanged =
+      organizationUiState.order.length !==
+        organizationUiState.initialOrder.length ||
+      organizationUiState.order.some(
+        (value, index) => value !== organizationUiState.initialOrder[index],
+      );
+    const reorder = orderChanged
+      ? organizationUiState.order.map((id, index) => ({
+          position: index + 1,
+          id,
+        }))
+      : null;
+
+    setOrganizationPayload({
+      insert,
+      reorder,
+    });
+  }, [
+    confirmedSelection,
+    formState,
+    isOrganizationMode,
+    organizationUiState,
+    selectedGateType,
+  ]);
+
+  useEffect(() => {
+    if (!organizationPayload) return;
+  }, [organizationPayload]);
 
   return (
     <div className="app">
@@ -178,6 +271,7 @@ function App() {
           isOrganizationMode={isOrganizationMode}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
+          onOrganizationStateChange={organizationUiState}
           preselectedNodeId={selectionMeta.preselectedId}
           selectedNodeId={selectionMeta.selectedId}
           hoveredNodeId={selectionMeta.hoveredId}
@@ -198,11 +292,13 @@ function App() {
               confirmedSelection={confirmedSelection}
               gateType={selectedGateType}
               isOrganizing={isOrganizationMode}
+              formState={formState}
               onSelectionConfirm={handleSelectionConfirm}
               onSelectionCancel={handleSelectionCancel}
               onSelectionStart={handleSelectionStart}
               onSelectionReset={handleSelectionReset}
               onGateTypeChange={handleGateTypeChange}
+              onFormStateChange={setFormState}
               onOrganizationStart={handleOrganizationStart}
               onOrganizationCancel={handleOrganizationCancel}
             />

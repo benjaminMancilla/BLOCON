@@ -258,6 +258,18 @@ body {
   box-shadow: none;
 }
 
+.diagram-node--draggable {
+  cursor: grab;
+}
+
+.diagram-node--dragging {
+  cursor: grabbing;
+  transform: scale(1.03);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.22);
+  opacity: 0.8;
+  z-index: 1500;
+}
+
 .diagram-node--locked {
   pointer-events: none;
 }

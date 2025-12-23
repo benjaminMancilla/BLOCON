@@ -1,4 +1,4 @@
-import { CSSProperties } from "react";
+import { CSSProperties, PointerEvent } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
@@ -13,11 +13,14 @@ type DiagramCollapsedGateNodeProps = {
   isSelected?: boolean;
   isDimmed?: boolean;
   isOrganizationLocked?: boolean;
+  isDraggable?: boolean;
+  isDragging?: boolean;
   allowExpand?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
+  onDragStart?: (event: PointerEvent<HTMLDivElement>) => void
 };
 
 const formatGateMeta = (node: DiagramLayoutNode) => {
@@ -47,11 +50,14 @@ export const DiagramCollapsedGateNode = ({
   isSelected = false,
   isDimmed = false,
   isOrganizationLocked = false,
+  isDraggable = false,
+  isDragging = false,
   allowExpand = true,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
+  onDragStart,
 }: DiagramCollapsedGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -64,7 +70,9 @@ export const DiagramCollapsedGateNode = ({
         isPreselected ? " diagram-node--preselected" : ""
       }${isSelected ? " diagram-node--selected" : ""}${
         isDimmed ? " diagram-node--dimmed" : ""
-      }${isOrganizationLocked ? " diagram-node--locked" : ""}`}
+      }${isOrganizationLocked ? " diagram-node--locked" : ""}${
+        isDraggable ? " diagram-node--draggable" : ""
+      }${isDragging ? " diagram-node--dragging" : ""}`}
       style={{
         left: node.x,
         top: node.y,
@@ -91,6 +99,10 @@ export const DiagramCollapsedGateNode = ({
         if (!isSelectionMode) return;
         event.stopPropagation();
         onConfirm?.();
+      }}
+      onPointerDown={(event) => {
+        if (!isDraggable) return;
+        onDragStart?.(event);
       }}
     >
       {allowExpand ? (

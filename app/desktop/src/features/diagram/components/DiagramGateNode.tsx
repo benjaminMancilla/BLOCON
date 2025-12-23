@@ -1,4 +1,4 @@
-import { CSSProperties } from "react";
+import { CSSProperties, PointerEvent } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
@@ -13,10 +13,13 @@ type DiagramGateNodeProps = {
   isSelected?: boolean;
   isDimmed?: boolean;
   isOrganizationLocked?: boolean;
+  isDraggable?: boolean;
+  isDragging?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
+  onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
 const formatGateLabel = (node: DiagramLayoutNode) => {
@@ -35,10 +38,13 @@ export const DiagramGateNode = ({
   isSelected = false,
   isDimmed = false,
   isOrganizationLocked = false,
+  isDraggable = false,
+  isDragging = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
+  onDragStart,
 }: DiagramGateNodeProps) => {
   const isKoon = node.subtype?.toLowerCase() === "koon";
   const koonLabel =
@@ -58,6 +64,8 @@ export const DiagramGateNode = ({
         isSelected ? " diagram-node--selected" : ""
       }${isDimmed ? " diagram-node--dimmed" : ""}${
         isOrganizationLocked ? " diagram-node--locked" : ""
+      }${isDraggable ? " diagram-node--draggable" : ""}${
+        isDragging ? " diagram-node--dragging" : ""
       }`}
       style={{
         left: node.x,
@@ -85,6 +93,10 @@ export const DiagramGateNode = ({
         if (!isSelectionMode) return;
         event.stopPropagation();
         onConfirm?.();
+      }}
+      onPointerDown={(event) => {
+        if (!isDraggable) return;
+        onDragStart?.(event);
       }}
     >
       <span className="diagram-gate__label">{formatGateLabel(node)}</span>
