@@ -100,17 +100,16 @@ export const DiagramCanvas = ({
     const wrapPointer =
       <T extends (event: PointerEvent<HTMLDivElement>) => void>(handler: T) =>
       (event: PointerEvent<HTMLDivElement>) => {
-        if (isSelectionMode) return;
+        const shouldBlock = isSelectionMode && hoveredSelectableId !== null;
+        if (shouldBlock) return;
         handler(event);
       };
 
     const wrapWheel =
       <T extends (event: WheelEvent<HTMLDivElement>) => void>(handler: T) =>
       (event: WheelEvent<HTMLDivElement>) => {
-        if (isSelectionMode) {
-          event.preventDefault();
-          return;
-        }
+        const shouldBlock = isSelectionMode && hoveredSelectableId !== null;
+        if (shouldBlock) return;
         handler(event);
       };
 
@@ -121,7 +120,7 @@ export const DiagramCanvas = ({
       onPointerLeave: wrapPointer(handlers.onPointerLeave),
       onWheel: wrapWheel(handlers.onWheel),
     };
-  }, [handlers, isSelectionMode]);
+  }, [handlers, hoveredSelectableId, isSelectionMode]);
 
   const toSelection = useMemo(
     () => (nodeId: string, isGate: boolean): DiagramNodeSelection => ({

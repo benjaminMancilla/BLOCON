@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type {
   DiagramNodeSelection,
   DiagramNodeType,
@@ -29,7 +29,7 @@ export const DiagramElementSelector = ({
 }: DiagramElementSelectorProps) => {
   const selectionToDisplay =
     status === "selected" ? confirmedSelection : draftSelection;
-
+  const [isSectionOpen, setIsSectionOpen] = useState(true);
   useEffect(() => {
     if (status !== "selecting") return;
 
@@ -45,6 +45,11 @@ export const DiagramElementSelector = ({
     };
   }, [onSelectionCleared, status]);
 
+  const handleClearSelection = () => {
+    setIsSectionOpen(true);
+    onSelectionCleared?.();
+  };
+
   return (
     <section
       className={`add-component-panel__diagram-selector${
@@ -55,59 +60,86 @@ export const DiagramElementSelector = ({
     >
       <div className="add-component-panel__diagram-header">
         <span>Seleccionar elemento</span>
-        {status === "selecting" ? (
-          <span className="add-component-panel__diagram-status">
-            Seleccionando
-          </span>
-        ) : null}
+        <div className="add-component-panel__diagram-header-actions">
+          {status === "selecting" ? (
+            <span className="add-component-panel__diagram-status">
+              Seleccionando
+            </span>
+          ) : null}
+          <button
+            className="add-component-panel__section-toggle"
+            type="button"
+            onClick={() => setIsSectionOpen((prev) => !prev)}
+            aria-expanded={isSectionOpen}
+            aria-controls="add-component-diagram-selector"
+          >
+            {isSectionOpen ? "▾" : "▴"}
+          </button>
+        </div>
       </div>
 
-      {selectionToDisplay ? (
-        <div className="add-component-panel__diagram-card">
-          <div className="add-component-panel__diagram-title">
-            {selectionToDisplay.name ?? selectionToDisplay.id}
-          </div>
-          <div className="add-component-panel__diagram-meta">
-            <span>{selectionToDisplay.id}</span>
-            <span>{LABELS[selectionToDisplay.type]}</span>
+     {isSectionOpen ? (
+        <div id="add-component-diagram-selector">
+          {selectionToDisplay ? (
+            <div className="add-component-panel__diagram-card">
+              <div className="add-component-panel__diagram-card-header">
+                <div className="add-component-panel__diagram-title">
+                  {selectionToDisplay.name ?? selectionToDisplay.id}
+                </div>
+                {status === "selected" ? (
+                  <button
+                    className="add-component-panel__selected-clear"
+                    type="button"
+                    onClick={handleClearSelection}
+                    aria-label="Deseleccionar elemento"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
+              <div className="add-component-panel__diagram-meta">
+                <span>{selectionToDisplay.id}</span>
+                <span>{LABELS[selectionToDisplay.type]}</span>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="add-component-panel__diagram-actions">
+            {status === "selecting" ? (
+              <>
+                <button
+                  className="add-component-panel__diagram-button add-component-panel__diagram-button--ghost"
+                  type="button"
+                  onClick={onSelectionCleared}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="add-component-panel__diagram-button"
+                  type="button"
+                  onClick={() => {
+                    if (!draftSelection) return;
+                    onSelectionConfirmed?.(draftSelection);
+                  }}
+                  disabled={!draftSelection}
+                >
+                  Seleccionar
+                </button>
+              </>
+            ) : null}
+
+            {status === "idle" ? (
+              <button
+                className="add-component-panel__diagram-button"
+                type="button"
+                onClick={onSelectionStart}
+              >
+                Escoger elemento
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
-
-      <div className="add-component-panel__diagram-actions">
-        {status === "selecting" ? (
-          <>
-            <button
-              className="add-component-panel__diagram-button add-component-panel__diagram-button--ghost"
-              type="button"
-              onClick={onSelectionCleared}
-            >
-              Cancelar
-            </button>
-            <button
-              className="add-component-panel__diagram-button"
-              type="button"
-              onClick={() => {
-                if (!draftSelection) return;
-                onSelectionConfirmed?.(draftSelection);
-              }}
-              disabled={!draftSelection}
-            >
-              Seleccionar
-            </button>
-          </>
-        ) : null}
-
-        {status === "idle" ? (
-          <button
-            className="add-component-panel__diagram-button"
-            type="button"
-            onClick={onSelectionStart}
-          >
-            Escoger elemento
-          </button>
-        ) : null}
-      </div>
     </section>
   );
 };

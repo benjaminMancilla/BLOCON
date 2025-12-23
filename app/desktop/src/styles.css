@@ -130,7 +130,7 @@ body {
 }
 
 .diagram-canvas__surface--selection {
-  cursor: crosshair;
+  cursor: grab;
 }
 
 .diagram-canvas__surface:active {
@@ -326,6 +326,10 @@ body {
 }
 
 .diagram-node--gate.diagram-node--selectable {
+  cursor: pointer;
+}
+
+.diagram-node--gate.diagram-node--selectable .diagram-gate__label {
   cursor: pointer;
 }
 
@@ -708,6 +712,12 @@ body {
   color: #475467;
 }
 
+.add-component-panel__diagram-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .add-component-panel__diagram-status {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -721,6 +731,13 @@ body {
   padding: 12px 14px;
   background: #f8f9fc;
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+}
+
+.add-component-panel__diagram-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .add-component-panel__diagram-title {
