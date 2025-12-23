@@ -523,10 +523,10 @@ export const DiagramCanvas = ({
     [isOrganizationMode, organizationGateId, organizationChildIds]
   );
 
-  useEffect(() => {
+useEffect(() => {
     if (!draggingNodeId || dragPointerId === null) return;
 
-    const handlePointerMove = (event: PointerEvent) => {
+    const handlePointerMove = (event: globalThis.PointerEvent) => {
       if (event.pointerId !== dragPointerId) return;
       if (!organizationArea) return;
       const point = getDiagramPoint(event);
@@ -568,7 +568,7 @@ export const DiagramCanvas = ({
       }
     };
 
-    const handlePointerUp = (event: PointerEvent) => {
+    const handlePointerUp = (event: globalThis.PointerEvent) => {
       if (event.pointerId !== dragPointerId) return;
       setDraggingNodeId(null);
       setDragPointerId(null);
