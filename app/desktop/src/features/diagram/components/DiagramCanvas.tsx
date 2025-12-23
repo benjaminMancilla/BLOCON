@@ -14,6 +14,7 @@ import type { DiagramNodeSelection } from "../types/selection";
 type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
+  isOrganizationMode?: boolean;
   hoveredNodeId?: string | null;
   preselectedNodeId?: string | null;
   selectedNodeId?: string | null;
@@ -28,6 +29,7 @@ type DiagramCanvasProps = {
 export const DiagramCanvas = ({
   label = "Canvas",
   isSelectionMode = false,
+  isOrganizationMode = false,
   hoveredNodeId = null,
   preselectedNodeId = null,
   selectedNodeId = null,
@@ -135,9 +137,14 @@ export const DiagramCanvas = ({
       <div
         className={`diagram-canvas__surface${
           isSelectionMode ? " diagram-canvas__surface--selection" : ""
-        }`}
+        }${isOrganizationMode ? " diagram-canvas__surface--organization" : ""}`}
         {...selectionHandlers}
       >
+        {isOrganizationMode ? (
+          <div className="diagram-canvas__mode-indicator">
+            Modo organización · Placeholder
+          </div>
+        ) : null}
         <div className="diagram-canvas__viewport" style={cameraStyle}>
           {status !== "ready" && (
             <div className="diagram-canvas__placeholder">

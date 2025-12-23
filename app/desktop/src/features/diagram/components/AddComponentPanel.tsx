@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type RemoteComponent,
   searchRemoteComponents,
@@ -6,6 +13,7 @@ import {
 import {
   DiagramElementSelector,
 } from "./DiagramElementSelector";
+import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 import type {
   DiagramNodeSelection,
   SelectionStatus,
@@ -15,12 +23,18 @@ type SearchState = "idle" | "loading" | "ready" | "error";
 
 type CalculationType = "exponential" | "weibull";
 
+type GateType = "and" | "or" | "koon";
+
 type AddComponentFormState = {
   componentId: string | null;
   calculationType: CalculationType;
+  gateType: GateType | null;
 };
 
+type AddComponentStep = "selection" | "gateType" | "organization";
+
 type AddComponentPanelProps = {
+  step: AddComponentStep;
   selectionStatus: SelectionStatus;
   draftSelection: DiagramNodeSelection | null;
   confirmedSelection: DiagramNodeSelection | null;
@@ -28,12 +42,14 @@ type AddComponentPanelProps = {
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
   onSelectionReset: () => void;
+  onGateTypeConfirm: () => void;
 };
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
 
 export const AddComponentPanel = ({
+  step,
   selectionStatus,
   draftSelection,
   confirmedSelection,
@@ -41,6 +57,7 @@ export const AddComponentPanel = ({
   onSelectionCancel,
   onSelectionStart,
   onSelectionReset,
+  onGateTypeConfirm,
 }: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
@@ -52,12 +69,16 @@ export const AddComponentPanel = ({
   const [formState, setFormState] = useState<AddComponentFormState>({
     componentId: null,
     calculationType: "exponential",
+    gateType: null,
   });
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
+  const [isGateSectionOpen, setIsGateSectionOpen] = useState(true);
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const selectionResetRef = useRef<string | null>(null);
+  const stepResetRef = useRef<AddComponentStep | null>(null);
 
   const clearPending = useCallback(() => {
     if (debounceTimerRef.current !== null) {
@@ -116,6 +137,22 @@ export const AddComponentPanel = ({
   // Cleanup on unmount.
   useEffect(() => clearPending, [clearPending]);
 
+  useEffect(() => {
+    if (selectionResetRef.current === confirmedSelection?.id) return;
+    selectionResetRef.current = confirmedSelection?.id ?? null;
+    setFormState((prev) => ({ ...prev, gateType: null }));
+    setIsGateSectionOpen(true);
+  }, [confirmedSelection?.id]);
+
+  useEffect(() => {
+    if (stepResetRef.current === step) return;
+    stepResetRef.current = step;
+    if (step === "gateType") {
+      setFormState((prev) => ({ ...prev, gateType: null }));
+      setIsGateSectionOpen(true);
+    }
+  }, [step]);
+
   const summary = useMemo(() => {
     if (state === "idle") {
       const trimmed = query.trim();
@@ -137,9 +174,11 @@ export const AddComponentPanel = ({
       setFormState({
         componentId: item.id,
         calculationType: "exponential",
+        gateType: null,
       });
       setIsSelectedSectionOpen(true);
       setIsCalcSectionOpen(true);
+      setIsGateSectionOpen(true);
       onSelectionStart();
     },
     [onSelectionStart],
@@ -150,9 +189,11 @@ export const AddComponentPanel = ({
     setFormState((prev) => ({
       ...prev,
       componentId: null,
+      gateType: null,
     }));
     setIsSelectedSectionOpen(true);
     setIsCalcSectionOpen(true);
+    setIsGateSectionOpen(true);
     onSelectionReset();
   }, [onSelectionReset]);
 
@@ -169,15 +210,38 @@ export const AddComponentPanel = ({
     },
   ];
 
+  const gateOptions = [
+    {
+      value: "and" as const,
+      label: "AND",
+    },
+    {
+      value: "or" as const,
+      label: "OR",
+    },
+    {
+      value: "koon" as const,
+      label: "KOON",
+    },
+  ];
+
+  const subtitle = selectedComponent
+    ? step === "selection"
+      ? "Selecciona el elemento del diagrama para insertar el componente."
+      : confirmedSelection?.type === "component"
+        ? "Escoge tipo de gate y reordena los elementos en el orden que quieras."
+        : "Continúa con la organización del diagrama."
+    : "Busca componentes remotos para añadirlos al diagrama.";
+
+  const shouldShowGateSection =
+    confirmedSelection?.type === "component" && step === "gateType";
+  const shouldShowOrganizationSection = step === "organization";
+
   return (
     <section className="add-component-panel">
       <header className="add-component-panel__header">
         <h2 className="add-component-panel__title">Agregar componente</h2>
-        <p className="add-component-panel__subtitle">
-          {selectedComponent
-            ? "Selecciona el elemento del diagrama para insertar el componente."
-            : "Busca componentes remotos para añadirlos al diagrama."}
-        </p>
+        <p className="add-component-panel__subtitle">{subtitle}</p>
       </header>
 
       {selectedComponent ? (
@@ -293,6 +357,97 @@ export const AddComponentPanel = ({
             onSelectionCleared={onSelectionCancel}
             onSelectionStart={onSelectionStart}
           />
+
+          {shouldShowGateSection ? (
+            <fieldset
+              className={`add-component-panel__gate${
+                isGateSectionOpen ? "" : " add-component-panel__gate--collapsed"
+              }`}
+            >
+              <legend className="add-component-panel__gate-label">
+                Tipo de gate
+                <button
+                  className="add-component-panel__section-toggle"
+                  type="button"
+                  onClick={() => setIsGateSectionOpen((prev) => !prev)}
+                  aria-expanded={isGateSectionOpen}
+                  aria-controls="add-component-gate-type"
+                >
+                  {isGateSectionOpen ? "▾" : "▴"}
+                </button>
+              </legend>
+              {isGateSectionOpen ? (
+                <div
+                  className="add-component-panel__gate-options"
+                  id="add-component-gate-type"
+                >
+                  {gateOptions.map((option) => {
+                    const gateColor = resolveGateColor(option.value, null);
+                    const colorVars = buildGateColorVars(gateColor) as CSSProperties;
+                    return (
+                      <label
+                        key={option.value}
+                        className="add-component-panel__gate-option"
+                      >
+                        <input
+                          type="radio"
+                          name="gate-type"
+                          value={option.value}
+                          checked={formState.gateType === option.value}
+                          onChange={() =>
+                            setFormState((prev) => ({
+                              ...prev,
+                              gateType: option.value,
+                            }))
+                          }
+                        />
+                        <span
+                          className="add-component-panel__gate-icon"
+                          style={colorVars}
+                        >
+                          {option.label}
+                        </span>
+                        <span className="add-component-panel__gate-text">
+                          {option.label}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  <div className="add-component-panel__gate-actions">
+                    <button
+                      className="add-component-panel__diagram-button"
+                      type="button"
+                      onClick={() => {
+                        if (!formState.gateType) return;
+                        onGateTypeConfirm();
+                      }}
+                      disabled={!formState.gateType}
+                    >
+                      Continuar a organización
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </fieldset>
+          ) : null}
+
+          {shouldShowOrganizationSection ? (
+            <section className="add-component-panel__organization">
+              <div className="add-component-panel__organization-header">
+                <span>Organización</span>
+                <span className="add-component-panel__organization-pill">
+                  Placeholder
+                </span>
+              </div>
+              <p className="add-component-panel__organization-text">
+                Entraste en modo organización. Aquí podrás reordenar los
+                elementos del diagrama antes de confirmar la inserción.
+              </p>
+              <div className="add-component-panel__organization-hint">
+                Próximamente: drag &amp; drop, confirmación y cancelación.
+              </div>
+            </section>
+          ) : null}
         </>
       ) : (
         <>
