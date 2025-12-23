@@ -28,6 +28,8 @@ export const AddComponentPanel = () => {
     componentId: null,
     calculationType: "exponential",
   });
+  const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
+  const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
 
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
@@ -111,6 +113,8 @@ export const AddComponentPanel = () => {
       componentId: item.id,
       calculationType: "exponential",
     });
+    setIsSelectedSectionOpen(true);
+    setIsCalcSectionOpen(true);
   }, []);
 
   const handleClearSelection = useCallback(() => {
@@ -119,6 +123,8 @@ export const AddComponentPanel = () => {
       ...prev,
       componentId: null,
     }));
+    setIsSelectedSectionOpen(true);
+    setIsCalcSectionOpen(true);
   }, []);
 
   const calculationOptions = [
@@ -139,7 +145,9 @@ export const AddComponentPanel = () => {
       <header className="add-component-panel__header">
         <h2 className="add-component-panel__title">Agregar componente</h2>
         <p className="add-component-panel__subtitle">
-          Busca componentes remotos para añadirlos al diagrama.
+          {selectedComponent
+            ? "Selecciona el elemento del diagrama para insertar el componente."
+            : "Busca componentes remotos para añadirlos al diagrama."}
         </p>
       </header>
 
@@ -148,72 +156,104 @@ export const AddComponentPanel = () => {
           <div className="add-component-panel__selected">
             <p className="add-component-panel__selected-label">
               Componente seleccionado:
-              <span className="add-component-panel__section-toggle">▾</span>
+              <button
+                className="add-component-panel__section-toggle"
+                type="button"
+                onClick={() =>
+                  setIsSelectedSectionOpen((prev) => !prev)
+                }
+                aria-expanded={isSelectedSectionOpen}
+                aria-controls="add-component-selected"
+              >
+                {isSelectedSectionOpen ? "▾" : "▴"}
+              </button>
             </p>
-            <div className="add-component-panel__selected-card">
-              <div className="add-component-panel__selected-header">
-                <div>
-                  <div className="add-component-panel__selected-title">
-                    {selectedComponent.title ??
-                      selectedComponent.kks_name ??
-                      selectedComponent.id}
+            {isSelectedSectionOpen ? (
+              <div
+                className="add-component-panel__selected-card"
+                id="add-component-selected"
+              >
+                <div className="add-component-panel__selected-header">
+                  <div>
+                    <div className="add-component-panel__selected-title">
+                      {selectedComponent.title ??
+                        selectedComponent.kks_name ??
+                        selectedComponent.id}
+                    </div>
+                    <div className="add-component-panel__selected-meta">
+                      <span>{selectedComponent.id}</span>
+                      {[
+                        selectedComponent.type,
+                        selectedComponent.SubType,
+                      ].filter(Boolean).length ? (
+                        <span>
+                          {[selectedComponent.type, selectedComponent.SubType]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="add-component-panel__selected-meta">
-                    <span>{selectedComponent.id}</span>
-                    {[
-                      selectedComponent.type,
-                      selectedComponent.SubType,
-                    ].filter(Boolean).length ? (
-                      <span>
-                        {[selectedComponent.type, selectedComponent.SubType]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      </span>
-                    ) : null}
-                  </div>
+                   <button
+                    className="add-component-panel__selected-clear"
+                    type="button"
+                    onClick={handleClearSelection}
+                    aria-label="Deseleccionar componente"
+                  >
+                    ×
+                  </button>                 
                 </div>
-                <button
-                  className="add-component-panel__selected-clear"
-                  type="button"
-                  onClick={handleClearSelection}
-                  aria-label="Deseleccionar componente"
-                >
-                  ×
-                </button>
               </div>
-            </div>
+            ) : null}
           </div>
 
-          <fieldset className="add-component-panel__calc">
+          <fieldset
+            className={`add-component-panel__calc${
+              isCalcSectionOpen ? "" : " add-component-panel__calc--collapsed"
+            }`}
+          >
             <legend className="add-component-panel__calc-label">
               Tipo de cálculo
-              <span className="add-component-panel__section-toggle">▾</span>
+              <button
+                className="add-component-panel__section-toggle"
+                type="button"
+                onClick={() => setIsCalcSectionOpen((prev) => !prev)}
+                aria-expanded={isCalcSectionOpen}
+                aria-controls="add-component-calculation"
+              >
+                {isCalcSectionOpen ? "▾" : "▴"}
+              </button>
             </legend>
-            <div className="add-component-panel__calc-options">
-              {calculationOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className="add-component-panel__calc-option"
-                >
-                  <input
-                    type="radio"
-                    name="calculation-type"
-                    value={option.value}
-                    checked={formState.calculationType === option.value}
-                    onChange={() =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        calculationType: option.value,
-                      }))
-                    }
-                  />
-                  <span className="diagram-node__icon">{option.icon}</span>
-                  <span className="add-component-panel__calc-text">
-                    {option.label}
-                  </span>
-                </label>
-              ))}
-            </div>
+            {isCalcSectionOpen ? (
+              <div
+                className="add-component-panel__calc-options"
+                id="add-component-calculation"
+              >
+                {calculationOptions.map((option) => (
+                  <label
+                    key={option.value}
+                    className="add-component-panel__calc-option"
+                  >
+                    <input
+                      type="radio"
+                      name="calculation-type"
+                      value={option.value}
+                      checked={formState.calculationType === option.value}
+                      onChange={() =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          calculationType: option.value,
+                        }))
+                      }
+                    />
+                    <span className="diagram-node__icon">{option.icon}</span>
+                    <span className="add-component-panel__calc-text">
+                      {option.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
           </fieldset>
         </>
       ) : (

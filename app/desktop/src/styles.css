@@ -562,6 +562,10 @@ body {
   margin: 0;
 }
 
+.add-component-panel__calc--collapsed {
+  padding-bottom: 12px;
+}
+
 .add-component-panel__calc-label {
   padding: 0 6px;
   font-size: 0.85rem;
@@ -573,8 +577,21 @@ body {
 }
 
 .add-component-panel__section-toggle {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   font-size: 0.95rem;
   color: #98a2b3;
+}
+
+.add-component-panel__section-toggle:focus-visible {
+  outline: 2px solid #7f56d9;
+  outline-offset: 2px;
+  border-radius: 999px;
 }
 
 .add-component-panel__calc-options {
