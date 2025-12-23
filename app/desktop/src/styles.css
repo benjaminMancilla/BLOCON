@@ -270,6 +270,40 @@ body {
   z-index: 1500;
 }
 
+.diagram-node--organization-draggable {
+  outline: 2px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.diagram-canvas__surface--organization
+  .diagram-node--organization-draggable:hover {
+  transform: scale(1.03);
+  outline-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.18);
+}
+
+.diagram-node--organization-drag-placeholder {
+  background: #e5e7eb;
+  border: 2px dashed #94a3b8;
+  box-shadow: none;
+  color: transparent;
+  transform: none;
+  opacity: 1;
+}
+
+.diagram-node--organization-drag-placeholder > * {
+  opacity: 0;
+}
+
+.diagram-node--drag-ghost {
+  pointer-events: none;
+  opacity: 0.82;
+  transform: rotate(-2deg) scale(1.03);
+  box-shadow: 0 22px 38px rgba(15, 23, 42, 0.28);
+  z-index: 2000;
+}
+
 .diagram-node--locked {
   pointer-events: none;
 }

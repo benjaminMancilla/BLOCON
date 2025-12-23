@@ -15,6 +15,8 @@ type DiagramGateNodeProps = {
   isOrganizationLocked?: boolean;
   isDraggable?: boolean;
   isDragging?: boolean;
+  isOrganizationDraggable?: boolean;
+  isDragGhost?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
@@ -40,6 +42,8 @@ export const DiagramGateNode = ({
   isOrganizationLocked = false,
   isDraggable = false,
   isDragging = false,
+  isOrganizationDraggable = false,
+  isDragGhost = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
@@ -65,7 +69,9 @@ export const DiagramGateNode = ({
       }${isDimmed ? " diagram-node--dimmed" : ""}${
         isOrganizationLocked ? " diagram-node--locked" : ""
       }${isDraggable ? " diagram-node--draggable" : ""}${
-        isDragging ? " diagram-node--dragging" : ""
+        isDragging ? " diagram-node--organization-drag-placeholder" : ""
+      }${isOrganizationDraggable ? " diagram-node--organization-draggable" : ""}${
+        isDragGhost ? " diagram-node--drag-ghost" : ""
       }`}
       style={{
         left: node.x,

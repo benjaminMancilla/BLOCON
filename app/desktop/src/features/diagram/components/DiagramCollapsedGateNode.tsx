@@ -15,12 +15,14 @@ type DiagramCollapsedGateNodeProps = {
   isOrganizationLocked?: boolean;
   isDraggable?: boolean;
   isDragging?: boolean;
+  isOrganizationDraggable?: boolean;
+  isDragGhost?: boolean;
   allowExpand?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
-  onDragStart?: (event: PointerEvent<HTMLDivElement>) => void
+  onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
 const formatGateMeta = (node: DiagramLayoutNode) => {
@@ -52,6 +54,8 @@ export const DiagramCollapsedGateNode = ({
   isOrganizationLocked = false,
   isDraggable = false,
   isDragging = false,
+  isOrganizationDraggable = false,
+  isDragGhost = false,
   allowExpand = true,
   onSelectHover,
   onSelectHoverEnd,
@@ -72,7 +76,9 @@ export const DiagramCollapsedGateNode = ({
         isDimmed ? " diagram-node--dimmed" : ""
       }${isOrganizationLocked ? " diagram-node--locked" : ""}${
         isDraggable ? " diagram-node--draggable" : ""
-      }${isDragging ? " diagram-node--dragging" : ""}`}
+      }${isDragging ? " diagram-node--organization-drag-placeholder" : ""}${
+        isOrganizationDraggable ? " diagram-node--organization-draggable" : ""
+      }${isDragGhost ? " diagram-node--drag-ghost" : ""}`}
       style={{
         left: node.x,
         top: node.y,

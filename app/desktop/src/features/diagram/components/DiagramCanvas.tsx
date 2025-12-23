@@ -343,6 +343,14 @@ export const DiagramCanvas = ({
     useState<string | null>(null);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragPointerId, setDragPointerId] = useState<number | null>(null);
+  const [dragGhostOffset, setDragGhostOffset] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [dragGhostPosition, setDragGhostPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const gateAreasById = useMemo(
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
@@ -450,6 +458,8 @@ export const DiagramCanvas = ({
     if (isOrganizationMode) return;
     setDraggingNodeId(null);
     setDragPointerId(null);
+    setDragGhostOffset(null);
+    setDragGhostPosition(null);
   }, [isOrganizationMode]);
 
   useEffect(() => {
@@ -517,10 +527,28 @@ export const DiagramCanvas = ({
       event.stopPropagation();
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
+      const point = getDiagramPoint(event);
+      const node = layoutNodeById.get(nodeId);
+      if (point && node) {
+        setDragGhostOffset({
+          x: point.x - node.x,
+          y: point.y - node.y,
+        });
+        setDragGhostPosition({ x: node.x, y: node.y });
+      } else {
+        setDragGhostOffset(null);
+        setDragGhostPosition(null);
+      }
       setDraggingNodeId(nodeId);
       setDragPointerId(event.pointerId);
     },
-    [isOrganizationMode, organizationGateId, organizationChildIds]
+    [
+      getDiagramPoint,
+      isOrganizationMode,
+      layoutNodeById,
+      organizationChildIds,
+      organizationGateId,
+    ]
   );
 
 useEffect(() => {
@@ -528,9 +556,15 @@ useEffect(() => {
 
     const handlePointerMove = (event: globalThis.PointerEvent) => {
       if (event.pointerId !== dragPointerId) return;
-      if (!organizationArea) return;
       const point = getDiagramPoint(event);
       if (!point) return;
+          if (dragGhostOffset) {
+        setDragGhostPosition({
+          x: point.x - dragGhostOffset.x,
+          y: point.y - dragGhostOffset.y,
+        });
+      }
+      if (!organizationArea) return;
       const isInside =
         point.x >= organizationArea.x &&
         point.x <= organizationArea.x + organizationArea.width &&
@@ -572,6 +606,8 @@ useEffect(() => {
       if (event.pointerId !== dragPointerId) return;
       setDraggingNodeId(null);
       setDragPointerId(null);
+      setDragGhostOffset(null);
+      setDragGhostPosition(null);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -584,6 +620,7 @@ useEffect(() => {
     defaultOrganizationOrder,
     dragPointerId,
     draggingNodeId,
+    dragGhostOffset,
     getDiagramPoint,
     layoutNodeById,
     organizationArea,
@@ -609,6 +646,17 @@ useEffect(() => {
     }
     return "Organizando";
   }, [isOrganizationMode, organizationGateId, organizationGateType]);
+
+  const dragGhostNode = useMemo(() => {
+    if (!draggingNodeId || !dragGhostPosition) return null;
+    const node = layoutNodeById.get(draggingNodeId);
+    if (!node) return null;
+    return {
+      ...node,
+      x: dragGhostPosition.x,
+      y: dragGhostPosition.y,
+    };
+  }, [dragGhostPosition, draggingNodeId, layoutNodeById]);
   return (
     <section className="diagram-canvas" aria-label={label}>
       <div
@@ -764,6 +812,9 @@ useEffect(() => {
                   node.parentGateId !== organizationGateId;
                 const isDraggable = isDirectChild;
                 const isDragging = draggingNodeId === node.id;
+                const isOrganizationDragging = isOrganizationMode && isDragging;
+                const isOrganizationDraggable =
+                  isOrganizationMode && isDraggable;
                 const handleSelectHover = () => {
                   if (!isSelectionMode) return;
                   setHoveredSelectableId(node.id);
@@ -789,7 +840,15 @@ useEffect(() => {
                       key={node.id}
                       className={`diagram-node diagram-node--component diagram-node--organization-placeholder${
                         isDraggable ? " diagram-node--draggable" : ""
-                      }${isDragging ? " diagram-node--dragging" : ""}`}
+                      }${
+                        isOrganizationDragging
+                          ? " diagram-node--organization-drag-placeholder"
+                          : ""
+                      }${
+                        isOrganizationDraggable
+                          ? " diagram-node--organization-draggable"
+                          : ""
+                      }`}
                       style={{
                         left: node.x,
                         top: node.y,
@@ -826,7 +885,8 @@ useEffect(() => {
                       isDimmed={isDimmed}
                       isOrganizationLocked={isLocked}
                       isDraggable={isDraggable}
-                      isDragging={isDragging}
+                      isDragging={isOrganizationDragging}
+                      isOrganizationDraggable={isOrganizationDraggable}
                       allowExpand={
                         !isLocked &&
                         !(isOrganizationMode && organizationGateId === node.id)
@@ -851,7 +911,8 @@ useEffect(() => {
                       isSelected={isSelected}
                       isDimmed={isDimmed}
                       isDraggable={isDraggable}
-                      isDragging={isDragging}
+                      isDragging={isOrganizationDragging}
+                      isOrganizationDraggable={isOrganizationDraggable}
                       onDragStart={(event) =>
                         handleOrganizationDragStart(event, node.id)
                       }
@@ -875,7 +936,8 @@ useEffect(() => {
                     isDimmed={isDimmed}
                     isOrganizationLocked={isLocked}
                     isDraggable={isDraggable}
-                    isDragging={isDragging}
+                    isDragging={isOrganizationDragging}
+                    isOrganizationDraggable={isOrganizationDraggable}
                     onDragStart={(event) =>
                       handleOrganizationDragStart(event, node.id)
                     }
@@ -886,6 +948,49 @@ useEffect(() => {
                   />
                 );
               })}
+              {dragGhostNode ? (
+                dragGhostNode.type === "component" ? (
+                  dragGhostNode.isCollapsed ? (
+                    <DiagramCollapsedGateNode
+                      key={`${dragGhostNode.id}-ghost`}
+                      node={dragGhostNode}
+                      onExpand={() => undefined}
+                      isSelectionMode={false}
+                      isDimmed={false}
+                      isOrganizationLocked={false}
+                      isDraggable={false}
+                      isDragging={false}
+                      isOrganizationDraggable={false}
+                      isDragGhost
+                      allowExpand={false}
+                    />
+                  ) : (
+                    <DiagramComponentNode
+                      key={`${dragGhostNode.id}-ghost`}
+                      node={dragGhostNode}
+                      isSelectionMode={false}
+                      isDimmed={false}
+                      isDraggable={false}
+                      isDragging={false}
+                      isOrganizationDraggable={false}
+                      isDragGhost
+                    />
+                  )
+                ) : (
+                  <DiagramGateNode
+                    key={`${dragGhostNode.id}-ghost`}
+                    node={dragGhostNode}
+                    isLabelVisible
+                    isSelectionMode={false}
+                    isDimmed={false}
+                    isOrganizationLocked={false}
+                    isDraggable={false}
+                    isDragging={false}
+                    isOrganizationDraggable={false}
+                    isDragGhost
+                  />
+                )
+              ) : null}
               {hoveredGateArea && (
                 <div
                   className="diagram-gate__collapse-hitbox"
