@@ -1,20 +1,17 @@
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-
-export type DiagramNodeType = "gate" | "component";
-
-export type DiagramNodeSelection = {
-  id: string;
-  type: DiagramNodeType;
-  name?: string | null;
-};
-
-type SelectionStatus = "selecting" | "idle" | "selected";
+import { useEffect } from "react";
+import type {
+  DiagramNodeSelection,
+  DiagramNodeType,
+  SelectionStatus,
+} from "../types/selection";
 
 type DiagramElementSelectorProps = {
-  externalSelection?: DiagramNodeSelection | null;
+  status: SelectionStatus;
+  draftSelection: DiagramNodeSelection | null;
+  confirmedSelection: DiagramNodeSelection | null;
   onSelectionConfirmed?: (selection: DiagramNodeSelection) => void;
   onSelectionCleared?: () => void;
-  onSelectionModeChange?: (isSelecting: boolean) => void;
+  onSelectionStart?: () => void;
 };
 
 const LABELS: Record<DiagramNodeType, string> = {
@@ -23,75 +20,38 @@ const LABELS: Record<DiagramNodeType, string> = {
 };
 
 export const DiagramElementSelector = ({
-  externalSelection,
+  status,
+  draftSelection,
+  confirmedSelection,
   onSelectionConfirmed,
   onSelectionCleared,
-  onSelectionModeChange,
+  onSelectionStart,
 }: DiagramElementSelectorProps) => {
-  const [status, setStatus] = useState<SelectionStatus>("selecting");
-  const [draftSelection, setDraftSelection] =
-    useState<DiagramNodeSelection | null>(null);
-  const [confirmedSelection, setConfirmedSelection] =
-    useState<DiagramNodeSelection | null>(null);
-
-  const simulatedSelection = useMemo<DiagramNodeSelection>(
-    () => ({
-      id: "G-204",
-      type: "gate",
-      name: "Gate 204",
-    }),
-    [],
-  );
-
-  useEffect(() => {
-    onSelectionModeChange?.(status === "selecting");
-  }, [onSelectionModeChange, status]);
-
-  useEffect(() => {
-    if (externalSelection === undefined) return;
-    setDraftSelection(externalSelection);
-  }, [externalSelection]);
-
   const selectionToDisplay =
     status === "selected" ? confirmedSelection : draftSelection;
 
-  const handleCancel = () => {
-    setDraftSelection(null);
-    setStatus("idle");
-    onSelectionCleared?.();
-  };
-
-  const handleConfirm = () => {
-    if (!draftSelection) return;
-    setConfirmedSelection(draftSelection);
-    setStatus("selected");
-    onSelectionConfirmed?.(draftSelection);
-  };
-
-  const handleStartSelecting = () => {
-    setStatus("selecting");
-    setDraftSelection(null);
-    setConfirmedSelection(null);
-    onSelectionCleared?.();
-  };
-
-  const handleSimulateSelection = () => {
+  useEffect(() => {
     if (status !== "selecting") return;
-    setDraftSelection(simulatedSelection);
-  };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key === "Escape" && status === "selecting") {
-      handleCancel();
-    }
-  };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onSelectionCleared?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onSelectionCleared, status]);
 
   return (
     <section
-      className="add-component-panel__diagram-selector"
-      onDoubleClick={handleSimulateSelection}
-      onKeyDown={handleKeyDown}
-      tabIndex={status === "selecting" ? 0 : -1}
+      className={`add-component-panel__diagram-selector${
+        status === "selecting"
+          ? " add-component-panel__diagram-selector--active"
+          : ""
+      }`}
     >
       <div className="add-component-panel__diagram-header">
         <span>Seleccionar elemento</span>
@@ -120,14 +80,17 @@ export const DiagramElementSelector = ({
             <button
               className="add-component-panel__diagram-button add-component-panel__diagram-button--ghost"
               type="button"
-              onClick={handleCancel}
+              onClick={onSelectionCleared}
             >
               Cancelar
             </button>
             <button
               className="add-component-panel__diagram-button"
               type="button"
-              onClick={handleConfirm}
+              onClick={() => {
+                if (!draftSelection) return;
+                onSelectionConfirmed?.(draftSelection);
+              }}
               disabled={!draftSelection}
             >
               Seleccionar
@@ -139,7 +102,7 @@ export const DiagramElementSelector = ({
           <button
             className="add-component-panel__diagram-button"
             type="button"
-            onClick={handleStartSelecting}
+            onClick={onSelectionStart}
           >
             Escoger elemento
           </button>

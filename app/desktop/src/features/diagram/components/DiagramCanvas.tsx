@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { PointerEvent, WheelEvent } from "react";
 import { DiagramComponentNode } from "./DiagramComponentNode";
 import { DiagramCollapsedGateNode } from "./DiagramCollapsedGateNode";
 import { CSSProperties } from "react";
@@ -8,12 +9,35 @@ import { useDiagramGraph } from "../hooks/useDiagramGraph";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
 import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
+import type { DiagramNodeSelection } from "../types/selection";
 
 type DiagramCanvasProps = {
   label?: string;
+  isSelectionMode?: boolean;
+  hoveredNodeId?: string | null;
+  preselectedNodeId?: string | null;
+  selectedNodeId?: string | null;
+  onEnterSelectionMode?: () => void;
+  onExitSelectionMode?: () => void;
+  onNodeHover?: (nodeId: string | null) => void;
+  onNodePreselect?: (selection: DiagramNodeSelection) => void;
+  onNodeConfirm?: (selection: DiagramNodeSelection) => void;
+  onSelectionCancel?: () => void;
 };
 
-export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
+export const DiagramCanvas = ({
+  label = "Canvas",
+  isSelectionMode = false,
+  hoveredNodeId = null,
+  preselectedNodeId = null,
+  selectedNodeId = null,
+  onEnterSelectionMode,
+  onExitSelectionMode,
+  onNodeHover,
+  onNodePreselect,
+  onNodeConfirm,
+  onSelectionCancel,
+}: DiagramCanvasProps) => {
   const { cameraStyle, handlers } = useDiagramCamera();
   const { graph, status, errorMessage } = useDiagramGraph();
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
@@ -23,6 +47,8 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
   );
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
+  const [hoveredSelectableId, setHoveredSelectableId] =
+    useState<string | null>(null);
   const gateAreasById = useMemo(
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
@@ -40,9 +66,79 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
     return ids;
   }, [hoveredGateId, parentGateId]);
 
+  useEffect(() => {
+    if (isSelectionMode) {
+      onEnterSelectionMode?.();
+    } else {
+      onExitSelectionMode?.();
+    }
+  }, [isSelectionMode, onEnterSelectionMode, onExitSelectionMode]);
+
+  useEffect(() => {
+    if (!isSelectionMode) {
+      setHoveredSelectableId(null);
+      onNodeHover?.(null);
+    }
+  }, [isSelectionMode, onNodeHover]);
+
+  useEffect(() => {
+    if (!isSelectionMode) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onSelectionCancel?.();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSelectionMode, onSelectionCancel]);
+
+  const selectionHandlers = useMemo(() => {
+    const wrapPointer =
+      <T extends (event: PointerEvent<HTMLDivElement>) => void>(handler: T) =>
+      (event: PointerEvent<HTMLDivElement>) => {
+        if (isSelectionMode) return;
+        handler(event);
+      };
+
+    const wrapWheel =
+      <T extends (event: WheelEvent<HTMLDivElement>) => void>(handler: T) =>
+      (event: WheelEvent<HTMLDivElement>) => {
+        if (isSelectionMode) {
+          event.preventDefault();
+          return;
+        }
+        handler(event);
+      };
+
+    return {
+      onPointerDown: wrapPointer(handlers.onPointerDown),
+      onPointerMove: wrapPointer(handlers.onPointerMove),
+      onPointerUp: wrapPointer(handlers.onPointerUp),
+      onPointerLeave: wrapPointer(handlers.onPointerLeave),
+      onWheel: wrapWheel(handlers.onWheel),
+    };
+  }, [handlers, isSelectionMode]);
+
+  const toSelection = useMemo(
+    () => (nodeId: string, isGate: boolean): DiagramNodeSelection => ({
+      id: nodeId,
+      type: isGate ? "gate" : "component",
+    }),
+    []
+  );
+
   return (
     <section className="diagram-canvas" aria-label={label}>
-      <div className="diagram-canvas__surface" {...handlers}>
+      <div
+        className={`diagram-canvas__surface${
+          isSelectionMode ? " diagram-canvas__surface--selection" : ""
+        }`}
+        {...selectionHandlers}
+      >
         <div className="diagram-canvas__viewport" style={cameraStyle}>
           {status !== "ready" && (
             <div className="diagram-canvas__placeholder">
@@ -141,8 +237,34 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                   />
                 ))}
               </svg>      
-              {layout.nodes.map((node) =>
-                node.type === "component" ? (
+              {layout.nodes.map((node) => {
+                const isGate = node.type === "gate" || !!node.isCollapsed;
+                const isHovered =
+                  isSelectionMode &&
+                  (hoveredSelectableId === node.id || hoveredNodeId === node.id);
+                const isPreselected =
+                  isSelectionMode && preselectedNodeId === node.id;
+                const isSelected = isSelectionMode && selectedNodeId === node.id;
+                const handleSelectHover = () => {
+                  if (!isSelectionMode) return;
+                  setHoveredSelectableId(node.id);
+                  onNodeHover?.(node.id);
+                };
+                const handleSelectHoverEnd = () => {
+                  if (!isSelectionMode) return;
+                  setHoveredSelectableId(null);
+                  onNodeHover?.(null);
+                };
+                const handlePreselect = () => {
+                  if (!isSelectionMode) return;
+                  onNodePreselect?.(toSelection(node.id, isGate));
+                };
+                const handleConfirm = () => {
+                  if (!isSelectionMode) return;
+                  onNodeConfirm?.(toSelection(node.id, isGate));
+                };
+
+                return node.type === "component" ? (
                   node.isCollapsed ? (
                     <DiagramCollapsedGateNode
                       key={node.id}
@@ -150,6 +272,14 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                       onExpand={expandGate}
                       onHoverStart={setHoveredGateId}
                       onHoverEnd={() => setHoveredGateId(null)}
+                      isSelectionMode={isSelectionMode}
+                      isHovered={isHovered}
+                      isPreselected={isPreselected}
+                      isSelected={isSelected}
+                      onSelectHover={handleSelectHover}
+                      onSelectHoverEnd={handleSelectHoverEnd}
+                      onPreselect={handlePreselect}
+                      onConfirm={handleConfirm}
                     />
                   ) : (
                     <DiagramComponentNode
@@ -157,6 +287,14 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                       node={node}
                       onHoverStart={setHoveredGateId}
                       onHoverEnd={() => setHoveredGateId(null)}
+                      isSelectionMode={isSelectionMode}
+                      isHovered={isHovered}
+                      isPreselected={isPreselected}
+                      isSelected={isSelected}
+                      onSelectHover={handleSelectHover}
+                      onSelectHoverEnd={handleSelectHoverEnd}
+                      onPreselect={handlePreselect}
+                      onConfirm={handleConfirm}
                     />
                   )
                 ) : (
@@ -166,9 +304,17 @@ export const DiagramCanvas = ({ label = "Canvas" }: DiagramCanvasProps) => {
                     isLabelVisible={visibleGateIds.has(node.id)}
                     onHoverStart={setHoveredGateId}
                     onHoverEnd={() => setHoveredGateId(null)}
+                    isSelectionMode={isSelectionMode}
+                    isHovered={isHovered}
+                    isPreselected={isPreselected}
+                    isSelected={isSelected}
+                    onSelectHover={handleSelectHover}
+                    onSelectHoverEnd={handleSelectHoverEnd}
+                    onPreselect={handlePreselect}
+                    onConfirm={handleConfirm}
                   />
-                )
-              )}
+                );
+              })}
               {hoveredGateArea && (
                 <div
                   className="diagram-gate__collapse-hitbox"

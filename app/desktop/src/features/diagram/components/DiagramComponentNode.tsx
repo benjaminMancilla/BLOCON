@@ -4,6 +4,14 @@ type DiagramComponentNodeProps = {
   node: DiagramLayoutNode;
   onHoverStart?: (gateId: string | null) => void;
   onHoverEnd?: () => void;
+  isSelectionMode?: boolean;
+  isHovered?: boolean;
+  isPreselected?: boolean;
+  isSelected?: boolean;
+  onSelectHover?: () => void;
+  onSelectHoverEnd?: () => void;
+  onPreselect?: () => void;
+  onConfirm?: () => void;
 };
 
 const formatReliability = (reliability?: number | null) => {
@@ -25,10 +33,22 @@ export const DiagramComponentNode = ({
   node,
   onHoverStart,
   onHoverEnd,
+  isSelectionMode = false,
+  isHovered = false,
+  isPreselected = false,
+  isSelected = false,
+  onSelectHover,
+  onSelectHoverEnd,
+  onPreselect,
+  onConfirm,
 }: DiagramComponentNodeProps) => {
   return (
     <div
-      className="diagram-node diagram-node--component"
+      className={`diagram-node diagram-node--component${
+        isSelectionMode ? " diagram-node--selectable" : ""
+      }${isHovered ? " diagram-node--hovered" : ""}${
+        isPreselected ? " diagram-node--preselected" : ""
+      }${isSelected ? " diagram-node--selected" : ""}`}
       style={{
         left: node.x,
         top: node.y,
@@ -36,8 +56,24 @@ export const DiagramComponentNode = ({
         height: node.height,
       }}
       data-node-id={node.id}
-      onPointerEnter={() => onHoverStart?.(node.parentGateId ?? null)}
-      onPointerLeave={() => onHoverEnd?.()}
+      onPointerEnter={() => {
+        onHoverStart?.(node.parentGateId ?? null);
+        onSelectHover?.();
+      }}
+      onPointerLeave={() => {
+        onHoverEnd?.();
+        onSelectHoverEnd?.();
+      }}
+      onClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onPreselect?.();
+      }}
+      onDoubleClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onConfirm?.();
+      }}
     >
       <div className="diagram-node__title">{node.id}</div>
       <div className="diagram-node__meta">

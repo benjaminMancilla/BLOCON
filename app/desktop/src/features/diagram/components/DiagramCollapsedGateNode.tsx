@@ -7,6 +7,14 @@ type DiagramCollapsedGateNodeProps = {
   onExpand: (gateId: string) => void;
   onHoverStart?: (gateId: string | null) => void;
   onHoverEnd?: () => void;
+  isSelectionMode?: boolean;
+  isHovered?: boolean;
+  isPreselected?: boolean;
+  isSelected?: boolean;
+  onSelectHover?: () => void;
+  onSelectHoverEnd?: () => void;
+  onPreselect?: () => void;
+  onConfirm?: () => void;
 };
 
 const formatGateMeta = (node: DiagramLayoutNode) => {
@@ -30,13 +38,25 @@ export const DiagramCollapsedGateNode = ({
   onExpand,
   onHoverStart,
   onHoverEnd,
+  isSelectionMode = false,
+  isHovered = false,
+  isPreselected = false,
+  isSelected = false,
+  onSelectHover,
+  onSelectHoverEnd,
+  onPreselect,
+  onConfirm,
 }: DiagramCollapsedGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
 
   return (
     <div
-      className="diagram-node diagram-node--component diagram-node--collapsed-gate"
+      className={`diagram-node diagram-node--component diagram-node--collapsed-gate${
+        isSelectionMode ? " diagram-node--selectable" : ""
+      }${isHovered ? " diagram-node--hovered" : ""}${
+        isPreselected ? " diagram-node--preselected" : ""
+      }${isSelected ? " diagram-node--selected" : ""}`}
       style={{
         left: node.x,
         top: node.y,
@@ -46,14 +66,33 @@ export const DiagramCollapsedGateNode = ({
         ...colorVars,
       }}
       data-node-id={node.id}
-      onPointerEnter={() => onHoverStart?.(node.parentGateId ?? null)}
-      onPointerLeave={() => onHoverEnd?.()}
+      onPointerEnter={() => {
+        onHoverStart?.(node.parentGateId ?? null);
+        onSelectHover?.();
+      }}
+      onPointerLeave={() => {
+        onHoverEnd?.();
+        onSelectHoverEnd?.();
+      }}
+      onClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onPreselect?.();
+      }}
+      onDoubleClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onConfirm?.();
+      }}
     >
       <button
         type="button"
         className="diagram-node__expand"
         onPointerDown={(event) => event.stopPropagation()}
-        onClick={() => onExpand(node.id)}
+        onClick={(event) => {
+          event.stopPropagation();
+          onExpand(node.id);
+        }}
         aria-label={`Expandir gate ${node.id}`}
       >
         +

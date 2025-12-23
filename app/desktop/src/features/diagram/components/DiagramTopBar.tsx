@@ -2,6 +2,7 @@ type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
   isAddMode?: boolean;
+  isSelectionMode?: boolean;
   onToggleAddMode?: () => void;
 };
 
@@ -9,10 +10,15 @@ export const DiagramTopBar = ({
   title = "BLOCON",
   subtitle = "Lienzo base de diagrama",
   isAddMode = false,
+  isSelectionMode = false,
   onToggleAddMode,
 }: DiagramTopBarProps) => {
   return (
-    <header className="diagram-topbar">
+    <header
+      className={`diagram-topbar${
+        isSelectionMode ? " diagram-topbar--blocked" : ""
+      }`}
+    >
       <div>
         <p className="diagram-topbar__eyebrow">Diagrama</p>
         <h1 className="diagram-topbar__title">{title}</h1>
@@ -26,6 +32,7 @@ export const DiagramTopBar = ({
           }`}
           onClick={onToggleAddMode}
           aria-pressed={isAddMode}
+          disabled={isSelectionMode}
         >
           + Agregar
         </button>

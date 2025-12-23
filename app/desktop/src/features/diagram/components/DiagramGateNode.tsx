@@ -7,6 +7,14 @@ type DiagramGateNodeProps = {
   isLabelVisible: boolean;
   onHoverStart?: (gateId: string) => void;
   onHoverEnd?: () => void;
+  isSelectionMode?: boolean;
+  isHovered?: boolean;
+  isPreselected?: boolean;
+  isSelected?: boolean;
+  onSelectHover?: () => void;
+  onSelectHoverEnd?: () => void;
+  onPreselect?: () => void;
+  onConfirm?: () => void;
 };
 
 const formatGateLabel = (node: DiagramLayoutNode) => {
@@ -19,6 +27,14 @@ export const DiagramGateNode = ({
   isLabelVisible,
   onHoverStart,
   onHoverEnd,
+  isSelectionMode = false,
+  isHovered = false,
+  isPreselected = false,
+  isSelected = false,
+  onSelectHover,
+  onSelectHoverEnd,
+  onPreselect,
+  onConfirm,
 }: DiagramGateNodeProps) => {
   const isKoon = node.subtype?.toLowerCase() === "koon";
   const koonLabel =
@@ -30,8 +46,13 @@ export const DiagramGateNode = ({
 
   return (
     <div
-      className={`diagram-node diagram-node--gate${isLabelVisible ? 
-        " diagram-node--gate-visible" : ""}`}
+      className={`diagram-node diagram-node--gate${
+        isLabelVisible ? " diagram-node--gate-visible" : ""
+      }${isSelectionMode ? " diagram-node--selectable" : ""}${
+        isHovered ? " diagram-node--hovered" : ""
+      }${isPreselected ? " diagram-node--preselected" : ""}${
+        isSelected ? " diagram-node--selected" : ""
+      }`}
       style={{
         left: node.x,
         top: node.y,
@@ -41,8 +62,24 @@ export const DiagramGateNode = ({
         ...colorVars,
       }}
       data-node-id={node.id}
-      onPointerEnter={() => onHoverStart?.(node.id)}
-      onPointerLeave={() => onHoverEnd?.()}
+      onPointerEnter={() => {
+        onHoverStart?.(node.id);
+        onSelectHover?.();
+      }}
+      onPointerLeave={() => {
+        onHoverEnd?.();
+        onSelectHoverEnd?.();
+      }}
+      onClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onPreselect?.();
+      }}
+      onDoubleClick={(event) => {
+        if (!isSelectionMode) return;
+        event.stopPropagation();
+        onConfirm?.();
+      }}
     >
       <span className="diagram-gate__label">{formatGateLabel(node)}</span>
       {isKoon && <span className="diagram-gate__badge">{koonLabel}</span>}

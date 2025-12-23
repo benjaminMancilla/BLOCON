@@ -5,8 +5,11 @@ import {
 } from "../../../services/remote/componentsService";
 import {
   DiagramElementSelector,
-  type DiagramNodeSelection,
 } from "./DiagramElementSelector";
+import type {
+  DiagramNodeSelection,
+  SelectionStatus,
+} from "../types/selection";
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
@@ -17,10 +20,28 @@ type AddComponentFormState = {
   calculationType: CalculationType;
 };
 
+type AddComponentPanelProps = {
+  selectionStatus: SelectionStatus;
+  draftSelection: DiagramNodeSelection | null;
+  confirmedSelection: DiagramNodeSelection | null;
+  onSelectionConfirm: (selection: DiagramNodeSelection) => void;
+  onSelectionCancel: () => void;
+  onSelectionStart: () => void;
+  onSelectionReset: () => void;
+};
+
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
 
-export const AddComponentPanel = () => {
+export const AddComponentPanel = ({
+  selectionStatus,
+  draftSelection,
+  confirmedSelection,
+  onSelectionConfirm,
+  onSelectionCancel,
+  onSelectionStart,
+  onSelectionReset,
+}: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
   const [total, setTotal] = useState(0);
@@ -34,9 +55,6 @@ export const AddComponentPanel = () => {
   });
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
-  const [diagramSelection, setDiagramSelection] =
-    useState<DiagramNodeSelection | null>(null);
-
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -113,15 +131,19 @@ export const AddComponentPanel = () => {
     return `Resultados: ${results.length} de ${total}`;
   }, [error, query, results.length, state, total]);
 
-  const handleSelectComponent = useCallback((item: RemoteComponent) => {
-    setSelectedComponent(item);
-    setFormState({
-      componentId: item.id,
-      calculationType: "exponential",
-    });
-    setIsSelectedSectionOpen(true);
-    setIsCalcSectionOpen(true);
-  }, []);
+  const handleSelectComponent = useCallback(
+    (item: RemoteComponent) => {
+      setSelectedComponent(item);
+      setFormState({
+        componentId: item.id,
+        calculationType: "exponential",
+      });
+      setIsSelectedSectionOpen(true);
+      setIsCalcSectionOpen(true);
+      onSelectionStart();
+    },
+    [onSelectionStart],
+  );
 
   const handleClearSelection = useCallback(() => {
     setSelectedComponent(null);
@@ -131,8 +153,8 @@ export const AddComponentPanel = () => {
     }));
     setIsSelectedSectionOpen(true);
     setIsCalcSectionOpen(true);
-    setDiagramSelection(null);
-  }, []);
+    onSelectionReset();
+  }, [onSelectionReset]);
 
   const calculationOptions = [
     {
@@ -264,13 +286,12 @@ export const AddComponentPanel = () => {
           </fieldset>
 
           <DiagramElementSelector
-            externalSelection={diagramSelection}
-            onSelectionConfirmed={(selection) => {
-              setDiagramSelection(selection);
-            }}
-            onSelectionCleared={() => {
-              setDiagramSelection(null);
-            }}
+            status={selectionStatus}
+            draftSelection={draftSelection}
+            confirmedSelection={confirmedSelection}
+            onSelectionConfirmed={onSelectionConfirm}
+            onSelectionCleared={onSelectionCancel}
+            onSelectionStart={onSelectionStart}
           />
         </>
       ) : (
