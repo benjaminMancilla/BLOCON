@@ -82,10 +82,13 @@ function App() {
       setSelectionStatus("selected");
       setHoveredSelectionId(null);
       setSelectedGateType(null);
-      setIsOrganizationActive(false);
-      setAddComponentStep(
-        selection.type === "gate" ? "organization" : "gateType",
-      );
+      if (selection.type === "gate") {
+        setAddComponentStep("organization");
+        setIsOrganizationActive(true);
+      } else {
+        setIsOrganizationActive(false);
+        setAddComponentStep("gateType");
+      }
     },
     [],
   );
@@ -133,14 +136,16 @@ function App() {
     setHoveredSelectionId(null);
   }, []);
 
-  const handleGateTypeConfirm = useCallback(() => {
-    setAddComponentStep("organization");
-    setIsOrganizationActive(false);
-  }, []);
-
-  const handleGateTypeChange = useCallback((gateType: GateType | null) => {
-    setSelectedGateType(gateType);
-  }, []);
+  const handleGateTypeChange = useCallback(
+    (gateType: GateType | null) => {
+      setSelectedGateType(gateType);
+      if (gateType && confirmedSelection?.type === "component") {
+        setAddComponentStep("organization");
+        setIsOrganizationActive(true);
+      }
+    },
+    [confirmedSelection?.type],
+  );
 
   const handleOrganizationStart = useCallback(() => {
     setIsOrganizationActive(true);
@@ -198,7 +203,6 @@ function App() {
               onSelectionStart={handleSelectionStart}
               onSelectionReset={handleSelectionReset}
               onGateTypeChange={handleGateTypeChange}
-              onGateTypeConfirm={handleGateTypeConfirm}
               onOrganizationStart={handleOrganizationStart}
               onOrganizationCancel={handleOrganizationCancel}
             />

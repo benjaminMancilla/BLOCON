@@ -45,7 +45,6 @@ type AddComponentPanelProps = {
   onSelectionReset: () => void;
   onOrganizationStart: () => void;
   onOrganizationCancel: () => void;
-  onGateTypeConfirm: () => void;
 };
 
 const ENTER_DEBOUNCE_MS = 650;
@@ -65,7 +64,6 @@ export const AddComponentPanel = ({
   onSelectionReset,
   onOrganizationStart,
   onOrganizationCancel,
-  onGateTypeConfirm,
 }: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
@@ -422,19 +420,6 @@ export const AddComponentPanel = ({
                       </label>
                     );
                   })}
-                  <div className="add-component-panel__gate-actions">
-                    <button
-                      className="add-component-panel__diagram-button"
-                      type="button"
-                      onClick={() => {
-                        if (!gateType) return;
-                        onGateTypeConfirm();
-                      }}
-                      disabled={!gateType}
-                    >
-                      Continuar a organización
-                    </button>
-                  </div>
                 </div>
               ) : null}
             </fieldset>
@@ -461,13 +446,6 @@ export const AddComponentPanel = ({
                     >
                       Cancelar
                     </button>
-                    <button
-                      className="add-component-panel__diagram-button add-component-panel__diagram-button--primary"
-                      type="button"
-                      onClick={() => undefined}
-                    >
-                      Insertar
-                    </button>
                   </div>
                 </>
               ) : (
@@ -487,6 +465,18 @@ export const AddComponentPanel = ({
                 </>
               )}
             </section>
+          ) : null}
+
+          {shouldShowOrganizationSection ? (
+            <div className="add-component-panel__footer">
+              <button
+                className="add-component-panel__diagram-button add-component-panel__diagram-button--primary"
+                type="button"
+                onClick={() => undefined}
+              >
+                Insertar
+              </button>
+            </div>
           ) : null}
         </>
       ) : (

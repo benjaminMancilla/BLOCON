@@ -141,7 +141,7 @@ body {
 .diagram-canvas__mode-indicator {
   position: absolute;
   top: 12px;
-  right: 12px;
+  left: 50%;
   padding: 6px 12px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.9);
@@ -150,6 +150,7 @@ body {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
+  transform: translateX(-50%);
   pointer-events: none;
   z-index: 5;
 }
@@ -808,6 +809,13 @@ body {
   display: flex;
   justify-content: flex-end;
   margin-top: 6px;
+}
+
+.add-component-panel__footer {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .add-component-panel__organization {
