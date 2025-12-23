@@ -137,12 +137,16 @@ def search_query(
     from_index: int,
     size: int,
     entity_types: Optional[List[str]] = None,
+    query_template: Optional[str] = None,
 ) -> Dict[str, Any]:
+    query_payload: Dict[str, Any] = {"queryString": query_string}
+    if query_template:
+        query_payload["queryTemplate"] = query_template
     body = {
         "requests": [
             {
                 "entityTypes": entity_types or ["listItem"],
-                "query": {"queryString": query_string},
+                "query": query_payload,
                 "from": max(0, int(from_index)),
                 "size": min(max(size, 1), 200),
                 "region": region,
@@ -150,6 +154,12 @@ def search_query(
         ]
     }
     return session.request_json("POST", f"{GRAPH_BETA_BASE}/search/query", json_body=body)
+
+
+def resolve_list_weburl(session: GraphSession, site_id: str, list_id: str) -> str:
+    url = f"sites/{site_id}/lists/{list_id}"
+    payload = session.get_json(url, params={"$select": "webUrl"})
+    return (payload.get("webUrl") or "").rstrip("/")
 
 
 def discover_region(session: GraphSession, tenant_hostname: str) -> str:

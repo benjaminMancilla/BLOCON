@@ -15,6 +15,7 @@ from ..search_api import (
     extract_total,
     get_sp_ids_from_hit,
     hostname_from_site_payload,
+    resolve_list_weburl,
     search_query,
 )
 from ...cache.repositories.region import RegionCacheRepo
@@ -70,6 +71,7 @@ class SharePointComponentsClient:
 
         self._resolved_site_id: Optional[str] = None
         self._resolved_list_id: Optional[str] = None
+        self._resolved_list_web_url: Optional[str] = None
         self._search_region: Optional[str] = None
         self._region_cache = RegionCacheRepo.default()
 
@@ -148,6 +150,20 @@ class SharePointComponentsClient:
         )
         self._resolved_list_id = lid
         return lid
+    
+    def _site_web_url(self) -> str:
+        if self.settings.site.hostname and self.settings.site.path:
+            path = self.settings.site.path.strip("/")
+            return f"https://{self.settings.site.hostname}/{path}"
+        data = self.session.get_json(f"sites/{self._site_id()}", params={"$select": "webUrl"})
+        return str(data.get("webUrl") or "").rstrip("/")
+
+    def _list_web_url(self) -> str:
+        if self._resolved_list_web_url:
+            return self._resolved_list_web_url
+        web_url = resolve_list_weburl(self.session, self._site_id(), self._list_id())
+        self._resolved_list_web_url = web_url
+        return web_url
 
     @staticmethod
     def _unpack_value(fields: dict, base_key: str, value_key: str) -> str:
@@ -221,6 +237,9 @@ class SharePointComponentsClient:
         query_string = build_contains_query(self.field_id, self.field_name, q)
         from_index = (page - 1) * page_size
         size = min(page_size, 200)
+        list_web_url = self._list_web_url()
+        scope_url = list_web_url or self._site_web_url()
+        query_template = f'({{searchTerms}}) Path:"{scope_url}"'
 
         region = self._get_search_region()
         try:
@@ -230,6 +249,7 @@ class SharePointComponentsClient:
                 region=region,
                 from_index=from_index,
                 size=size,
+                query_template=query_template,
             )
         except GraphError:
             region = self._get_search_region(force_refresh=True)
@@ -239,6 +259,7 @@ class SharePointComponentsClient:
                 region=region,
                 from_index=from_index,
                 size=size,
+                query_template=query_template,
             )
 
         hits = extract_search_hits(search_resp)
