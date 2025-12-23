@@ -205,6 +205,7 @@ body {
   text-align: center;
   gap: 6px;
   padding: 10px 16px;
+  z-index: 10;
 }
 
 .diagram-node--selectable {
