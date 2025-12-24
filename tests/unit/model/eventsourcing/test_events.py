@@ -81,6 +81,10 @@ def test_event_to_dict_contains_kind_ts_actor_and_optional_version():
         # add_component_relative (OR)
         {"kind": "add_component_relative", "ts": "2025-01-01T00:00:00+00:00", "actor": "a",
          "target_id": "A", "new_comp_id": "B", "relation": "parallel", "dist": {"kind": "exponential"}, "version": "11"},
+        # add_component_relative with ordering
+        {"kind": "add_component_relative", "ts": "2025-01-01T00:00:00+00:00", "actor": "a",
+         "target_id": "G1", "new_comp_id": "C", "relation": "series", "dist": {"kind": "weibull"},
+         "position_index": 1, "position_reference_id": "A", "children_order": ["A", "C"], "version": 11},
         # add_component_relative (KOON)
         {"kind": "add_component_relative", "ts": "2025-01-01T00:00:00+00:00", "actor": "a",
          "target_id": "K1", "new_comp_id": "C", "relation": "koon", "dist": {"kind": "weibull"}, "k": 2, "version": 12},
