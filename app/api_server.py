@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import json
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -33,6 +34,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
     es: GraphES
     local: LocalWorkspaceStore
     cloud: CloudClient
+    base_dir: str
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -67,7 +69,133 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             try:
                 return json.loads(raw)
             except json.JSONDecodeError:
-                return None            
+                return None     
+
+    def _handle_cloud_load(self) -> None:
+        try:
+            if self.es.store:
+                self.es.store.clear()
+        except Exception:
+            pass
+
+        cloud = self.cloud
+        local = getattr(cloud, "local", None)
+
+        manifest = cloud.load_manifest() or {}
+        comp_entries = manifest.get("component_ids", [])
+        want_ids = [entry["id"] if isinstance(entry, dict) else entry for entry in comp_entries]
+        want_etags = {
+            entry["id"]: entry.get("etag")
+            for entry in comp_entries
+            if isinstance(entry, dict) and entry.get("id")
+        }
+
+        cache = local.load_components_cache() if local else {}
+        need_fetch: list[str] = []
+        for component_id in want_ids:
+            component_id = str(component_id or "").strip()
+            if not component_id:
+                continue
+            etag = want_etags.get(component_id)
+            if component_id not in cache or (
+                etag and (cache.get(component_id, {}) or {}).get("etag") != etag
+            ):
+                need_fetch.append(component_id)
+
+        if need_fetch:
+            fetched = cloud.fetch_components(need_fetch) or {}
+            items_to_cache = []
+            for component_id, meta in fetched.items():
+                item = dict(meta or {})
+                name = item.get("kks_name") or item.get("title") or component_id
+                item.setdefault("title", name)
+                item.setdefault("id", component_id)
+                items_to_cache.append(item)
+
+            if local and items_to_cache:
+                local.upsert_components_cache(items_to_cache)
+
+        snap = cloud.load_snapshot() or {}
+        graph = ReliabilityGraph.from_data(snap)
+        if local:
+            graph.failures_cache = local.failures_cache
+
+        try:
+            cache = local.load_components_cache() if local else {}
+            for node_id, node in graph.nodes.items():
+                if node.is_component() and not getattr(node, "unit_type", None):
+                    unit_type = (cache.get(node_id, {}) or {}).get("type")
+                    if unit_type:
+                        node.unit_type = unit_type
+        except Exception:
+            pass
+
+        self.es.graph = graph
+
+        try:
+            head = len(cloud.load_events())
+            if self.es.store:
+                self.es.store.base_version = head
+        except Exception:
+            pass
+
+        self._send_json(200, {"status": "ok"})
+
+    def _handle_cloud_save(self) -> None:
+        cloud = self.cloud
+        graph = self.es.graph
+
+        try:
+            graph.project_root = self.base_dir
+            graph.failures_cache = self.local.failures_cache
+            self.es.evaluate()
+        except Exception:
+            pass
+
+        snapshot = graph.to_data()
+        cloud.save_snapshot(snapshot)
+
+        appended = 0
+        try:
+            if self.es.store:
+                head = len(cloud.load_events())
+                self.es.store.resequence_versions(head)
+                local_events = [ev.to_dict() for ev in self.es.store.active()]
+                appended = cloud.append_events(local_events)
+        except Exception:
+            appended = 0
+
+        cache = self.local.load_components_cache()
+        component_ids = sorted(
+            [node_id for node_id, node in graph.nodes.items() if node.is_component()]
+        )
+        comp_entries = []
+        for component_id in component_ids:
+            etag = (cache.get(component_id) or {}).get("etag")
+            entry = {"id": component_id}
+            if etag:
+                entry["etag"] = etag
+            comp_entries.append(entry)
+
+        manifest = {
+            "diagram_id": "default",
+            "version": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "component_ids": comp_entries,
+        }
+        cloud.save_manifest(manifest)
+
+        try:
+            if self.es.store:
+                self.es.store.clear()
+        except Exception:
+            pass
+
+        try:
+            self.local.draft_delete()
+        except Exception:
+            pass
+
+        self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
     @staticmethod
     def _normalize_relation_type(relation_type: str | None) -> str | None:
@@ -232,6 +360,14 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             payload = self._read_json_body()
             self._handle_organization_insert(payload)
             return
+        
+        if path == "/cloud/save":
+            self._handle_cloud_save()
+            return
+
+        if path == "/cloud/load":
+            self._handle_cloud_load()
+            return
 
         self._send_json(404, {"error": "not found"})
         
@@ -258,6 +394,7 @@ def main() -> None:
     GraphRequestHandler.es = es
     GraphRequestHandler.local = local
     GraphRequestHandler.cloud = CloudClient(base_dir=base_dir)
+    GraphRequestHandler.base_dir = base_dir
     server = HTTPServer((HOST, PORT), GraphRequestHandler)
     print(f"API server listening on http://{HOST}:{PORT}")
     server.serve_forever()

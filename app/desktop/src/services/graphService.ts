@@ -27,3 +27,21 @@ export async function insertOrganization(
     throw new Error(`Backend responded with ${response.status}`);
   }
 }
+
+export async function saveCloudGraph(): Promise<void> {
+  const response = await fetch(`${BACKEND_ENDPOINT}/cloud/save`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Backend responded with ${response.status}`);
+  }
+}
+
+export async function loadCloudGraph(): Promise<void> {
+  const response = await fetch(`${BACKEND_ENDPOINT}/cloud/load`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(`Backend responded with ${response.status}`);
+  }
+}
