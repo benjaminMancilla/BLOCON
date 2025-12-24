@@ -259,10 +259,6 @@ body {
   transform: scale(1.04);
 }
 
-.diagram-node--insert-highlight {
-  position: relative;
-}
-
 .diagram-node--insert-highlight::after {
   content: "";
   position: absolute;
@@ -524,7 +520,7 @@ body {
   font-size: 0.9rem;
   letter-spacing: 0.01em;
   z-index: 2500;
-  animation: insertToast 2.6s ease-out;
+  animation: insertToast 2.6s ease-out forwards;
 }
 
 @keyframes insertPulse {
@@ -726,6 +722,25 @@ body {
   border: 1px solid #d0d5dd;
   padding: 10px 12px;
   font-size: 0.95rem;
+}
+
+.add-component-panel__filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-component-panel__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #475467;
+}
+
+.add-component-panel__filter input {
+  width: 16px;
+  height: 16px;
 }
 
 .add-component-panel__summary {
