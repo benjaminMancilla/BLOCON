@@ -1,5 +1,8 @@
 import type { PointerEvent } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
+import { DiagramNode } from "./nodes/DiagramNode";
+import { useDiagramNodeInteractions } from "./nodes/hooks/useDiagramNodeInteractions";
+import { DiagramComponentContent } from "./nodes/variants/DiagramComponentContent";
 
 type DiagramComponentNodeProps = {
   node: DiagramLayoutNode;
@@ -22,21 +25,6 @@ type DiagramComponentNodeProps = {
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
-const formatReliability = (reliability?: number | null) => {
-  if (reliability === null || reliability === undefined) {
-    return "—";
-  }
-  return `${(reliability * 100).toFixed(1)}%`;
-};
-
-const renderDistIcon = (distKind?: string | null) => {
-  const normalized = distKind?.toLowerCase() ?? "exp";
-  if (normalized.startsWith("wei")) {
-    return <span className="diagram-node__icon">β</span>;
-  }
-  return <span className="diagram-node__icon">λ</span>;
-};
-
 export const DiagramComponentNode = ({
   node,
   onHoverStart,
@@ -57,64 +45,38 @@ export const DiagramComponentNode = ({
   onConfirm,
   onDragStart,
 }: DiagramComponentNodeProps) => {
+  const handlers = useDiagramNodeInteractions({
+    hoverId: node.parentGateId ?? null,
+    isSelectionMode,
+    isDraggable,
+    onHoverStart,
+    onHoverEnd,
+    onSelectHover,
+    onSelectHoverEnd,
+    onPreselect,
+    onConfirm,
+    onDragStart,
+  });
+
   return (
-    <div
-      className={`diagram-node diagram-node--component${
-        isSelectionMode ? " diagram-node--selectable" : ""
-      }${isHovered ? " diagram-node--hovered" : ""}${
-        isPreselected ? " diagram-node--preselected" : ""
-      }${isSelected ? " diagram-node--selected" : ""}${
-        isInsertHighlighted ? " diagram-node--insert-highlight" : ""
-      }${
-        isDimmed ? " diagram-node--dimmed" : ""
-      }${isDraggable ? " diagram-node--draggable" : ""}${
-        isDragging ? " diagram-node--organization-drag-placeholder" : ""
-      }${isOrganizationDraggable ? " diagram-node--organization-draggable" : ""}${
-        isDragGhost ? " diagram-node--drag-ghost" : ""
-      }`}
-      style={{
-        left: node.x,
-        top: node.y,
-        width: node.width,
-        height: node.height,
+    <DiagramNode
+      node={node}
+      baseClassName="diagram-node diagram-node--component"
+      classNameFlags={{
+        isSelectionMode,
+        isHovered,
+        isPreselected,
+        isSelected,
+        isInsertHighlighted,
+        isDimmed,
+        isDraggable,
+        isDragging,
+        isOrganizationDraggable,
+        isDragGhost,
       }}
-      data-node-id={node.id}
-      onPointerEnter={() => {
-        onHoverStart?.(node.parentGateId ?? null);
-        onSelectHover?.();
-      }}
-      onPointerLeave={() => {
-        onHoverEnd?.();
-        onSelectHoverEnd?.();
-      }}
-      onClick={(event) => {
-        if (!isSelectionMode) return;
-        event.stopPropagation();
-        onPreselect?.();
-      }}
-      onDoubleClick={(event) => {
-        if (!isSelectionMode) return;
-        event.stopPropagation();
-        onConfirm?.();
-      }}
-      onPointerDown={(event) => {
-        if (!isDraggable) return;
-        onDragStart?.(event);
-      }}
+      handlers={handlers}
     >
-      <div className="diagram-node__title">{node.id}</div>
-      <div className="diagram-node__meta">
-        {renderDistIcon(node.distKind)}
-        <span className="diagram-node__meta-text">
-          {node.distKind ?? "Exponencial"}
-        </span>
-      </div>
-      <div className="diagram-node__reliability">
-        <span className="diagram-node__reliability-label">Confiabilidad</span>
-        <span className="diagram-node__reliability-value">
-          {formatReliability(node.reliability)}
-        </span>
-      </div>
-    </div>
+      <DiagramComponentContent node={node} />
+    </DiagramNode>
   );
 };

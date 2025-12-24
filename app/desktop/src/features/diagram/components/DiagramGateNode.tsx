@@ -1,5 +1,8 @@
 import { CSSProperties, PointerEvent } from "react";
 import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
+import { DiagramNode } from "./nodes/DiagramNode";
+import { useDiagramNodeInteractions } from "./nodes/hooks/useDiagramNodeInteractions";
+import { DiagramGateContent } from "./nodes/variants/DiagramGateContent";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 
 type DiagramGateNodeProps = {
@@ -25,11 +28,6 @@ type DiagramGateNodeProps = {
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
-const formatGateLabel = (node: DiagramLayoutNode) => {
-  const subtype = node.subtype?.toUpperCase() ?? "GATE";
-  return `${node.id} <${subtype}>`;
-};
-
 export const DiagramGateNode = ({
   node,
   isLabelVisible,
@@ -52,64 +50,54 @@ export const DiagramGateNode = ({
   onConfirm,
   onDragStart,
 }: DiagramGateNodeProps) => {
-  const isKoon = node.subtype?.toLowerCase() === "koon";
-  const koonLabel =
-    node.childCount !== undefined
-      ? `${node.k ?? 1}/${node.childCount}`
-      : `${node.k ?? 1}`;
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
+  const handleHoverStart = onHoverStart
+    ? (gateId: string | null) => {
+        if (gateId) {
+          onHoverStart(gateId);
+        }
+      }
+    : undefined;
+
+  const handlers = useDiagramNodeInteractions({
+    hoverId: node.id,
+    isSelectionMode,
+    isDraggable,
+    onHoverStart: handleHoverStart,
+    onHoverEnd,
+    onSelectHover,
+    onSelectHoverEnd,
+    onPreselect,
+    onConfirm,
+    onDragStart,
+  });
 
   return (
-    <div
-      className={`diagram-node diagram-node--gate${
-        isLabelVisible ? " diagram-node--gate-visible" : ""
-      }${isSelectionMode ? " diagram-node--selectable" : ""}${
-        isHovered ? " diagram-node--hovered" : ""
-      }${isPreselected ? " diagram-node--preselected" : ""}${
-        isSelected ? " diagram-node--selected" : ""
-      }${isInsertHighlighted ? " diagram-node--insert-highlight" : ""}${
-        isDimmed ? " diagram-node--dimmed" : ""}${
-        isOrganizationLocked ? " diagram-node--locked" : ""
-      }${isDraggable ? " diagram-node--draggable" : ""}${
-        isDragging ? " diagram-node--organization-drag-placeholder" : ""
-      }${isOrganizationDraggable ? " diagram-node--organization-draggable" : ""}${
-        isDragGhost ? " diagram-node--drag-ghost" : ""
-      }`}
+    <DiagramNode
+      node={node}
+      baseClassName="diagram-node diagram-node--gate"
+      classNameFlags={{
+        isLabelVisible,
+        isSelectionMode,
+        isHovered,
+        isPreselected,
+        isSelected,
+        isInsertHighlighted,
+        isDimmed,
+        isOrganizationLocked,
+        isDraggable,
+        isDragging,
+        isOrganizationDraggable,
+        isDragGhost,
+      }}
       style={{
-        left: node.x,
-        top: node.y,
-        width: node.width,
-        height: node.height,
         zIndex: 1000,
         ...colorVars,
       }}
-      data-node-id={node.id}
-      onPointerEnter={() => {
-        onHoverStart?.(node.id);
-        onSelectHover?.();
-      }}
-      onPointerLeave={() => {
-        onHoverEnd?.();
-        onSelectHoverEnd?.();
-      }}
-      onClick={(event) => {
-        if (!isSelectionMode) return;
-        event.stopPropagation();
-        onPreselect?.();
-      }}
-      onDoubleClick={(event) => {
-        if (!isSelectionMode) return;
-        event.stopPropagation();
-        onConfirm?.();
-      }}
-      onPointerDown={(event) => {
-        if (!isDraggable) return;
-        onDragStart?.(event);
-      }}
+      handlers={handlers}
     >
-      <span className="diagram-gate__label">{formatGateLabel(node)}</span>
-      {isKoon && <span className="diagram-gate__badge">{koonLabel}</span>}
-    </div>
+      <DiagramGateContent node={node} />
+    </DiagramNode>
   );
 };
