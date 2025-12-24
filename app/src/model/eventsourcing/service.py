@@ -180,6 +180,12 @@ class GraphES:
             self.add_root_component(new_comp_id, dist, unit_type=unit_type)
             return
 
+        effective_position_index = position_index
+        effective_position_reference_id = position_reference_id
+        if children_order is not None:
+            effective_position_index = None
+            effective_position_reference_id = None
+
         relation = self._map_relation_type(relation_type, target_id, host_type)
 
         if host_type == "gate":
@@ -190,8 +196,8 @@ class GraphES:
                 dist,
                 k=k,
                 unit_type=unit_type,
-                position_index=position_index,
-                position_reference_id=position_reference_id,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
             )
         elif host_type == "component":
             self.graph.add_component_relative(
@@ -201,8 +207,8 @@ class GraphES:
                 dist,
                 k=k,
                 unit_type=unit_type,
-                position_index=position_index,
-                position_reference_id=position_reference_id,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
             )
         else:
             raise ValueError(f"Unknown host_type '{host_type}'")
@@ -223,8 +229,8 @@ class GraphES:
                 dist={"kind": dist.kind},
                 k=k,
                 unit_type=unit_type,
-                position_index=position_index,
-                position_reference_id=position_reference_id,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
                 children_order=children_order,
                 actor=self.actor
             ))
@@ -259,6 +265,12 @@ class GraphES:
                 d = ev.dist or {}
                 kind = d.get("kind", "exponential")
                 dist = Dist(kind=kind)
+                children_order = getattr(ev, "children_order", None)
+                effective_position_index = getattr(ev, "position_index", None)
+                effective_position_reference_id = getattr(ev, "position_reference_id", None)
+                if children_order is not None:
+                    effective_position_index = None
+                    effective_position_reference_id = None
                 g.add_component_relative(
                     ev.target_id,
                     ev.new_comp_id,
@@ -266,10 +278,9 @@ class GraphES:
                     dist,
                     k=getattr(ev, "k", None),
                     unit_type=getattr(ev, 'unit_type', None),
-                    position_index=getattr(ev, "position_index", None),
-                    position_reference_id=getattr(ev, "position_reference_id", None),
+                    position_index=effective_position_index,
+                    position_reference_id=effective_position_reference_id,
                 )
-                children_order = getattr(ev, "children_order", None)
                 if children_order is not None:
                     gate_id = g.parent.get(ev.new_comp_id)
                     if gate_id is None:

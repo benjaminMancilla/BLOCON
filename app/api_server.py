@@ -125,6 +125,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 self._send_json(400, {"error": "invalid position index"})
                 return
+            position_index -= 1
 
         position_reference_id = position.get("referenceId") if isinstance(position, dict) else None
         children_order = None
@@ -172,6 +173,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 unit_type=unit_type,
             )
         except Exception as exc:
+            print(str(exc))
             self._send_json(400, {"error": str(exc)})
             return
 

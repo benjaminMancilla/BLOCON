@@ -355,10 +355,18 @@ class ReliabilityGraph:
 
         current_children = self.children.get(gate_id, [])
         if len(new_order) != len(current_children):
-            raise ValueError("new_order must include all current children")
+            raise ValueError(
+                "new_order must include all current children for gate "
+                f"'{gate_id}' (expected {len(current_children)}, got {len(new_order)})"
+            )
 
         if set(new_order) != set(current_children):
-            raise ValueError("new_order must be a permutation of current children")
+            missing = [child for child in current_children if child not in new_order]
+            extra = [child for child in new_order if child not in current_children]
+            raise ValueError(
+                "new_order must be a permutation of current children for gate "
+                f"'{gate_id}' (missing={missing}, extra={extra})"
+            )
 
         if len(new_order) != len(set(new_order)):
             raise ValueError("new_order contains duplicate child IDs")
@@ -604,7 +612,9 @@ class ReliabilityGraph:
 
         chs = self.children[parent_id]
         if index < 0 or index > len(chs):
-            raise ValueError(f"Index {index} out of range for parent '{parent_id}'")
+            raise ValueError(
+                f"Index {index} out of range for parent '{parent_id}' with {len(chs)} children"
+            )
         chs.insert(index, new_child)
         self.parent[new_child] = parent_id
 
