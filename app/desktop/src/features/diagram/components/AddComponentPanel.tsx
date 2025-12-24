@@ -41,6 +41,7 @@ type AddComponentPanelProps = {
   onFormStateChange: (nextState: AddComponentFormState) => void;
   onOrganizationStart: () => void;
   onOrganizationCancel: () => void;
+  onInsert: () => void;
 };
 
 const ENTER_DEBOUNCE_MS = 650;
@@ -62,6 +63,7 @@ export const AddComponentPanel = ({
   onFormStateChange,
   onOrganizationStart,
   onOrganizationCancel,
+  onInsert,
 }: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
@@ -466,7 +468,7 @@ export const AddComponentPanel = ({
               <button
                 className="add-component-panel__diagram-button add-component-panel__diagram-button--primary"
                 type="button"
-                onClick={() => undefined}
+                onClick={onInsert}
               >
                 Insertar
               </button>

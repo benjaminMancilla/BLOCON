@@ -10,7 +10,7 @@ export type DiagramState = {
   errorMessage: string | null;
 };
 
-export const useDiagramGraph = (): DiagramState => {
+export const useDiagramGraph = (reloadToken = 0): DiagramState => {
   const [graph, setGraph] = useState<GraphData>(() => createEmptyGraph());
   const [status, setStatus] = useState<DiagramStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,7 +37,7 @@ export const useDiagramGraph = (): DiagramState => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   return { graph, status, errorMessage };
 };

@@ -89,6 +89,7 @@ type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
+  graphReloadToken?: number;
   organizationSelection?: DiagramNodeSelection | null;
   organizationGateType?: GateType | null;
   organizationComponentId?: string | null;
@@ -110,6 +111,7 @@ export const DiagramCanvas = ({
   label = "Canvas",
   isSelectionMode = false,
   isOrganizationMode = false,
+  graphReloadToken = 0,
   organizationSelection = null,
   organizationGateType = null,
   organizationComponentId = null,
@@ -128,7 +130,7 @@ export const DiagramCanvas = ({
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
-  const { graph, status, errorMessage } = useDiagramGraph();
+  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
   const {
     graph: organizationBaseGraph,
