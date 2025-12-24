@@ -259,6 +259,18 @@ body {
   transform: scale(1.04);
 }
 
+.diagram-node--insert-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  border: 2px solid var(--selection-color);
+  box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  opacity: 0;
+  animation: insertPulse 2.6s ease-out;
+  pointer-events: none;
+}
+
 .diagram-node--dimmed {
   opacity: 0.4;
   box-shadow: none;
@@ -478,6 +490,73 @@ body {
   transform: scale(1.02);
 }
 
+.diagram-gate-area--insert-highlight {
+  border-color: var(--selection-color);
+}
+
+.diagram-gate-area--insert-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  border: 2px solid var(--selection-color);
+  box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  opacity: 0;
+  animation: insertPulse 2.6s ease-out;
+  pointer-events: none;
+}
+
+.diagram-insert-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 8px);
+  background: var(--selection-color);
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 999px;
+  box-shadow: 0 12px 28px var(--selection-color-shadow);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  z-index: 2500;
+  animation: insertToast 2.6s ease-out forwards;
+}
+
+@keyframes insertPulse {
+  0% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  }
+  35% {
+    opacity: 1;
+    box-shadow: 0 0 0 16px rgba(127, 86, 217, 0.35);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 28px rgba(127, 86, 217, 0);
+  }
+}
+
+@keyframes insertToast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+
 .diagram-gate-area--virtual {
   pointer-events: none;
   z-index: 900;
@@ -645,6 +724,25 @@ body {
   font-size: 0.95rem;
 }
 
+.add-component-panel__filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-component-panel__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #475467;
+}
+
+.add-component-panel__filter input {
+  width: 16px;
+  height: 16px;
+}
+
 .add-component-panel__summary {
   margin: 0;
   font-size: 0.85rem;
@@ -657,7 +755,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-right: 6px;
+  padding: 6px
 }
 
 .add-component-panel__result {
@@ -672,6 +770,45 @@ body {
   cursor: pointer;
   text-align: left;
   width: 100%;
+}
+
+.add-component-panel__result--disabled {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: #b42318;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.add-component-panel__result--disabled .add-component-panel__result-title {
+  color: inherit;
+}
+
+.add-component-panel__result--disabled .add-component-panel__result-meta {
+  color: #d92d20;
+}
+
+.add-component-panel__result--shake {
+  animation: add-component-shake 0.35s ease-in-out;
+}
+
+@keyframes add-component-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
 }
 
 .add-component-panel__result-title {
@@ -985,6 +1122,7 @@ body {
   padding: 12px 14px;
   background: #f8f9fc;
   box-shadow: 0 6px 18px rgba(16, 24, 40, 0.06);
+  margin-bottom: 6px;
 }
 
 .add-component-panel__diagram-card-header {

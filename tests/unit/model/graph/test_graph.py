@@ -331,6 +331,48 @@ def test_add_component_relative_case2_target_is_root_gate_of_desired_type_adds_e
     assert g.parent["B"] == "G1"
 
 
+def test_add_component_relative_inserts_into_non_root_gate_with_position():
+    g = ReliabilityGraph()
+    g.clear()
+
+    g.add_node(AndGateNode(id="GP"))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
+    g.add_edge("GP", "G1")
+    g.add_edge("G1", "A")
+    g.add_edge("G1", "B")
+    g.add_edge("G1", "C")
+
+    g.add_component_relative(
+        target_id="G1",
+        new_comp_id="D",
+        relation="series",
+        dist=Dist(kind="exponential"),
+        position_index=1,
+    )
+
+    assert g.children["G1"] == ["A", "D", "B", "C"]
+
+
+def test_reorder_children_reorders_and_validates_gate_children():
+    g = ReliabilityGraph()
+    g.clear()
+
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
+    g.add_edge("G1", "A")
+    g.add_edge("G1", "B")
+
+    g.reorder_children("G1", ["B", "A"])
+    assert g.children["G1"] == ["B", "A"]
+
+    with pytest.raises(ValueError, match="include all current children"):
+        g.reorder_children("G1", ["A"])
+
+        
 def test_clear_reliability_clears_node_reliability_and_total():
     g = ReliabilityGraph()
     g.clear()

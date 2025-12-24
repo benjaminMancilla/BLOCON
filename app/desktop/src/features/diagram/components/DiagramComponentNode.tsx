@@ -9,6 +9,7 @@ type DiagramComponentNodeProps = {
   isHovered?: boolean;
   isPreselected?: boolean;
   isSelected?: boolean;
+  isInsertHighlighted?: boolean;
   isDimmed?: boolean;
   isDraggable?: boolean;
   isDragging?: boolean;
@@ -44,6 +45,7 @@ export const DiagramComponentNode = ({
   isHovered = false,
   isPreselected = false,
   isSelected = false,
+  isInsertHighlighted = false,
   isDimmed = false,
   isDraggable = false,
   isDragging = false,
@@ -62,6 +64,8 @@ export const DiagramComponentNode = ({
       }${isHovered ? " diagram-node--hovered" : ""}${
         isPreselected ? " diagram-node--preselected" : ""
       }${isSelected ? " diagram-node--selected" : ""}${
+        isInsertHighlighted ? " diagram-node--insert-highlight" : ""
+      }${
         isDimmed ? " diagram-node--dimmed" : ""
       }${isDraggable ? " diagram-node--draggable" : ""}${
         isDragging ? " diagram-node--organization-drag-placeholder" : ""

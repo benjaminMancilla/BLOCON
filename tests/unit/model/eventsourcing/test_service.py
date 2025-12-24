@@ -159,6 +159,32 @@ def test_snapshot_no_store_no_crash():
     es.snapshot()  # should do nothing
 
 
+def test_add_component_organization_inserts_and_persists_children_order():
+    store = InMemoryEventStore()
+    es = GraphES(store=store, actor="me")
+    es.graph.clear()
+    es.add_root_component("A", Dist("exponential"))
+    es.add_parallel("A", "B", Dist("exponential"))
+    gate_id = es.graph.root
+
+    es.add_component_organization(
+        new_comp_id="C",
+        calculation_type="weibull",
+        target_id=gate_id,
+        host_type="gate",
+        relation_type="OR",
+        position_index=0,
+        children_order=["C", "A", "B"],
+    )
+
+    assert es.graph.children[gate_id] == ["C", "A", "B"]
+    ev = store.all()[-1]
+    assert isinstance(ev, AddComponentRelativeEvent)
+    assert ev.children_order == ["C", "A", "B"]
+    assert ev.position_index == 0
+    assert ev.relation == "parallel"
+
+
 def test_effective_indices_set_head_ignores_after_upto():
     # 3 events + set_head upto index 0 => only first should remain active
     e1 = AddRootComponentEvent.create(new_comp_id="A", dist={"kind": "exponential"})

@@ -17,6 +17,7 @@ type DiagramElementSelectorProps = {
 const LABELS: Record<DiagramNodeType, string> = {
   gate: "Gate",
   component: "Componente",
+  collapsedGate: "Gate colapsada",
 };
 
 export const DiagramElementSelector = ({

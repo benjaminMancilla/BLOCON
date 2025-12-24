@@ -41,15 +41,23 @@ class AddComponentRelativeEvent(BaseEvent):
     dist: Dict[str, Any]
     k: int | None = None
     unit_type: str | None = None
+    position_index: int | None = None
+    position_reference_id: str | None = None
+    children_order: list[str] | None = None
 
     @staticmethod
     def create(target_id: str, new_comp_id: str, relation: str, 
                dist: Dict[str, Any], k: int | None = None, unit_type: str | None = None,
+               position_index: int | None = None, position_reference_id: str | None = None,
+               children_order: list[str] | None = None,
                actor: str="anonymous") -> "AddComponentRelativeEvent":
         return AddComponentRelativeEvent(kind="add_component_relative", 
                                          ts=now_iso(), actor=actor,
                                          target_id=target_id, new_comp_id=new_comp_id, 
-                                         relation=relation, dist=dist, k=k, unit_type=unit_type
+                                         relation=relation, dist=dist, k=k, unit_type=unit_type,
+                                         position_index=position_index,
+                                         position_reference_id=position_reference_id,
+                                         children_order=children_order,
         )
 
 @dataclass
@@ -132,7 +140,10 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
         ev = AddComponentRelativeEvent(kind="add_component_relative", **common,
                                        target_id=d["target_id"], new_comp_id=d["new_comp_id"],
                                        relation=d["relation"], dist=d["dist"], k=d.get("k"),
-                                       unit_type=d.get("unit_type"))
+                                       unit_type=d.get("unit_type"),
+                                       position_index=d.get("position_index"),
+                                       position_reference_id=d.get("position_reference_id"),
+                                       children_order=d.get("children_order"))
     elif k == "remove_node":
         ev = RemoveNodeEvent(kind="remove_node", **common, node_id=d["node_id"])
     elif k == "add_root_component":

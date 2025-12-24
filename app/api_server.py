@@ -36,7 +36,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, status_code: int, payload: dict) -> None:
@@ -68,6 +68,116 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 return json.loads(raw)
             except json.JSONDecodeError:
                 return None            
+
+    @staticmethod
+    def _normalize_relation_type(relation_type: str | None) -> str | None:
+        if relation_type is None:
+            return None
+        if not isinstance(relation_type, str):
+            return relation_type
+        relation_upper = relation_type.upper()
+        if relation_upper in ("AND", "OR", "KOON"):
+            return relation_upper
+        relation_lower = relation_type.lower()
+        if relation_lower in ("series", "parallel", "koon"):
+            return relation_lower
+        return relation_type
+
+    def _handle_organization_insert(self, payload: dict | None) -> None:
+        if payload is None or not isinstance(payload, dict):
+            self._send_json(400, {"error": "invalid payload"})
+            return
+
+        insert = payload.get("insert")
+        if not isinstance(insert, dict):
+            self._send_json(400, {"error": "missing insert payload"})
+            return
+
+        component_id = insert.get("componentId")
+        calculation_type = insert.get("calculationType")
+        if not component_id or not calculation_type:
+            self._send_json(400, {"error": "missing componentId or calculationType"})
+            return
+
+        target = insert.get("target")
+        target_id = None
+        host_type = None
+        relation_type = None
+        if target is not None:
+            if not isinstance(target, dict):
+                self._send_json(400, {"error": "invalid target payload"})
+                return
+            target_id = target.get("hostId")
+            host_type = target.get("hostType")
+            relation_type = self._normalize_relation_type(target.get("relationType"))
+            if host_type is not None:
+                host_type = str(host_type).lower()
+
+        position = insert.get("position") or {}
+        if position is not None and not isinstance(position, dict):
+            self._send_json(400, {"error": "invalid position payload"})
+            return
+
+        position_index = position.get("index") if isinstance(position, dict) else None
+        if position_index is not None:
+            try:
+                position_index = int(position_index)
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid position index"})
+                return
+            position_index -= 1
+
+        position_reference_id = position.get("referenceId") if isinstance(position, dict) else None
+        children_order = None
+        reorder = payload.get("reorder")
+        if isinstance(reorder, list) and reorder:
+            ordered = []
+            for entry in reorder:
+                if not isinstance(entry, dict):
+                    continue
+                entry_id = entry.get("id")
+                if not entry_id:
+                    continue
+                position = entry.get("position")
+                if position is not None:
+                    try:
+                        position = int(position)
+                    except (TypeError, ValueError):
+                        position = None
+                ordered.append((position, entry_id))
+            if ordered:
+                ordered.sort(key=lambda item: (item[0] is None, item[0]))
+                children_order = [entry_id for _, entry_id in ordered]
+
+        k_value = insert.get("k")
+        if k_value is not None:
+            try:
+                k_value = int(k_value)
+            except (TypeError, ValueError):
+                self._send_json(400, {"error": "invalid k value"})
+                return
+
+        unit_type = insert.get("unitType")
+
+        try:
+            self.es.add_component_organization(
+                new_comp_id=component_id,
+                calculation_type=calculation_type,
+                target_id=target_id,
+                host_type=host_type,
+                relation_type=relation_type,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+                children_order=children_order,
+                k=k_value,
+                unit_type=unit_type,
+            )
+        except Exception as exc:
+            print(str(exc))
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"status": "ok"})
 
     def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         parsed = urlparse(self.path)
@@ -114,6 +224,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
 
+    def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/graph/organization":
+            payload = self._read_json_body()
+            self._handle_organization_insert(payload)
+            return
+
+        self._send_json(404, {"error": "not found"})
+        
     def do_PUT(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"

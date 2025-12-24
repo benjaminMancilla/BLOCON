@@ -27,6 +27,27 @@ class GraphES:
             return
         self.store.append(SetHeadEvent.create(upto=upto, actor=self.actor))
 
+    def _map_relation_type(self, relation_type: str | None, target_id: str, host_type: str) -> str:
+        gate_map = {
+            "AND": "series",
+            "OR": "parallel",
+            "KOON": "koon",
+        }
+        if relation_type is None:
+            if host_type == "gate":
+                node = self.graph.nodes.get(target_id)
+                if node is None or not node.is_gate():
+                    raise ValueError(f"Target gate '{target_id}' not found")
+                subtype = getattr(node, "subtype", None)
+                if subtype in gate_map:
+                    return gate_map[subtype]
+            raise ValueError("relation_type is required for component host")
+        if relation_type in gate_map:
+            return gate_map[relation_type]
+        if relation_type in ("series", "parallel", "koon"):
+            return relation_type
+        raise ValueError(f"Unknown relation_type '{relation_type}'")
+
     @staticmethod
     def _effective_indices(evts: list[Event]) -> list[int]:
         n = len(evts)
@@ -141,6 +162,79 @@ class GraphES:
         data = self.graph.to_data()
         self.store.append(SnapshotEvent.create(data=data, actor=self.actor))
 
+    def add_component_organization(
+        self,
+        new_comp_id: str,
+        calculation_type: str,
+        target_id: str | None,
+        host_type: str | None,
+        relation_type: str | None,
+        position_index: int | None = None,
+        position_reference_id: str | None = None,
+        children_order: list[str] | None = None,
+        k: int | None = None,
+        unit_type: str | None = None,
+    ) -> None:
+        dist = Dist(kind=calculation_type)
+        if target_id is None or host_type is None:
+            self.add_root_component(new_comp_id, dist, unit_type=unit_type)
+            return
+
+        effective_position_index = position_index
+        effective_position_reference_id = position_reference_id
+        if children_order is not None:
+            effective_position_index = None
+            effective_position_reference_id = None
+
+        relation = self._map_relation_type(relation_type, target_id, host_type)
+
+        if host_type == "gate":
+            self.graph.add_component_relative(
+                target_id,
+                new_comp_id,
+                relation,
+                dist,
+                k=k,
+                unit_type=unit_type,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
+            )
+        elif host_type == "component":
+            self.graph.add_component_relative(
+                target_id,
+                new_comp_id,
+                relation,
+                dist,
+                k=k,
+                unit_type=unit_type,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
+            )
+        else:
+            raise ValueError(f"Unknown host_type '{host_type}'")
+
+        if children_order is not None:
+            gate_id = self.graph.parent.get(new_comp_id)
+            if gate_id is None:
+                raise ValueError("Inserted component has no parent gate for reorder")
+            if not self.graph.nodes[gate_id].is_gate():
+                raise ValueError(f"Parent '{gate_id}' is not a gate")
+            self.graph.reorder_children(gate_id, children_order)
+
+        if self.store:
+            self.store.append(AddComponentRelativeEvent.create(
+                target_id=target_id,
+                new_comp_id=new_comp_id,
+                relation=relation,
+                dist={"kind": dist.kind},
+                k=k,
+                unit_type=unit_type,
+                position_index=effective_position_index,
+                position_reference_id=effective_position_reference_id,
+                children_order=children_order,
+                actor=self.actor
+            ))
+
     # ---------- Lecturas ----------
 
     def evaluate(self) -> float:
@@ -171,14 +265,29 @@ class GraphES:
                 d = ev.dist or {}
                 kind = d.get("kind", "exponential")
                 dist = Dist(kind=kind)
+                children_order = getattr(ev, "children_order", None)
+                effective_position_index = getattr(ev, "position_index", None)
+                effective_position_reference_id = getattr(ev, "position_reference_id", None)
+                if children_order is not None:
+                    effective_position_index = None
+                    effective_position_reference_id = None
                 g.add_component_relative(
                     ev.target_id,
                     ev.new_comp_id,
                     ev.relation,
                     dist,
                     k=getattr(ev, "k", None),
-                    unit_type=getattr(ev, 'unit_type', None)
+                    unit_type=getattr(ev, 'unit_type', None),
+                    position_index=effective_position_index,
+                    position_reference_id=effective_position_reference_id,
                 )
+                if children_order is not None:
+                    gate_id = g.parent.get(ev.new_comp_id)
+                    if gate_id is None:
+                        raise ValueError("Inserted component has no parent gate for reorder")
+                    if not g.nodes[gate_id].is_gate():
+                        raise ValueError(f"Parent '{gate_id}' is not a gate")
+                    g.reorder_children(gate_id, children_order)
             elif isinstance(ev, RemoveNodeEvent):
                 try:
                     g.remove_node(ev.node_id)

@@ -1,4 +1,4 @@
-export type DiagramNodeType = "gate" | "component";
+export type DiagramNodeType = "gate" | "component" | "collapsedGate";
 
 export type DiagramNodeSelection = {
   id: string;

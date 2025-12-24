@@ -3,6 +3,7 @@ import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
+import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import type {
   DiagramNodeSelection,
   SelectionStatus,
@@ -13,8 +14,21 @@ import type {
   OrganizationPayload,
   OrganizationUiState,
 } from "./features/diagram/types/organization";
+import { insertOrganization } from "./services/graphService";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
+type InsertHighlight = {
+  token: number;
+  componentId: string;
+  targetGateId: string | null;
+  hostComponentId: string | null;
+  gateType: GateType | null;
+};
+
+const DEFAULT_FORM_STATE: AddComponentFormState = {
+  componentId: null,
+  calculationType: "exponential",
+};
 
 function App() {
   const [isAddMode, setIsAddMode] = useState(false);
@@ -40,6 +54,43 @@ function App() {
     useState<OrganizationUiState | null>(null);
   const [organizationPayload, setOrganizationPayload] =
     useState<OrganizationPayload | null>(null);
+  const [graphReloadToken, setGraphReloadToken] = useState(0);
+  const [formResetToken, setFormResetToken] = useState(0);
+  const [insertHighlight, setInsertHighlight] =
+    useState<InsertHighlight | null>(null);
+  const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
+  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
+  const existingNodeIds = useMemo(
+    () => new Set(graph.nodes.map((node) => node.id)),
+    [graph.nodes],
+  );
+  const insertValidators = useMemo(
+    () => [
+      {
+        id: "unique-component",
+        validate: (payload: OrganizationPayload) => {
+          const componentId = payload.insert.componentId;
+          if (!componentId) return false;
+          return !existingNodeIds.has(componentId);
+        },
+      },
+    ],
+    [existingNodeIds],
+  );
+  const runInsertValidations = useCallback(
+    (payload: OrganizationPayload) =>
+      insertValidators.every((validator) => validator.validate(payload)),
+    [insertValidators],
+  );
+  const isGateSelection = useCallback(
+    (selection: DiagramNodeSelection | null) => selection?.type === "gate",
+    [],
+  );
+  const isComponentSelection = useCallback(
+    (selection: DiagramNodeSelection | null) =>
+      selection?.type === "component" || selection?.type === "collapsedGate",
+    [],
+  );
 
   const isSelectionMode =
     isAddMode &&
@@ -60,8 +111,7 @@ function App() {
       setIsOrganizationActive(false);
       setHoveredSelectionId(null);
       setFormState({
-        componentId: null,
-        calculationType: "exponential",
+        ...DEFAULT_FORM_STATE,
       });
       setOrganizationUiState(null);
       setOrganizationPayload(null);
@@ -88,7 +138,7 @@ function App() {
     setOrganizationPayload(null);
   }, []);
 
-  const handleSelectionCancel = useCallback(() => {
+  const resetAddComponentFlow = useCallback(() => {
     setAddComponentStep("selection");
     setSelectionStatus("idle");
     setDraftSelection(null);
@@ -96,9 +146,16 @@ function App() {
     setSelectedGateType(null);
     setIsOrganizationActive(false);
     setHoveredSelectionId(null);
+    setFormState({
+      ...DEFAULT_FORM_STATE,
+    });
     setOrganizationUiState(null);
     setOrganizationPayload(null);
   }, []);
+
+    const handleSelectionCancel = useCallback(() => {
+    resetAddComponentFlow();
+  }, [resetAddComponentFlow]);
 
   const handleSelectionConfirm = useCallback(
     (selection: DiagramNodeSelection) => {
@@ -109,7 +166,7 @@ function App() {
       setSelectedGateType(null);
       setOrganizationUiState(null);
       setOrganizationPayload(null);
-      if (selection.type === "gate") {
+      if (isGateSelection(selection)) {
         setAddComponentStep("organization");
         setIsOrganizationActive(true);
       } else {
@@ -117,20 +174,12 @@ function App() {
         setAddComponentStep("gateType");
       }
     },
-    [],
+    [isGateSelection],
   );
 
   const handleSelectionReset = useCallback(() => {
-    setAddComponentStep("selection");
-    setSelectionStatus("idle");
-    setDraftSelection(null);
-    setConfirmedSelection(null);
-    setSelectedGateType(null);
-    setIsOrganizationActive(false);
-    setHoveredSelectionId(null);
-    setOrganizationUiState(null);
-    setOrganizationPayload(null);
-  }, []);
+    resetAddComponentFlow();
+  }, [resetAddComponentFlow]);
 
   const handleNodePreselect = useCallback(
     (selection: DiagramNodeSelection) => {
@@ -168,12 +217,35 @@ function App() {
   const handleGateTypeChange = useCallback(
     (gateType: GateType | null) => {
       setSelectedGateType(gateType);
-      if (gateType && confirmedSelection?.type === "component") {
+      if (gateType && isComponentSelection(confirmedSelection)) {
         setAddComponentStep("organization");
         setIsOrganizationActive(true);
       }
     },
-    [confirmedSelection?.type],
+    [confirmedSelection, isComponentSelection],
+  );
+
+  const handleSelectionUpdate = useCallback(
+    (selection: DiagramNodeSelection) => {
+      setDraftSelection((prev) =>
+        prev?.id === selection.id ? selection : prev,
+      );
+      setConfirmedSelection((prev) =>
+        prev?.id === selection.id ? selection : prev,
+      );
+      if (confirmedSelection?.id !== selection.id) return;
+
+      const nextStep = isGateSelection(selection)
+        ? "organization"
+        : selectedGateType
+          ? "organization"
+          : "gateType";
+      setAddComponentStep(nextStep);
+      setIsOrganizationActive(nextStep === "organization");
+      setOrganizationUiState(null);
+      setOrganizationPayload(null);
+    },
+    [confirmedSelection?.id, isGateSelection, selectedGateType],
   );
 
   const handleOrganizationStart = useCallback(() => {
@@ -210,21 +282,20 @@ function App() {
       confirmedSelection?.id
         ? {
             hostId: confirmedSelection.id,
-            hostType: confirmedSelection.type,
-            relationType:
-              confirmedSelection.type === "gate"
-                ? organizationUiState.gateSubtype
-                : selectedGateType,
+            hostType: isGateSelection(confirmedSelection) ? "gate" as const : "component" as const,
+            relationType: isGateSelection(confirmedSelection)
+              ? organizationUiState.gateSubtype
+              : selectedGateType,
           }
         : null;
 
     const insert = {
       ...formState,
+      ...(target?.relationType === "koon" ? { k: 1 } : {}),
       target,
       position: {
         index: positionIndex,
-        referenceId:
-          placeholderIndex >= 0 ? organizationUiState.placeholderId : null,
+        referenceId: null,
       },
     };
 
@@ -235,10 +306,15 @@ function App() {
         (value, index) => value !== organizationUiState.initialOrder[index],
       );
     const reorder = orderChanged
-      ? organizationUiState.order.map((id, index) => ({
-          position: index + 1,
-          id,
-        }))
+      ? organizationUiState.order
+          .map((id, index) => ({
+            position: index + 1,
+            id:
+              id === organizationUiState.placeholderId
+                ? formState.componentId
+                : id,
+          }))
+          .filter((entry): entry is { position: number; id: string } => entry.id !== null)
       : null;
 
     setOrganizationPayload({
@@ -249,6 +325,7 @@ function App() {
     confirmedSelection,
     formState,
     isOrganizationMode,
+    isGateSelection,
     organizationUiState,
     selectedGateType,
   ]);
@@ -256,6 +333,36 @@ function App() {
   useEffect(() => {
     if (!organizationPayload) return;
   }, [organizationPayload]);
+
+  const handleInsert = useCallback(async () => {
+    if (!organizationPayload?.insert.componentId) return;
+    if (!runInsertValidations(organizationPayload)) return;
+    const insertTarget = organizationPayload.insert.target;
+    const insertMeta = {
+      componentId: organizationPayload.insert.componentId,
+      targetGateId: insertTarget?.hostType === "gate" ? insertTarget.hostId : null,
+      hostComponentId:
+        insertTarget?.hostType === "component" ? insertTarget.hostId : null,
+      gateType: insertTarget?.relationType ?? null,
+    };
+    await insertOrganization(organizationPayload);
+    setGraphReloadToken((current) => current + 1);
+    resetAddComponentFlow();
+    setFormResetToken((current) => current + 1);
+    setInsertHighlight((current) => ({
+      ...insertMeta,
+      token: (current?.token ?? 0) + 1,
+    }));
+    setInsertToastToken((current) => (current ?? 0) + 1);
+  }, [organizationPayload, resetAddComponentFlow, runInsertValidations]);
+
+  useEffect(() => {
+    if (insertToastToken === null) return;
+    const timeout = window.setTimeout(() => {
+      setInsertToastToken(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [insertToastToken]);
 
   return (
     <div className="app">
@@ -269,6 +376,9 @@ function App() {
         <DiagramCanvas
           isSelectionMode={isSelectionMode}
           isOrganizationMode={isOrganizationMode}
+          graph={graph}
+          status={status}
+          errorMessage={errorMessage}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
           organizationComponentId={formState.componentId}
@@ -277,11 +387,13 @@ function App() {
           preselectedNodeId={selectionMeta.preselectedId}
           selectedNodeId={selectionMeta.selectedId}
           hoveredNodeId={selectionMeta.hoveredId}
+          insertHighlight={insertHighlight}
           onEnterSelectionMode={handleSelectionModeEnter}
           onExitSelectionMode={handleSelectionModeExit}
           onNodeHover={handleNodeHover}
           onNodePreselect={handleNodePreselect}
           onNodeConfirm={handleNodeConfirm}
+          onSelectionUpdate={handleSelectionUpdate}
           onSelectionCancel={handleSelectionCancel}
           onOrganizationCancel={handleOrganizationCancel}
         />
@@ -295,6 +407,8 @@ function App() {
               gateType={selectedGateType}
               isOrganizing={isOrganizationMode}
               formState={formState}
+              existingNodeIds={existingNodeIds}
+              resetToken={formResetToken}
               onSelectionConfirm={handleSelectionConfirm}
               onSelectionCancel={handleSelectionCancel}
               onSelectionStart={handleSelectionStart}
@@ -303,10 +417,21 @@ function App() {
               onFormStateChange={setFormState}
               onOrganizationStart={handleOrganizationStart}
               onOrganizationCancel={handleOrganizationCancel}
+              onInsert={handleInsert}
             />
           </DiagramSidePanel>
         ) : null}
       </div>
+      {insertToastToken !== null ? (
+        <div
+          key={insertToastToken}
+          className="diagram-insert-toast"
+          role="status"
+          aria-live="polite"
+        >
+          Componente agregado correctamente
+        </div>
+      ) : null}
     </div>
   );
 }

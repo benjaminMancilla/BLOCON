@@ -15,6 +15,7 @@ export type OrganizationInsertPosition = {
 export type OrganizationInsertData = AddComponentFormState & {
   target: OrganizationInsertTarget | null;
   position: OrganizationInsertPosition;
+  k?: number | null;
 };
 
 export type OrganizationReorderEntry = {

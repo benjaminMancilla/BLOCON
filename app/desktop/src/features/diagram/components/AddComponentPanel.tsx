@@ -33,6 +33,8 @@ type AddComponentPanelProps = {
   isOrganizing: boolean;
   confirmedSelection: DiagramNodeSelection | null;
   formState: AddComponentFormState;
+  existingNodeIds?: Set<string>;
+  resetToken?: number;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
@@ -41,6 +43,7 @@ type AddComponentPanelProps = {
   onFormStateChange: (nextState: AddComponentFormState) => void;
   onOrganizationStart: () => void;
   onOrganizationCancel: () => void;
+  onInsert: () => void;
 };
 
 const ENTER_DEBOUNCE_MS = 650;
@@ -54,6 +57,8 @@ export const AddComponentPanel = ({
   isOrganizing,
   confirmedSelection,
   formState,
+  existingNodeIds = new Set<string>(),
+  resetToken = 0,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
@@ -62,6 +67,7 @@ export const AddComponentPanel = ({
   onFormStateChange,
   onOrganizationStart,
   onOrganizationCancel,
+  onInsert,
 }: AddComponentPanelProps) => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
@@ -73,9 +79,12 @@ export const AddComponentPanel = ({
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
   const [isGateSectionOpen, setIsGateSectionOpen] = useState(true);
+  const [showExisting, setShowExisting] = useState(false);
+  const [shakingItems, setShakingItems] = useState<Record<string, boolean>>({});
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const shakeTimersRef = useRef<Record<string, number>>({});
   const selectionResetRef = useRef<string | null>(null);
   const stepResetRef = useRef<AddComponentStep | null>(null);
 
@@ -134,7 +143,30 @@ export const AddComponentPanel = ({
   }, [query, runSearch]);
 
   // Cleanup on unmount.
-  useEffect(() => clearPending, [clearPending]);
+  useEffect(() => {
+    return () => {
+      clearPending();
+      Object.values(shakeTimersRef.current).forEach((timer) =>
+        window.clearTimeout(timer),
+      );
+    };
+  }, [clearPending]);
+
+  const triggerShake = useCallback((componentId: string) => {
+    setShakingItems((prev) => ({ ...prev, [componentId]: true }));
+    const existingTimer = shakeTimersRef.current[componentId];
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+    }
+    shakeTimersRef.current[componentId] = window.setTimeout(() => {
+      setShakingItems((prev) => {
+        const next = { ...prev };
+        delete next[componentId];
+        return next;
+      });
+      delete shakeTimersRef.current[componentId];
+    }, 420);
+  }, []);
 
   useEffect(() => {
     if (selectionResetRef.current === confirmedSelection?.id) return;
@@ -152,6 +184,18 @@ export const AddComponentPanel = ({
     }
   }, [onGateTypeChange, step]);
 
+  useEffect(() => {
+    setSelectedComponent(null);
+    setIsSelectedSectionOpen(true);
+    setIsCalcSectionOpen(true);
+    setIsGateSectionOpen(true);
+  }, [resetToken]);
+
+  const filteredResults = useMemo(() => {
+    if (showExisting) return results;
+    return results.filter((item) => !existingNodeIds.has(item.id));
+  }, [existingNodeIds, showExisting, results]);
+
   const summary = useMemo(() => {
     if (state === "idle") {
       const trimmed = query.trim();
@@ -164,11 +208,18 @@ export const AddComponentPanel = ({
     if (state === "loading") return "Buscando componentes...";
     if (state === "error") return error ?? "Ocurrió un error durante la búsqueda.";
     if (!results.length) return "No se encontraron resultados.";
-    return `Resultados: ${results.length} de ${total}`;
-  }, [error, query, results.length, state, total]);
+    if (showExisting && !filteredResults.length) {
+      return "Todos los componentes ya existen en el diagrama.";
+    }
+    return `Resultados: ${filteredResults.length} de ${total}`;
+  }, [error, filteredResults.length, showExisting, query, results.length, state, total]);
 
   const handleSelectComponent = useCallback(
     (item: RemoteComponent) => {
+      if (existingNodeIds.has(item.id)) {
+        triggerShake(item.id);
+        return;
+      }
       setSelectedComponent(item);
       onFormStateChange({
         componentId: item.id,
@@ -180,7 +231,7 @@ export const AddComponentPanel = ({
       onGateTypeChange(null);
       onSelectionStart();
     },
-    [onFormStateChange, onGateTypeChange, onSelectionStart],
+    [existingNodeIds, onFormStateChange, onGateTypeChange, onSelectionStart, triggerShake],
   );
 
   const handleClearSelection = useCallback(() => {
@@ -227,13 +278,15 @@ export const AddComponentPanel = ({
   const subtitle = selectedComponent
     ? step === "selection"
       ? "Selecciona el elemento del diagrama para insertar el componente."
-      : confirmedSelection?.type === "component"
+      : confirmedSelection?.type === "component" ||
+          confirmedSelection?.type === "collapsedGate"
         ? "Escoge tipo de gate y reordena los elementos en el orden que quieras."
         : "Continúa con la organización del diagrama."
     : "Busca componentes remotos para añadirlos al diagrama.";
 
   const shouldShowGateSection =
-    confirmedSelection?.type === "component" &&
+    (confirmedSelection?.type === "component" ||
+      confirmedSelection?.type === "collapsedGate") &&
     (step === "gateType" || step === "organization");
   const shouldShowOrganizationSection = step === "organization";
   const organizationLabel = confirmedSelection?.type === "gate"
@@ -466,7 +519,7 @@ export const AddComponentPanel = ({
               <button
                 className="add-component-panel__diagram-button add-component-panel__diagram-button--primary"
                 type="button"
-                onClick={() => undefined}
+                onClick={onInsert}
               >
                 Insertar
               </button>
@@ -509,19 +562,35 @@ export const AddComponentPanel = ({
               }}
             />
 
+            <div className="add-component-panel__filters">
+              <label className="add-component-panel__filter">
+                <input
+                  type="checkbox"
+                  checked={showExisting}
+                  onChange={(event) => setShowExisting(event.target.checked)}
+                />
+                Mostrar ya agregados
+              </label>
+            </div>
+
             <p className="add-component-panel__summary">{summary}</p>
           </div>
 
           <div className="add-component-panel__results" role="list">
-            {results.map((item) => {
+            {filteredResults.map((item) => {
               const title = item.title ?? item.kks_name ?? item.id;
               const meta = [item.type, item.SubType].filter(Boolean).join(" • ");
+              const isExisting = existingNodeIds.has(item.id);
+              const isShaking = Boolean(shakingItems[item.id]);
               return (
                 <button
-                  className="add-component-panel__result"
+                  className={`add-component-panel__result${
+                    isExisting ? " add-component-panel__result--disabled" : ""
+                  }${isShaking ? " add-component-panel__result--shake" : ""}`}
                   role="listitem"
                   key={item.id}
                   type="button"
+                  aria-disabled={isExisting}
                   onClick={() => handleSelectComponent(item)}
                 >
                   <div className="add-component-panel__result-title">

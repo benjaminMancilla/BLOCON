@@ -90,6 +90,9 @@ class EventDetailsDialog(tk.Toplevel):
                 "dist": maybe("dist"),
                 "k": maybe("k"),
                 "unit_type": maybe("unit_type"),
+                "position_index": maybe("position_index"),
+                "position_reference_id": maybe("position_reference_id"),
+                "children_order": maybe("children_order"),
             })
         elif kind == "remove_node":
             base["node_id"] = maybe("node_id")
