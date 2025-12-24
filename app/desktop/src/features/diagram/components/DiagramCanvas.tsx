@@ -121,6 +121,7 @@ export const DiagramCanvas = ({
   onOrganizationCancel,
   onOrganizationStateChange,
 }: DiagramCanvasProps) => {
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { graph, status, errorMessage } = useDiagramGraph();
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
@@ -429,9 +430,9 @@ export const DiagramCanvas = ({
   }, [organizationGateSubtype]);
   const getDiagramPoint = useCallback(
     (event: PointerEvent<HTMLDivElement> | globalThis.PointerEvent) => {
-      const viewport = viewportRef.current;
-      if (!viewport) return null;
-      const rect = viewport.getBoundingClientRect();
+      const surface = surfaceRef.current;
+      if (!surface) return null;
+      const rect = surface.getBoundingClientRect();
       return {
         x: (event.clientX - rect.left - camera.x) / camera.scale,
         y: (event.clientY - rect.top - camera.y) / camera.scale,
@@ -665,6 +666,7 @@ useEffect(() => {
           isSelectionMode ? " diagram-canvas__surface--selection" : ""
         }${isOrganizationMode ? " diagram-canvas__surface--organization" : ""}`}
         {...selectionHandlers}
+        ref={surfaceRef}
       >
         {isOrganizationMode ? (
           <div className="diagram-canvas__mode-indicator">
