@@ -3,6 +3,7 @@ import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
+import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import type {
   DiagramNodeSelection,
   SelectionStatus,
@@ -58,6 +59,11 @@ function App() {
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
   const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
+  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
+  const existingNodeIds = useMemo(
+    () => new Set(graph.nodes.map((node) => node.id)),
+    [graph.nodes],
+  );
   const isGateSelection = useCallback(
     (selection: DiagramNodeSelection | null) => selection?.type === "gate",
     [],
@@ -351,7 +357,9 @@ function App() {
         <DiagramCanvas
           isSelectionMode={isSelectionMode}
           isOrganizationMode={isOrganizationMode}
-          graphReloadToken={graphReloadToken}
+          graph={graph}
+          status={status}
+          errorMessage={errorMessage}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
           organizationComponentId={formState.componentId}
@@ -380,6 +388,7 @@ function App() {
               gateType={selectedGateType}
               isOrganizing={isOrganizationMode}
               formState={formState}
+              existingNodeIds={existingNodeIds}
               resetToken={formResetToken}
               onSelectionConfirm={handleSelectionConfirm}
               onSelectionCancel={handleSelectionCancel}

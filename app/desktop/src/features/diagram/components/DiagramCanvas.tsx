@@ -5,7 +5,6 @@ import { DiagramCollapsedGateNode } from "./DiagramCollapsedGateNode";
 import { CSSProperties } from "react";
 import { DiagramGateNode } from "./DiagramGateNode";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
-import { useDiagramGraph } from "../hooks/useDiagramGraph";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
 import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
@@ -14,6 +13,7 @@ import type { GateType } from "../types/gates";
 import type { OrganizationUiState } from "../types/organization";
 import type { CalculationType } from "../types/addComponent";
 import type { GraphData } from "../../../core/graph";
+import type { DiagramStatus } from "../hooks/useDiagramGraph";
 
 const ORGANIZATION_PADDING = 32;
 const SELECTED_GATE_PADDING = 24;
@@ -89,7 +89,9 @@ type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
-  graphReloadToken?: number;
+  graph: GraphData;
+  status: DiagramStatus;
+  errorMessage?: string | null;
   insertHighlight?: {
     token: number;
     componentId: string;
@@ -119,7 +121,9 @@ export const DiagramCanvas = ({
   label = "Canvas",
   isSelectionMode = false,
   isOrganizationMode = false,
-  graphReloadToken = 0,
+  graph,
+  status,
+  errorMessage = null,
   insertHighlight = null,
   organizationSelection = null,
   organizationGateType = null,
@@ -140,7 +144,6 @@ export const DiagramCanvas = ({
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
-  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
   const {
     graph: organizationBaseGraph,

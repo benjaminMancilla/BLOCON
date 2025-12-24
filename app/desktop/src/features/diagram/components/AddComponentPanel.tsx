@@ -33,6 +33,7 @@ type AddComponentPanelProps = {
   isOrganizing: boolean;
   confirmedSelection: DiagramNodeSelection | null;
   formState: AddComponentFormState;
+  existingNodeIds?: Set<string>;
   resetToken?: number;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
@@ -56,6 +57,7 @@ export const AddComponentPanel = ({
   isOrganizing,
   confirmedSelection,
   formState,
+  existingNodeIds = new Set<string>(),
   resetToken = 0,
   onSelectionConfirm,
   onSelectionCancel,
@@ -77,6 +79,7 @@ export const AddComponentPanel = ({
   const [isSelectedSectionOpen, setIsSelectedSectionOpen] = useState(true);
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
   const [isGateSectionOpen, setIsGateSectionOpen] = useState(true);
+  const [showExisting, setShowExisting] = useState(false);
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -163,6 +166,11 @@ export const AddComponentPanel = ({
     setIsGateSectionOpen(true);
   }, [resetToken]);
 
+  const filteredResults = useMemo(() => {
+    if (showExisting) return results;
+    return results.filter((item) => !existingNodeIds.has(item.id));
+  }, [existingNodeIds, showExisting, results]);
+
   const summary = useMemo(() => {
     if (state === "idle") {
       const trimmed = query.trim();
@@ -175,8 +183,11 @@ export const AddComponentPanel = ({
     if (state === "loading") return "Buscando componentes...";
     if (state === "error") return error ?? "Ocurrió un error durante la búsqueda.";
     if (!results.length) return "No se encontraron resultados.";
-    return `Resultados: ${results.length} de ${total}`;
-  }, [error, query, results.length, state, total]);
+    if (showExisting && !filteredResults.length) {
+      return "Todos los componentes ya existen en el diagrama.";
+    }
+    return `Resultados: ${filteredResults.length} de ${total}`;
+  }, [error, filteredResults.length, showExisting, query, results.length, state, total]);
 
   const handleSelectComponent = useCallback(
     (item: RemoteComponent) => {
@@ -522,11 +533,22 @@ export const AddComponentPanel = ({
               }}
             />
 
+            <div className="add-component-panel__filters">
+              <label className="add-component-panel__filter">
+                <input
+                  type="checkbox"
+                  checked={showExisting}
+                  onChange={(event) => setShowExisting(event.target.checked)}
+                />
+                Mostrar ya agregados
+              </label>
+            </div>
+
             <p className="add-component-panel__summary">{summary}</p>
           </div>
 
           <div className="add-component-panel__results" role="list">
-            {results.map((item) => {
+            {filteredResults.map((item) => {
               const title = item.title ?? item.kks_name ?? item.id;
               const meta = [item.type, item.SubType].filter(Boolean).join(" • ");
               return (
