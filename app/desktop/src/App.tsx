@@ -271,7 +271,9 @@ function App() {
           isOrganizationMode={isOrganizationMode}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
-          onOrganizationStateChange={organizationUiState}
+          organizationComponentId={formState.componentId}
+          organizationCalculationType={formState.calculationType}
+          onOrganizationStateChange={setOrganizationUiState}
           preselectedNodeId={selectionMeta.preselectedId}
           selectedNodeId={selectionMeta.selectedId}
           hoveredNodeId={selectionMeta.hoveredId}

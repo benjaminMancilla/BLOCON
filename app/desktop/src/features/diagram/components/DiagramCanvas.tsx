@@ -12,6 +12,7 @@ import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
 import type { DiagramNodeSelection } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { OrganizationUiState } from "../types/organization";
+import type { CalculationType } from "../types/addComponent";
 import type { GraphData } from "../../../core/graph";
 
 const ORGANIZATION_PADDING = 32;
@@ -90,6 +91,8 @@ type DiagramCanvasProps = {
   isOrganizationMode?: boolean;
   organizationSelection?: DiagramNodeSelection | null;
   organizationGateType?: GateType | null;
+  organizationComponentId?: string | null;
+  organizationCalculationType?: CalculationType | null;
   hoveredNodeId?: string | null;
   preselectedNodeId?: string | null;
   selectedNodeId?: string | null;
@@ -109,6 +112,8 @@ export const DiagramCanvas = ({
   isOrganizationMode = false,
   organizationSelection = null,
   organizationGateType = null,
+  organizationComponentId = null,
+  organizationCalculationType = null,
   hoveredNodeId = null,
   preselectedNodeId = null,
   selectedNodeId = null,
@@ -282,6 +287,13 @@ export const DiagramCanvas = ({
     );
     return normalizeGateType(node?.subtype ?? organizationGateType ?? null);
   }, [organizationBaseGraph.nodes, organizationGateId, organizationGateType]);
+  const organizationComponentLabel = organizationComponentId ?? "";
+  const organizationCalculationMeta = useMemo(() => {
+    if (organizationCalculationType === "weibull") {
+      return { icon: "β", label: "Weibull" };
+    }
+    return { icon: "λ", label: "Exponencial" };
+  }, [organizationCalculationType]);
 
   useEffect(() => {
     if (
@@ -659,6 +671,56 @@ useEffect(() => {
       y: dragGhostPosition.y,
     };
   }, [dragGhostPosition, draggingNodeId, layoutNodeById]);
+
+  const renderOrganizationPlaceholder = (
+    node: typeof dragGhostNode,
+    {
+      isDragging = false,
+      isDraggable = false,
+      isOrganizationDraggable = false,
+      isDragGhost = false,
+      onPointerDown,
+    }: {
+      isDragging?: boolean;
+      isDraggable?: boolean;
+      isOrganizationDraggable?: boolean;
+      isDragGhost?: boolean;
+      onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
+    }
+  ) => {
+    if (!node) return null;
+    return (
+      <div
+        key={node.id}
+        className={`diagram-node diagram-node--component diagram-node--organization-placeholder${
+          isDraggable ? " diagram-node--draggable" : ""
+        }${
+          isDragging ? " diagram-node--organization-drag-placeholder" : ""
+        }${
+          isOrganizationDraggable ? " diagram-node--organization-draggable" : ""
+        }${isDragGhost ? " diagram-node--drag-ghost" : ""}`}
+        style={{
+          left: node.x,
+          top: node.y,
+          width: node.width,
+          height: node.height,
+        }}
+        data-node-id={node.id}
+        onPointerDown={onPointerDown}
+        aria-hidden="true"
+      >
+        <div className="diagram-node__title">{organizationComponentLabel}</div>
+        <div className="diagram-node__meta">
+          <span className="diagram-node__icon">
+            {organizationCalculationMeta.icon}
+          </span>
+          <span className="diagram-node__meta-text">
+            {organizationCalculationMeta.label}
+          </span>
+        </div>
+      </div>
+    );
+  };
   return (
     <section className="diagram-canvas" aria-label={label}>
       <div
@@ -846,39 +908,15 @@ useEffect(() => {
                 };
 
                 if (isPlaceholder) {
-                  return (
-                    <div
-                      key={node.id}
-                      className={`diagram-node diagram-node--component diagram-node--organization-placeholder${
-                        isDraggable ? " diagram-node--draggable" : ""
-                      }${
-                        isOrganizationDragging
-                          ? " diagram-node--organization-drag-placeholder"
-                          : ""
-                      }${
-                        isOrganizationDraggable
-                          ? " diagram-node--organization-draggable"
-                          : ""
-                      }`}
-                      style={{
-                        left: node.x,
-                        top: node.y,
-                        width: node.width,
-                        height: node.height,
-                      }}
-                      onPointerDown={(event) => {
-                        if (!isDraggable) return;
-                        handleOrganizationDragStart(event, node.id);
-                      }}
-                      aria-hidden="true"
-                    >
-                      <div className="diagram-node__title">Nuevo componente</div>
-                      <div className="diagram-node__meta">
-                        <span className="diagram-node__icon">★</span>
-                        <span className="diagram-node__meta-text">Pendiente</span>
-                      </div>
-                    </div>
-                  );
+                  return renderOrganizationPlaceholder(node, {
+                    isDragging: isOrganizationDragging,
+                    isDraggable,
+                    isOrganizationDraggable,
+                    onPointerDown: (event) => {
+                      if (!isDraggable) return;
+                      handleOrganizationDragStart(event, node.id);
+                    },
+                  });
                 }
                 
                 return node.type === "component" ? (
@@ -975,6 +1013,11 @@ useEffect(() => {
                       isDragGhost
                       allowExpand={false}
                     />
+                  ) : organizationPlaceholderId &&
+                    dragGhostNode.id === organizationPlaceholderId ? (
+                    renderOrganizationPlaceholder(dragGhostNode, {
+                      isDragGhost: true,
+                    })
                   ) : (
                     <DiagramComponentNode
                       key={`${dragGhostNode.id}-ghost`}
