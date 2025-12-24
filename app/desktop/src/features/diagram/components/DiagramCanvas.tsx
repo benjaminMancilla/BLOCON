@@ -145,6 +145,20 @@ export const DiagramCanvas = ({
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
+  const handleCollapseGate = useCallback(
+    (gateId: string) => {
+      if (isOrganizationMode) return;
+      collapseGate(gateId);
+    },
+    [collapseGate, isOrganizationMode]
+  );
+  const handleExpandGate = useCallback(
+    (gateId: string) => {
+      if (isOrganizationMode) return;
+      expandGate(gateId);
+    },
+    [expandGate, isOrganizationMode]
+  );
   const {
     graph: organizationBaseGraph,
     organizationGateId,
@@ -982,9 +996,7 @@ const selectionTypeRef = useRef<{
                     y1={line.y1}
                     x2={line.x2}
                     y2={line.y2}
-                    markerEnd={
-                      line.kind === "rail" ? undefined : "url(#diagram-arrow)"
-                    }
+                    markerEnd={line.arrow ? "url(#diagram-arrow)" : undefined}
                     className={`diagram-edge diagram-edge--${line.kind}`}
                   />
                 ))}
@@ -1061,7 +1073,7 @@ const selectionTypeRef = useRef<{
                     <DiagramCollapsedGateNode
                       key={node.id}
                       node={node}
-                      onExpand={expandGate}
+                      onExpand={handleExpandGate}
                       onHoverStart={setHoveredGateId}
                       onHoverEnd={() => setHoveredGateId(null)}
                       isSelectionMode={isSelectionMode}
@@ -1075,8 +1087,9 @@ const selectionTypeRef = useRef<{
                       isDragging={isOrganizationDragging}
                       isOrganizationDraggable={isOrganizationDraggable}
                       allowExpand={
+                        !isOrganizationMode &&
                         !isLocked &&
-                        !(isOrganizationMode && organizationGateId === node.id)
+                        !(organizationGateId === node.id)
                       }
                       onDragStart={(event) =>
                         handleOrganizationDragStart(event, node.id)
@@ -1185,7 +1198,7 @@ const selectionTypeRef = useRef<{
                   />
                 )
               ) : null}
-              {hoveredGateArea && (
+              {!isOrganizationMode && hoveredGateArea && (
                 <div
                   className="diagram-gate__collapse-hitbox"
                   data-collapse-hitbox={hoveredGateArea.id}
@@ -1206,19 +1219,15 @@ const selectionTypeRef = useRef<{
                     setHoveredGateId(null);
                   }}
                 >
-                  {!(isOrganizationMode &&
-                    (organizationLockedGateIds.has(hoveredGateArea.id) ||
-                      hoveredGateArea.id === organizationGateId)) ? (
-                    <button
-                      type="button"
-                      className="diagram-gate__collapse-button"
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={() => collapseGate(hoveredGateArea.id)}
-                      aria-label={`Colapsar gate ${hoveredGateArea.id}`}
-                    >
-                      -
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="diagram-gate__collapse-button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => handleCollapseGate(hoveredGateArea.id)}
+                    aria-label={`Colapsar gate ${hoveredGateArea.id}`}
+                  >
+                    -
+                  </button>
                 </div>
               )}
             </div>

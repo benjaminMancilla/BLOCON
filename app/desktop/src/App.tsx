@@ -64,6 +64,24 @@ function App() {
     () => new Set(graph.nodes.map((node) => node.id)),
     [graph.nodes],
   );
+  const insertValidators = useMemo(
+    () => [
+      {
+        id: "unique-component",
+        validate: (payload: OrganizationPayload) => {
+          const componentId = payload.insert.componentId;
+          if (!componentId) return false;
+          return !existingNodeIds.has(componentId);
+        },
+      },
+    ],
+    [existingNodeIds],
+  );
+  const runInsertValidations = useCallback(
+    (payload: OrganizationPayload) =>
+      insertValidators.every((validator) => validator.validate(payload)),
+    [insertValidators],
+  );
   const isGateSelection = useCallback(
     (selection: DiagramNodeSelection | null) => selection?.type === "gate",
     [],
@@ -318,6 +336,7 @@ function App() {
 
   const handleInsert = useCallback(async () => {
     if (!organizationPayload?.insert.componentId) return;
+    if (!runInsertValidations(organizationPayload)) return;
     const insertTarget = organizationPayload.insert.target;
     const insertMeta = {
       componentId: organizationPayload.insert.componentId,
@@ -335,7 +354,7 @@ function App() {
       token: (current?.token ?? 0) + 1,
     }));
     setInsertToastToken((current) => (current ?? 0) + 1);
-  }, [organizationPayload, resetAddComponentFlow]);
+  }, [organizationPayload, resetAddComponentFlow, runInsertValidations]);
 
   useEffect(() => {
     if (insertToastToken === null) return;

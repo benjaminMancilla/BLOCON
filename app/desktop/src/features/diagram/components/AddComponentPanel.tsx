@@ -80,9 +80,11 @@ export const AddComponentPanel = ({
   const [isCalcSectionOpen, setIsCalcSectionOpen] = useState(true);
   const [isGateSectionOpen, setIsGateSectionOpen] = useState(true);
   const [showExisting, setShowExisting] = useState(false);
+  const [shakingItems, setShakingItems] = useState<Record<string, boolean>>({});
   // Search is manual (Enter), but we still debounce Enter to avoid spamming.
   const debounceTimerRef = useRef<number | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const shakeTimersRef = useRef<Record<string, number>>({});
   const selectionResetRef = useRef<string | null>(null);
   const stepResetRef = useRef<AddComponentStep | null>(null);
 
@@ -141,7 +143,30 @@ export const AddComponentPanel = ({
   }, [query, runSearch]);
 
   // Cleanup on unmount.
-  useEffect(() => clearPending, [clearPending]);
+  useEffect(() => {
+    return () => {
+      clearPending();
+      Object.values(shakeTimersRef.current).forEach((timer) =>
+        window.clearTimeout(timer),
+      );
+    };
+  }, [clearPending]);
+
+  const triggerShake = useCallback((componentId: string) => {
+    setShakingItems((prev) => ({ ...prev, [componentId]: true }));
+    const existingTimer = shakeTimersRef.current[componentId];
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+    }
+    shakeTimersRef.current[componentId] = window.setTimeout(() => {
+      setShakingItems((prev) => {
+        const next = { ...prev };
+        delete next[componentId];
+        return next;
+      });
+      delete shakeTimersRef.current[componentId];
+    }, 420);
+  }, []);
 
   useEffect(() => {
     if (selectionResetRef.current === confirmedSelection?.id) return;
@@ -191,6 +216,10 @@ export const AddComponentPanel = ({
 
   const handleSelectComponent = useCallback(
     (item: RemoteComponent) => {
+      if (existingNodeIds.has(item.id)) {
+        triggerShake(item.id);
+        return;
+      }
       setSelectedComponent(item);
       onFormStateChange({
         componentId: item.id,
@@ -202,7 +231,7 @@ export const AddComponentPanel = ({
       onGateTypeChange(null);
       onSelectionStart();
     },
-    [onFormStateChange, onGateTypeChange, onSelectionStart],
+    [existingNodeIds, onFormStateChange, onGateTypeChange, onSelectionStart, triggerShake],
   );
 
   const handleClearSelection = useCallback(() => {
@@ -551,12 +580,17 @@ export const AddComponentPanel = ({
             {filteredResults.map((item) => {
               const title = item.title ?? item.kks_name ?? item.id;
               const meta = [item.type, item.SubType].filter(Boolean).join(" • ");
+              const isExisting = existingNodeIds.has(item.id);
+              const isShaking = Boolean(shakingItems[item.id]);
               return (
                 <button
-                  className="add-component-panel__result"
+                  className={`add-component-panel__result${
+                    isExisting ? " add-component-panel__result--disabled" : ""
+                  }${isShaking ? " add-component-panel__result--shake" : ""}`}
                   role="listitem"
                   key={item.id}
                   type="button"
+                  aria-disabled={isExisting}
                   onClick={() => handleSelectComponent(item)}
                 >
                   <div className="add-component-panel__result-title">

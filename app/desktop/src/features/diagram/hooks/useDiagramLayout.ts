@@ -23,6 +23,7 @@ export type DiagramLayoutLine = {
   x2: number;
   y2: number;
   kind: "series" | "rail" | "connector";
+  arrow?: boolean;
 };
 
 export type DiagramGateArea = {
@@ -80,6 +81,16 @@ export const buildDiagramLayout = (
   if (!rootId) {
     return { nodes: [], lines: [], gateAreas: [], width: 0, height: 0 };
   }
+
+const shouldShowArrow = (targetNodeId: string): boolean => {
+  const targetNode = nodeMap.get(targetNodeId);
+  if (!targetNode) return true;
+  if (targetNode.type !== "gate") return true;
+  if (collapsedGateIds?.has(targetNodeId)) return true;
+  const subtype = normalizeSubtype(targetNode);
+  if (subtype === "and") return true;
+  return false;
+};
 
   const sizeCache = new Map<string, Size>();
   const measure = (nodeId: string, stack = new Set<string>()): Size => {
@@ -327,6 +338,7 @@ export const buildDiagramLayout = (
           x2: leftX,
           y2: midY,
           kind: "connector",
+          arrow: shouldShowArrow(childId),
         });
         layoutLines.push({
           x1: rightX,
@@ -334,6 +346,7 @@ export const buildDiagramLayout = (
           x2: railXRight,
           y2: midY,
           kind: "connector",
+          arrow: false,
         });
         cursorY += childSize.height + V_SPACING;
       });
@@ -411,6 +424,7 @@ export const buildDiagramLayout = (
           x2: nextAnchor.leftX,
           y2: nextAnchor.centerY,
           kind: "series",
+          arrow: shouldShowArrow(childId),
         });
       }
 
