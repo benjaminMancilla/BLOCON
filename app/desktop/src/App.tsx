@@ -253,6 +253,7 @@ function App() {
 
     const insert = {
       ...formState,
+      ...(target?.relationType === "koon" ? { k: 1 } : {}),
       target,
       position: {
         index: positionIndex,
