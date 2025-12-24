@@ -1,10 +1,31 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
+import unicodedata
 
 from ..settings import SPSettings, load_settings
 from ..graph_session import GraphSession, GraphError
 from ..resolver import SPResolver
+from ..search_api import (
+    batch_get_listitem_fields,
+    build_contains_query,
+    discover_region,
+    extract_more_results_available,
+    extract_search_hits,
+    extract_total,
+    get_sp_ids_from_hit,
+    hostname_from_site_payload,
+    resolve_list_weburl,
+    search_query,
+)
+from ...cache.repositories.region import RegionCacheRepo
+
+def _norm(s: str) -> str:
+    s = (s or "").strip().lower()
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 class SharePointComponentsClient:
@@ -50,6 +71,9 @@ class SharePointComponentsClient:
 
         self._resolved_site_id: Optional[str] = None
         self._resolved_list_id: Optional[str] = None
+        self._resolved_list_web_url: Optional[str] = None
+        self._search_region: Optional[str] = None
+        self._region_cache = RegionCacheRepo.default()
 
     @classmethod
     def from_env(cls, project_root: str | None = None, dotenv_path: str | None = None) -> "SharePointComponentsClient":
@@ -82,6 +106,40 @@ class SharePointComponentsClient:
         self._resolved_site_id = sid
         return sid
 
+    def _site_region(self) -> Optional[str]:
+        data = self.session.get_json(f"sites/{self._site_id()}", params={"$select": "siteCollection,webUrl"})
+        sc = data.get("siteCollection") or {}
+        region = (sc.get("dataLocationCode") or "").strip()
+        return region or None
+
+    def _tenant_hostname(self) -> str:
+        if self.settings.site.hostname:
+            return self.settings.site.hostname
+        data = self.session.get_json(f"sites/{self._site_id()}", params={"$select": "siteCollection,webUrl"})
+        hostname = hostname_from_site_payload(data)
+        if hostname:
+            return hostname
+        raise RuntimeError("Cannot resolve tenant hostname from site info")
+
+    def _get_search_region(self, *, force_refresh: bool = False) -> str:
+        if not force_refresh and self._search_region:
+            return self._search_region
+
+        if not force_refresh:
+            cached = self._region_cache.load()
+            if cached:
+                self._search_region = cached
+                return cached
+
+        region = self._site_region()
+        if not region:
+            hostname = self._tenant_hostname()
+            region = discover_region(self.session, hostname)
+
+        self._search_region = region
+        self._region_cache.save(region)
+        return region
+
     def _list_id(self) -> str:
         if self._resolved_list_id:
             return self._resolved_list_id
@@ -92,6 +150,20 @@ class SharePointComponentsClient:
         )
         self._resolved_list_id = lid
         return lid
+    
+    def _site_web_url(self) -> str:
+        if self.settings.site.hostname and self.settings.site.path:
+            path = self.settings.site.path.strip("/")
+            return f"https://{self.settings.site.hostname}/{path}"
+        data = self.session.get_json(f"sites/{self._site_id()}", params={"$select": "webUrl"})
+        return str(data.get("webUrl") or "").rstrip("/")
+
+    def _list_web_url(self) -> str:
+        if self._resolved_list_web_url:
+            return self._resolved_list_web_url
+        web_url = resolve_list_weburl(self.session, self._site_id(), self._list_id())
+        self._resolved_list_web_url = web_url
+        return web_url
 
     @staticmethod
     def _unpack_value(fields: dict, base_key: str, value_key: str) -> str:
@@ -125,9 +197,9 @@ class SharePointComponentsClient:
 
         cid = str(fields.get(self.field_id) or "").strip()
         if not cid:
-            cid = str(fields.get("Title") or "").strip()
+            cid = str(fields.get("Title") or fields.get("title") or "").strip()
 
-        name = str(fields.get(self.field_name) or fields.get("title") or cid).strip()
+        name = str(fields.get(self.field_name) or fields.get("Title") or fields.get("title") or cid).strip()
 
         subtype = self._unpack_value(fields, self.field_subtype, self.field_subtype_value) or ""
         main_type = self._unpack_value(fields, self.field_type, self.field_type_value) or ""
@@ -162,49 +234,80 @@ class SharePointComponentsClient:
 
         site_id = self._site_id()
         list_id = self._list_id()
+        query_string = build_contains_query(self.field_id, self.field_name, q)
+        from_index = (page - 1) * page_size
+        size = min(page_size, 200)
+        list_web_url = self._list_web_url()
+        scope_url = list_web_url or self._site_web_url()
+        query_template = f'({{searchTerms}}) Path:"{scope_url}"'
 
-        path = f"sites/{site_id}/lists/{list_id}/items"
-
-        params = {
-            "$top": str(min(page_size, 999)),
-            "$expand": "fields",
-        }
-
-        qq = self._escape_odata(q)
-        if q:
-            # best-effort: Graph a veces falla con contains (depende del tipo/columna)
-            params["$filter"] = " or ".join(
-                [
-                    f"startswith(fields/{self.field_id}, '{qq}')",
-                    f"contains(fields/{self.field_name}, '{qq}')",
-                ]
+        region = self._get_search_region()
+        try:
+            search_resp = search_query(
+                self.session,
+                query_string=query_string,
+                region=region,
+                from_index=from_index,
+                size=size,
+                query_template=query_template,
+            )
+        except GraphError:
+            region = self._get_search_region(force_refresh=True)
+            search_resp = search_query(
+                self.session,
+                query_string=query_string,
+                region=region,
+                from_index=from_index,
+                size=size,
+                query_template=query_template,
             )
 
-        try:
-            data = self._get_json_any(path, params=params)
-        except Exception as e:
-            # fallback: solo por KKS (startsWith) si falla el filtro “completo”
-            if q:
-                params["$filter"] = f"startswith(fields/{self.field_id}, '{qq}')"
-                data = self._get_json_any(path, params=params)
-            else:
-                raise
+        hits = extract_search_hits(search_resp)
+        print(hits)
+        item_ids: List[str] = []
+        for hit in hits:
+            hit_site_id, hit_list_id, hit_item_id = get_sp_ids_from_hit(hit)
+            if not hit_item_id:
+                continue
+            if hit_site_id != site_id or hit_list_id != list_id:
+                continue
+            item_ids.append(str(hit_item_id))
 
-        # saltar páginas usando nextLink (si alguien usa page>1)
-        for _ in range(1, page):
-            nxt = data.get("@odata.nextLink") if isinstance(data, dict) else None
-            if not nxt:
-                return [], (page - 1) * page_size
-            data = self._get_json_any(nxt)
+        fields_map = batch_get_listitem_fields(
+            self.session,
+            site_id=site_id,
+            list_id=list_id,
+            item_ids=item_ids,
+            select_fields=[
+                "Title",
+                self.field_id,
+                self.field_name,
+                self.field_subtype,
+                self.field_type,
+                self.field_insid,
+            ],
+        )
 
+        q_norm = _norm(q)
         items: List[Dict[str, Any]] = []
-        for it in (data.get("value") or []) if isinstance(data, dict) else []:
+        for item_id in item_ids:
+            fields = fields_map.get(item_id) or {}
+            if "__error__" in fields:
+                continue
+            it = {"fields": fields, "id": item_id}
             cid, meta = self._parse_item(it)
-            if cid:
-                items.append({"id": cid, **meta})
+            if not cid:
+                continue
+            if q:
+                name = _norm(str(meta.get("kks_name") or ""))
+                cid_norm = _norm(cid)
+                if q_norm not in cid_norm and q_norm not in name:
+                    continue
+            items.append({"id": cid, **meta})
 
-        # Total aproximado (igual a tu implementación actual)
-        total = (page - 1) * page_size + len(items) + (1 if isinstance(data, dict) and data.get("@odata.nextLink") else 0)
+        total = extract_total(search_resp)
+        if total is None:
+            total = (page - 1) * page_size + len(items) + (1 if extract_more_results_available(search_resp) else 0)
         return items, total
 
     def fetch_components_by_ids(self, component_ids: list[str], chunk_size: int = 20) -> Dict[str, Dict[str, Any]]:

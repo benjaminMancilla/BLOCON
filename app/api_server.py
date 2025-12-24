@@ -2,22 +2,24 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import os
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from src.model.graph.graph import ReliabilityGraph
 from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
+from src.services.remote.cloud import CloudClient
 
 HOST = "127.0.0.1"
 PORT = 8000
 
 
-def build_graph_es() -> GraphES:
-    local = LocalWorkspaceStore()
+def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
+    local = local or LocalWorkspaceStore()
     store = EventStore(local)
     snapshot = local.load_snapshot()
     if snapshot:
@@ -29,10 +31,12 @@ def build_graph_es() -> GraphES:
 
 class GraphRequestHandler(BaseHTTPRequestHandler):
     es: GraphES
+    local: LocalWorkspaceStore
+    cloud: CloudClient
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, PUT, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, status_code: int, payload: dict) -> None:
@@ -42,12 +46,28 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.wfile.write(data)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as exc:
+            self.log_message("Client disconnected before response was sent: %s", exc)
 
     def do_OPTIONS(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         self.send_response(204)
         self._send_cors_headers()
         self.end_headers()
+
+    def _read_json_body(self) -> dict | None:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = 0
+            if length <= 0:
+                return None
+            raw = self.rfile.read(length)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                return None            
 
     def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
         parsed = urlparse(self.path)
@@ -72,13 +92,51 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 return
             self._send_json(200, node_data)
             return
+        
+        if path == "/diagram-view":
+            self._send_json(200, self.local.load_diagram_view())
+            return
+        
+        if path == "/remote/components/search":
+            params = parse_qs(parsed.query)
+            query = (params.get("query") or [""])[0]
+            try:
+                page = int((params.get("page") or ["1"])[0])
+            except ValueError:
+                page = 1
+            try:
+                page_size = int((params.get("page_size") or ["20"])[0])
+            except ValueError:
+                page_size = 20
+            items, total = self.cloud.search_components(query, page=page, page_size=page_size)
+            self._send_json(200, {"items": items, "total": total})
+            return
+
+        self._send_json(404, {"error": "not found"})
+
+    def do_PUT(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/diagram-view":
+            payload = self._read_json_body()
+            if payload is None or not isinstance(payload, dict):
+                self._send_json(400, {"error": "invalid payload"})
+                return
+            self.local.save_diagram_view(payload)
+            self._send_json(200, self.local.load_diagram_view())
+            return
 
         self._send_json(404, {"error": "not found"})
 
 
 def main() -> None:
-    es = build_graph_es()
+    local = LocalWorkspaceStore()
+    es = build_graph_es(local)
+    base_dir = os.path.abspath(os.path.dirname(__file__))
     GraphRequestHandler.es = es
+    GraphRequestHandler.local = local
+    GraphRequestHandler.cloud = CloudClient(base_dir=base_dir)
     server = HTTPServer((HOST, PORT), GraphRequestHandler)
     print(f"API server listening on http://{HOST}:{PORT}")
     server.serve_forever()

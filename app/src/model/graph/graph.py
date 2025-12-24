@@ -1,13 +1,19 @@
 from __future__ import annotations
 from typing import Dict, List, Optional, Literal, Any
-from .node import Node
+from .node import (
+    Node,
+    ComponentNode,
+    GateNode,
+    GateSubtype,
+    create_gate_node,
+)
 from .dist import Dist
 from .evaluator import ReliabilityEvaluator
 from .serializer import GraphSerializer
 from .validator import GraphValidator
 from ..failure.ports import FailuresCachePort
 
-GateType = Literal["AND", "OR", "KOON"]
+GateType = GateSubtype
 RelType = Literal["series", "parallel", "koon"]
 
 
@@ -138,19 +144,10 @@ class ReliabilityGraph:
         if not node.is_gate():
             raise ValueError("Only gate nodes can be edited with edit_gate")
         
-        # KOON gate: supports 'k' parameter
-        if node.subtype == "KOON" and "k" in params:
-            k_val = int(params["k"])
-            n = len(self.children.get(node_id, []))
-            
-            if n <= 0:
-                # No children yet: allow any k>=1, clamp to 1
-                k_val = max(1, k_val)
-            else:
-                if k_val < 1 or k_val > n:
-                    raise ValueError(f"k must be between 1 and {n}")
-            
-            node.k = k_val
+        if not isinstance(node, GateNode):
+            raise ValueError("Invalid gate node")
+
+        node.update_params(params, len(self.children.get(node_id, [])))
 
         if self.auto_normalize:
             self.normalize()
@@ -179,6 +176,8 @@ class ReliabilityGraph:
             raise ValueError(f"Target id '{new_id}' already exists")
 
         # Update distribution
+        if not isinstance(node, ComponentNode):
+            raise ValueError("Invalid component node")
         node.dist = dist
 
         # If ID unchanged, we're done
@@ -225,11 +224,10 @@ class ReliabilityGraph:
         self._validator.validate_relation(relation)
         
         # Create the new component
-        new_node = Node(
+        new_node = ComponentNode(
             id=new_comp_id,
-            type="component",
             dist=dist,
-            unit_type=unit_type
+            unit_type=unit_type,
         )
         self.add_node(new_node)
         
@@ -301,7 +299,7 @@ class ReliabilityGraph:
     def clear_reliability(self) -> None:
         """Clear all cached reliability values"""
         for node in self.nodes.values():
-            node.reliability = None
+            node.reset_evaluation()
         self.reliability_total = None
 
     def to_expression(self) -> str:
@@ -507,7 +505,7 @@ class ReliabilityGraph:
     def _is_gate(self, node_id: str, subtype: GateType) -> bool:
         """Check if node is a gate of specific subtype"""
         node = self.nodes[node_id]
-        return node.is_gate() and node.subtype == subtype
+        return node.is_gate() and isinstance(node, GateNode) and node.is_subtype(subtype)
 
     def _relation_to_gate_type(self, relation: RelType) -> GateType:
         """Convert relation type to gate type"""
@@ -544,9 +542,9 @@ class ReliabilityGraph:
         if gate_type == "KOON":
             if k is None:
                 raise ValueError("KOON insertion requires k")
-            gate_node = Node(id=gate_id, type="gate", subtype="KOON", k=k)
+            gate_node = create_gate_node(gate_type, gate_id, k=k)
         else:
-            gate_node = Node(id=gate_id, type="gate", subtype=gate_type)
+            gate_node = create_gate_node(gate_type, gate_id)
         
         self.add_node(gate_node)
         
@@ -615,30 +613,11 @@ class ReliabilityGraph:
     def _expr(self, nid: str) -> str:
         """Recursively generate expression for a node"""
         node = self.nodes[nid]
-        
-        if node.is_component():
-            return node.id
-        
         kids = self.children[nid]
+        child_exprs = [self._expr(k) for k in kids]
+        return node.expression(child_exprs)
         
-        if node.subtype == "AND":
-            # Series: (A & B & C)
-            return "(" + " & ".join(self._expr(k) for k in kids) + ")"
         
-        if node.subtype == "OR":
-            # Parallel: (A || B || C)
-            return "(" + " || ".join(self._expr(k) for k in kids) + ")"
-        
-        if node.subtype == "KOON":
-            # k-out-of-n: KOON[k/n](A, B, C)
-            k = node.k if node.k is not None else 1
-            n = len(kids)
-            parts = ", ".join(self._expr(kid) for kid in kids)
-            return f"KOON[{k}/{n}]({parts})"
-        
-        # Unknown gate type
-        return "(" + " ? ".join(self._expr(k) for k in kids) + ")"
-
     # BACKWARD COMPATIBILITY
 
     def _new_gate_id(self) -> str:

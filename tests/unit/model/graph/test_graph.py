@@ -2,7 +2,13 @@ import pytest
 import math
 
 from app.src.model.graph.graph import ReliabilityGraph
-from app.src.model.graph.node import Node
+from app.src.model.graph.node import (
+    ComponentNode,
+    AndGateNode,
+    OrGateNode,
+    KoonGateNode,
+    create_gate_node,
+)
 from app.src.model.graph.dist import Dist
 
 def assert_graph_invariants(graph: ReliabilityGraph) -> None:
@@ -29,7 +35,7 @@ def test_add_node_sets_root_first_time():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     assert g.root == "A"
 
 
@@ -37,8 +43,8 @@ def test_add_edge_sets_parent_and_children():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.add_edge("G1", "A")
     assert g.children["G1"] == ["A"]
@@ -49,9 +55,9 @@ def test_add_edge_raises_if_dst_already_has_parent():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="G2", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(AndGateNode(id="G2"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.add_edge("G1", "A")
     with pytest.raises(ValueError, match="already has a parent"):
@@ -62,9 +68,9 @@ def test_remove_gate_with_more_than_one_child_raises():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "B")
 
@@ -76,8 +82,8 @@ def test_remove_gate_with_one_child_adopts_child_as_root():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
 
     g.remove_node("G1")
@@ -91,8 +97,8 @@ def test_remove_component_under_gate_defers_collapse_until_normalize():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
 
     g.remove_node("A")
@@ -114,11 +120,11 @@ def test_remove_component_after_gate_collapse_preserves_reparented_parent():
     g = ReliabilityGraph(auto_normalize=True)
     g.clear()
 
-    g.add_node(Node(id="G_and", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="G_or", type="gate", subtype="OR"))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G_and"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(OrGateNode(id="G_or"))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
 
     g.add_edge("G_and", "A")
     g.add_edge("G_and", "G_or")
@@ -138,8 +144,8 @@ def test_edit_gate_koon_k_validation():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="KOON", k=1))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(KoonGateNode(id="G1", k=1))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
 
     # n=1 => k debe estar entre 1 y 1
@@ -154,8 +160,8 @@ def test_edit_component_updates_dist_and_rename_updates_references():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
 
     new_dist = Dist(kind="weibull")
@@ -172,9 +178,9 @@ def test_to_expression_formats_and_or_koon():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "B")
 
@@ -185,7 +191,7 @@ def test_add_component_relative_series_interposes_and_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.add_component_relative(
         target_id="A",
@@ -208,7 +214,7 @@ def test_add_component_relative_parallel_interposes_or_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.add_component_relative(
         target_id="A",
@@ -226,7 +232,7 @@ def test_add_component_relative_parallel_interposes_or_gate():
 def test_add_component_relative_koon_requires_k():
     g = ReliabilityGraph()
     g.clear()
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     with pytest.raises(ValueError, match="KOON insertion requires k"):
         g.add_component_relative(
@@ -241,7 +247,7 @@ def test_add_component_relative_koon_requires_k():
 def test_evaluate_sets_total_and_uses_evaluator(monkeypatch):
     g = ReliabilityGraph()
     g.clear()
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.project_root = "/tmp/project"
     g.failures_cache = object()
@@ -259,8 +265,8 @@ def test_evaluate_sets_total_and_uses_evaluator(monkeypatch):
 def test_to_data_from_data_roundtrip_smoke():
     g = ReliabilityGraph()
     g.clear()
-    g.add_node(Node(id="G1", type="gate", subtype="OR"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential"), unit_type="Pump"))
+    g.add_node(OrGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential"), unit_type="Pump"))
     g.add_edge("G1", "A")
     g.reliability_total = 0.9
     g.nodes["A"].reliability = 0.9
@@ -282,9 +288,9 @@ def test_add_component_relative_case1_parent_is_desired_gate_inserts_after_targe
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="X", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="X", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "X")
 
@@ -309,8 +315,8 @@ def test_add_component_relative_case2_target_is_root_gate_of_desired_type_adds_e
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="OR"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(OrGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     assert g.root == "G1"
 
@@ -329,8 +335,8 @@ def test_clear_reliability_clears_node_reliability_and_total():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.nodes["A"].reliability = 0.9
     g.nodes["B"].reliability = 0.8
     g.reliability_total = 0.72
@@ -347,10 +353,10 @@ def test_remove_gate_with_parent_replaces_in_parent_children_and_adopts_child():
     g.clear()
 
     # Parent gate GP has children: G1 and B
-    g.add_node(Node(id="GP", type="gate", subtype="AND"))
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="GP"))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
 
     g.add_edge("GP", "G1")
     g.add_edge("GP", "B")
@@ -368,7 +374,7 @@ def test_remove_component_when_root_sets_root_none_and_deletes():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     assert g.root == "A"
 
     g._remove_component("A")
@@ -382,9 +388,9 @@ def test_rename_node_updates_children_parent_pointers_and_references():
     g.clear()
 
     # X gate with children A,B
-    g.add_node(Node(id="X", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="X"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("X", "A")
     g.add_edge("X", "B")
 
@@ -402,10 +408,10 @@ def test_replace_child_replaces_with_new_child_and_clears_old_parent():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="P", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="P"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
 
     g.add_edge("P", "A")
     g.add_edge("P", "B")
@@ -421,9 +427,9 @@ def test_replace_child_with_none_removes_child_and_clears_old_parent():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="P", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="P"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
 
     g.add_edge("P", "A")
     g.add_edge("P", "B")
@@ -438,10 +444,10 @@ def test_insert_child_after_inserts_in_position_when_after_child_found():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="P", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="P"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
 
     g.add_edge("P", "A")
     g.add_edge("P", "B")
@@ -456,9 +462,9 @@ def test_insert_child_after_fallback_appends_when_after_child_not_found():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="P", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="P"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
 
     g.add_edge("P", "A")
 
@@ -472,8 +478,8 @@ def test_insert_child_after_errors_unknown_parent_unknown_child_or_child_has_par
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="P", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="P"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("P", "A")
 
     with pytest.raises(KeyError, match="Unknown parent"):
@@ -483,7 +489,7 @@ def test_insert_child_after_errors_unknown_parent_unknown_child_or_child_has_par
         g._insert_child_after("P", "A", "NOPE")
 
     # child already has parent
-    g.add_node(Node(id="C", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="C", dist=Dist(kind="exponential")))
     g.add_edge("P", "C")
     with pytest.raises(ValueError, match="already has a parent"):
         g._insert_child_after("P", "A", "C")
@@ -493,8 +499,8 @@ def test_try_collapse_gate_single_child_collapses_to_child_and_updates_root():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     assert g.root == "G1"
 
@@ -504,11 +510,12 @@ def test_try_collapse_gate_single_child_collapses_to_child_and_updates_root():
     assert g.root == "A"
     assert g.parent["A"] is None
 
+
 def test_history_add_series_parallel_koon_flow_expression_data_and_evaluate(monkeypatch):
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
 
     g.add_component_relative(
         target_id="A",
@@ -554,9 +561,9 @@ def test_remove_intermediate_component_then_normalize_collapses_parent_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="AND"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(AndGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "B")
 
@@ -577,9 +584,9 @@ def test_edit_component_under_gate_updates_expression_and_data():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="OR"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(OrGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "B")
 
@@ -596,7 +603,7 @@ def test_interpose_gate_koon_success_with_k_not_none():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     assert g.root == "A"
 
     gate_id = g._interpose_gate("A", target_parent=None, gate_type="KOON", k=2)
@@ -613,13 +620,13 @@ def test_handle_koon_insertion_case1_target_is_koon_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="K1", type="gate", subtype="KOON", k=1))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(KoonGateNode(id="K1", k=1))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("K1", "A")
     assert g.root == "K1"
 
     # new component already exists in graph (as add_component_relative does)
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
 
     handled = g._handle_koon_insertion(target_id="K1", new_comp_id="B", target_parent=None, k=1)
 
@@ -632,13 +639,13 @@ def test_handle_koon_insertion_case2_target_component_inside_koon_gate_creates_n
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="K1", type="gate", subtype="KOON", k=1))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
+    g.add_node(KoonGateNode(id="K1", k=1))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
     g.add_edge("K1", "A")
     assert g.parent["A"] == "K1"
 
     # new component already exists
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
 
     handled = g._handle_koon_insertion(target_id="A", new_comp_id="B", target_parent="K1", k=2)
 
@@ -665,9 +672,9 @@ def test_expr_or_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="G1", type="gate", subtype="OR"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(OrGateNode(id="G1"))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("G1", "A")
     g.add_edge("G1", "B")
 
@@ -678,23 +685,15 @@ def test_expr_koon_gate():
     g = ReliabilityGraph()
     g.clear()
 
-    g.add_node(Node(id="K1", type="gate", subtype="KOON", k=2))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
+    g.add_node(KoonGateNode(id="K1", k=2))
+    g.add_node(ComponentNode(id="A", dist=Dist(kind="exponential")))
+    g.add_node(ComponentNode(id="B", dist=Dist(kind="exponential")))
     g.add_edge("K1", "A")
     g.add_edge("K1", "B")
 
     assert g.to_expression() == "KOON[2/2](A, B)"
 
 
-def test_expr_unknown_gate_type_uses_question_separator():
-    g = ReliabilityGraph()
-    g.clear()
-
-    g.add_node(Node(id="U1", type="gate", subtype="WTF"))
-    g.add_node(Node(id="A", type="component", dist=Dist(kind="exponential")))
-    g.add_node(Node(id="B", type="component", dist=Dist(kind="exponential")))
-    g.add_edge("U1", "A")
-    g.add_edge("U1", "B")
-
-    assert g.to_expression() == "(A ? B)"
+def test_expr_unknown_gate_type_raises():
+    with pytest.raises(ValueError, match="Unknown gate subtype"):
+        create_gate_node("XD", "U1")

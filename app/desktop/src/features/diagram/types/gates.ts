@@ -1,0 +1,1 @@
+export type GateType = "and" | "or" | "koon";

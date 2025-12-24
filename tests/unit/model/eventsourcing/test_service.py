@@ -203,7 +203,12 @@ def test_rebuild_respects_snapshot_over_prior_events():
     # event before snapshot should effectively be overwritten by snapshot data
     base = ReliabilityGraph(auto_normalize=False)
     base.clear()
-    base.add_node(__import__("app.src.model.graph.node", fromlist=["Node"]).Node(id="X", type="component", dist=Dist("exponential")))
+    base.add_node(
+        __import__("app.src.model.graph.node", fromlist=["ComponentNode"]).ComponentNode(
+            id="X",
+            dist=Dist("exponential"),
+        )
+    )
 
     snap = SnapshotEvent.create(data=base.to_data())
     e_after = AddRootComponentEvent.create(new_comp_id="A", dist={"kind": "exponential"})
