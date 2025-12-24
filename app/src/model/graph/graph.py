@@ -199,7 +199,9 @@ class ReliabilityGraph:
         relation: RelType,
         dist: Dist,
         k: Optional[int] = None,
-        unit_type: Optional[str] = None
+        unit_type: Optional[str] = None,
+        position_index: Optional[int] = None,
+        position_reference_id: Optional[str] = None,
     ) -> None:
         """
         Add a component relative to an existing node with specified relation.
@@ -237,31 +239,131 @@ class ReliabilityGraph:
         
         # KOON-specific handling
         if relation == "koon":
-            if self._handle_koon_insertion(target_id, new_comp_id, target_parent, k):
+            if self._handle_koon_insertion(
+                target_id,
+                new_comp_id,
+                target_parent,
+                k,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+            ):
                 if self.auto_normalize:
                     self.normalize()
                 return
+
+        # Case 0: Target itself is the desired gate (any depth)
+        if self._is_gate(target_id, want_gate):
+            self._insert_child_with_position(
+                target_id,
+                new_comp_id,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+            )
+            if self.auto_normalize:
+                self.normalize()
+            return
         
         # Case 1: Parent is already the desired gate type
         if target_parent is not None and self._is_gate(target_parent, want_gate):
-            self._insert_child_after(target_parent, target_id, new_comp_id)
+            self._insert_child_with_position(
+                target_parent,
+                new_comp_id,
+                default_after_child=target_id,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+            )
             if self.auto_normalize:
                 self.normalize()
             return
         
         # Case 2: Target itself is the desired gate and is root
         if target_parent is None and self._is_gate(target_id, want_gate):
-            self.add_edge(target_id, new_comp_id)
+            self._insert_child_with_position(
+                target_id,
+                new_comp_id,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+            )
             if self.auto_normalize:
                 self.normalize()
             return
         
         # Case 3: Need to interpose a new gate
         gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
-        self.add_edge(gate_id, new_comp_id)
+        self._insert_child_with_position(
+            gate_id,
+            new_comp_id,
+            default_after_child=target_id,
+            position_index=position_index,
+            position_reference_id=position_reference_id,
+        )
 
         if self.auto_normalize:
                 self.normalize()
+
+    def add_component_to_gate(
+        self,
+        gate_id: str,
+        new_comp_id: str,
+        dist: Dist,
+        unit_type: Optional[str] = None,
+        position_index: Optional[int] = None,
+        position_reference_id: Optional[str] = None,
+    ) -> None:
+        """
+        Add a component as a child of an existing gate.
+        """
+        if new_comp_id in self.nodes:
+            raise ValueError(f"new_comp_id '{new_comp_id}' already exists")
+        if gate_id not in self.nodes:
+            raise KeyError(f"gate_id '{gate_id}' not found")
+        if not self.nodes[gate_id].is_gate():
+            raise ValueError(f"Node '{gate_id}' is not a gate")
+
+        new_node = ComponentNode(
+            id=new_comp_id,
+            dist=dist,
+            unit_type=unit_type,
+        )
+        self.add_node(new_node)
+        self._insert_child_with_position(
+            gate_id,
+            new_comp_id,
+            position_index=position_index,
+            position_reference_id=position_reference_id,
+        )
+
+        if self.auto_normalize:
+            self.normalize()
+
+    def reorder_children(self, gate_id: str, new_order: List[str]) -> None:
+        """
+        Reorder children of a gate.
+
+        Args:
+            gate_id: Gate node ID.
+            new_order: New ordering of children IDs.
+
+        Raises:
+            KeyError: If gate_id doesn't exist.
+            ValueError: If gate_id is not a gate or new_order is invalid.
+        """
+        if gate_id not in self.nodes:
+            raise KeyError(f"Unknown node '{gate_id}'")
+        if not self.nodes[gate_id].is_gate():
+            raise ValueError(f"Node '{gate_id}' is not a gate")
+
+        current_children = self.children.get(gate_id, [])
+        if len(new_order) != len(current_children):
+            raise ValueError("new_order must include all current children")
+
+        if set(new_order) != set(current_children):
+            raise ValueError("new_order must be a permutation of current children")
+
+        if len(new_order) != len(set(new_order)):
+            raise ValueError("new_order contains duplicate child IDs")
+
+        self.children[gate_id] = list(new_order)
 
     def normalize(self) -> None:
         """Simplify graph by collapsing 0/1-child gates from the root."""
@@ -464,6 +566,67 @@ class ReliabilityGraph:
         
         self.parent[new_child] = parent_id
 
+    def _insert_child_after_strict(
+        self,
+        parent_id: str,
+        after_child: str,
+        new_child: str
+    ) -> None:
+        """Insert new_child after after_child or raise if after_child not found."""
+        if parent_id not in self.children:
+            raise KeyError(f"Unknown parent '{parent_id}'")
+        if new_child not in self.nodes:
+            raise KeyError(f"Unknown child to insert '{new_child}'")
+        if self.parent[new_child] is not None:
+            raise ValueError(f"Node '{new_child}' already has a parent")
+
+        chs = self.children[parent_id]
+        if after_child not in chs:
+            raise ValueError(f"Reference child '{after_child}' not found in '{parent_id}'")
+
+        idx = chs.index(after_child)
+        chs.insert(idx + 1, new_child)
+        self.parent[new_child] = parent_id
+
+    def _insert_child_at(
+        self,
+        parent_id: str,
+        new_child: str,
+        index: int,
+    ) -> None:
+        """Insert new_child at index in parent's children list."""
+        if parent_id not in self.children:
+            raise KeyError(f"Unknown parent '{parent_id}'")
+        if new_child not in self.nodes:
+            raise KeyError(f"Unknown child to insert '{new_child}'")
+        if self.parent[new_child] is not None:
+            raise ValueError(f"Node '{new_child}' already has a parent")
+
+        chs = self.children[parent_id]
+        if index < 0 or index > len(chs):
+            raise ValueError(f"Index {index} out of range for parent '{parent_id}'")
+        chs.insert(index, new_child)
+        self.parent[new_child] = parent_id
+
+    def _insert_child_with_position(
+        self,
+        parent_id: str,
+        new_child: str,
+        default_after_child: Optional[str] = None,
+        position_index: Optional[int] = None,
+        position_reference_id: Optional[str] = None,
+    ) -> None:
+        if position_index is not None:
+            self._insert_child_at(parent_id, new_child, position_index)
+            return
+        if position_reference_id is not None:
+            self._insert_child_after_strict(parent_id, position_reference_id, new_child)
+            return
+        if default_after_child is not None:
+            self._insert_child_after(parent_id, default_after_child, new_child)
+            return
+        self.add_edge(parent_id, new_child)
+
     def _try_collapse_gate(self, gate_id: Optional[str]) -> None:
         """
         Collapse gates with 0 or 1 children recursively.
@@ -562,7 +725,9 @@ class ReliabilityGraph:
         target_id: str,
         new_comp_id: str,
         target_parent: Optional[str],
-        k: Optional[int]
+        k: Optional[int],
+        position_index: Optional[int] = None,
+        position_reference_id: Optional[str] = None,
     ) -> bool:
         """
         Handle special cases for KOON insertion.
@@ -572,7 +737,12 @@ class ReliabilityGraph:
         """
         # Case 1: Target itself is a KOON gate
         if self._is_gate(target_id, "KOON"):
-            self.add_edge(target_id, new_comp_id)
+            self._insert_child_with_position(
+                target_id,
+                new_comp_id,
+                position_index=position_index,
+                position_reference_id=position_reference_id,
+            )
             return True
         
         # Case 2: Target is a component inside a KOON gate
@@ -581,7 +751,13 @@ class ReliabilityGraph:
             if target_node.is_component():
                 # Create nested KOON around target
                 gate_id = self._interpose_gate(target_id, target_parent, "KOON", k)
-                self.add_edge(gate_id, new_comp_id)
+                self._insert_child_with_position(
+                    gate_id,
+                    new_comp_id,
+                    default_after_child=target_id,
+                    position_index=position_index,
+                    position_reference_id=position_reference_id,
+                )
                 return True
         
         return False
