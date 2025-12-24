@@ -13,6 +13,7 @@ import type {
   OrganizationPayload,
   OrganizationUiState,
 } from "./features/diagram/types/organization";
+import { insertOrganization } from "./services/graphService";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 
@@ -40,6 +41,7 @@ function App() {
     useState<OrganizationUiState | null>(null);
   const [organizationPayload, setOrganizationPayload] =
     useState<OrganizationPayload | null>(null);
+  const [graphReloadToken, setGraphReloadToken] = useState(0);
 
   const isSelectionMode =
     isAddMode &&
@@ -223,8 +225,7 @@ function App() {
       target,
       position: {
         index: positionIndex,
-        referenceId:
-          placeholderIndex >= 0 ? organizationUiState.placeholderId : null,
+        referenceId: null,
       },
     };
 
@@ -235,10 +236,15 @@ function App() {
         (value, index) => value !== organizationUiState.initialOrder[index],
       );
     const reorder = orderChanged
-      ? organizationUiState.order.map((id, index) => ({
-          position: index + 1,
-          id,
-        }))
+      ? organizationUiState.order
+          .map((id, index) => ({
+            position: index + 1,
+            id:
+              id === organizationUiState.placeholderId
+                ? formState.componentId
+                : id,
+          }))
+          .filter((entry): entry is { position: number; id: string } => entry.id !== null)
       : null;
 
     setOrganizationPayload({
@@ -257,6 +263,12 @@ function App() {
     if (!organizationPayload) return;
   }, [organizationPayload]);
 
+  const handleInsert = useCallback(async () => {
+    if (!organizationPayload?.insert.componentId) return;
+    await insertOrganization(organizationPayload);
+    setGraphReloadToken((current) => current + 1);
+  }, [organizationPayload]);
+
   return (
     <div className="app">
       <DiagramTopBar
@@ -269,6 +281,7 @@ function App() {
         <DiagramCanvas
           isSelectionMode={isSelectionMode}
           isOrganizationMode={isOrganizationMode}
+          graphReloadToken={graphReloadToken}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
           organizationComponentId={formState.componentId}
@@ -303,6 +316,7 @@ function App() {
               onFormStateChange={setFormState}
               onOrganizationStart={handleOrganizationStart}
               onOrganizationCancel={handleOrganizationCancel}
+              onInsert={handleInsert}
             />
           </DiagramSidePanel>
         ) : null}
