@@ -50,16 +50,17 @@ export const DiagramElementSelector = ({
     onSelectionCleared?.();
   };
 
+  const isSelected = status === "selected";
   return (
     <section
       className={`add-component-panel__diagram-selector${
         status === "selecting"
           ? " add-component-panel__diagram-selector--active"
           : ""
-      }`}
+      }${isSelected ? " add-component-panel__diagram-selector--selected" : ""}`}
     >
       <div className="add-component-panel__diagram-header">
-        <span>Seleccionar elemento</span>
+        <span>{isSelected ? "Elemento seleccionado" : "Seleccionar elemento"}</span>
         <div className="add-component-panel__diagram-header-actions">
           {status === "selecting" ? (
             <span className="add-component-panel__diagram-status">

@@ -15,6 +15,7 @@ import type { OrganizationUiState } from "../types/organization";
 import type { GraphData } from "../../../core/graph";
 
 const ORGANIZATION_PADDING = 32;
+const SELECTED_GATE_PADDING = 24;
 const ORGANIZATION_GATE_ID_PREFIX = "__organization_gate__";
 const ORGANIZATION_COMPONENT_ID_PREFIX = "__organization_component__";
 
@@ -705,9 +706,17 @@ useEffect(() => {
                   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
                   const isOrganizingGate =
                     isOrganizationMode && organizationGateId === area.id;
+                  const isSelectedGate = selectedNodeId === area.id && !isOrganizingGate;
                   const activeArea = isOrganizingGate && organizationArea
                     ? organizationArea
-                    : area;
+                    : isSelectedGate
+                      ? {
+                          x: area.x - SELECTED_GATE_PADDING,
+                          y: area.y - SELECTED_GATE_PADDING,
+                          width: area.width + SELECTED_GATE_PADDING * 2,
+                          height: area.height + SELECTED_GATE_PADDING * 2,
+                        }
+                      : area;
                   const isWithinOrganization =
                     isOrganizationMode && organizationGateId
                       ? isGateWithinOrganization(area.id)
@@ -722,8 +731,8 @@ useEffect(() => {
                       className={`diagram-gate-area${
                         isVisible ? " diagram-gate-area--active" : ""
                       }${isOrganizingGate ? " diagram-gate-area--organization" : ""}${
-                        shouldDim ? " diagram-gate-area--dimmed" : ""
-                      }`}
+                        isSelectedGate ? " diagram-gate-area--selected" : ""
+                      }${shouldDim ? " diagram-gate-area--dimmed" : ""}`}
                       data-gate-area-id={area.id}
                       style={{
                         left: activeArea.x,
@@ -797,7 +806,7 @@ useEffect(() => {
                   (hoveredSelectableId === node.id || hoveredNodeId === node.id);
                 const isPreselected =
                   isSelectionMode && preselectedNodeId === node.id;
-                const isSelected = isSelectionMode && selectedNodeId === node.id;
+                 const isSelected = selectedNodeId === node.id;
                 const isDimmed =
                   isOrganizationMode && organizationGateId
                     ? !isNodeWithinOrganization(node.id, node.parentGateId ?? null)
@@ -926,7 +935,7 @@ useEffect(() => {
                   <DiagramGateNode
                     key={node.id}
                     node={node}
-                    isLabelVisible={visibleGateIds.has(node.id)}
+                    isLabelVisible={visibleGateIds.has(node.id) || isSelected}
                     onHoverStart={setHoveredGateId}
                     onHoverEnd={() => setHoveredGateId(null)}
                     isSelectionMode={isSelectionMode}

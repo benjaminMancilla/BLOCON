@@ -253,7 +253,7 @@ export const AddComponentPanel = ({
         <>
           <div className="add-component-panel__selected">
             <p className="add-component-panel__selected-label">
-              Componente seleccionado:
+              Componente seleccionado
               <button
                 className="add-component-panel__section-toggle"
                 type="button"
