@@ -229,13 +229,15 @@ export const AddComponentPanel = ({
   const subtitle = selectedComponent
     ? step === "selection"
       ? "Selecciona el elemento del diagrama para insertar el componente."
-      : confirmedSelection?.type === "component"
+      : confirmedSelection?.type === "component" ||
+          confirmedSelection?.type === "collapsedGate"
         ? "Escoge tipo de gate y reordena los elementos en el orden que quieras."
         : "Continúa con la organización del diagrama."
     : "Busca componentes remotos para añadirlos al diagrama.";
 
   const shouldShowGateSection =
-    confirmedSelection?.type === "component" &&
+    (confirmedSelection?.type === "component" ||
+      confirmedSelection?.type === "collapsedGate") &&
     (step === "gateType" || step === "organization");
   const shouldShowOrganizationSection = step === "organization";
   const organizationLabel = confirmedSelection?.type === "gate"

@@ -9,7 +9,7 @@ import { useDiagramGraph } from "../hooks/useDiagramGraph";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
 import { useDiagramView } from "../hooks/useDiagramView";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
-import type { DiagramNodeSelection } from "../types/selection";
+import type { DiagramNodeSelection, DiagramNodeType } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { OrganizationUiState } from "../types/organization";
 import type { CalculationType } from "../types/addComponent";
@@ -102,6 +102,7 @@ type DiagramCanvasProps = {
   onNodeHover?: (nodeId: string | null) => void;
   onNodePreselect?: (selection: DiagramNodeSelection) => void;
   onNodeConfirm?: (selection: DiagramNodeSelection) => void;
+  onSelectionUpdate?: (selection: DiagramNodeSelection) => void;
   onSelectionCancel?: () => void;
   onOrganizationCancel?: () => void;
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
@@ -124,6 +125,7 @@ export const DiagramCanvas = ({
   onNodeHover,
   onNodePreselect,
   onNodeConfirm,
+  onSelectionUpdate,
   onSelectionCancel,
   onOrganizationCancel,
   onOrganizationStateChange,
@@ -184,7 +186,11 @@ export const DiagramCanvas = ({
     if (organizationSelection.type === "gate") {
       nextOrganizationGateId = organizationSelection.id;
       edges.push({ from: nextOrganizationGateId, to: placeholderId });
-    } else if (organizationSelection.type === "component" && organizationGateType) {
+    } else if (
+      (organizationSelection.type === "component" ||
+        organizationSelection.type === "collapsedGate") &&
+      organizationGateType
+    ) {
       isVirtualGate = true;
       const gateId = createUniqueId(ORGANIZATION_GATE_ID_PREFIX);
       nextOrganizationGateId = gateId;
@@ -644,13 +650,75 @@ useEffect(() => {
     organizationOrder,
   ]);
 
-  const toSelection = useMemo(
-    () => (nodeId: string, isGate: boolean): DiagramNodeSelection => ({
-      id: nodeId,
-      type: isGate ? "gate" : "component",
-    }),
-    []
+  const toSelection = useCallback(
+    (nodeId: string): DiagramNodeSelection | null => {
+      const node = layoutNodeById.get(nodeId);
+      if (!node) return null;
+      if (node.isCollapsed) {
+        return { id: nodeId, type: "collapsedGate" };
+      }
+      if (node.type === "gate") {
+        return { id: nodeId, type: "gate" };
+      }
+      return { id: nodeId, type: "component" };
+    },
+    [layoutNodeById]
   );
+const selectionTypeRef = useRef<{
+    selectedId: string | null;
+    selectedType: DiagramNodeType | null;
+    preselectedId: string | null;
+    preselectedType: DiagramNodeType | null;
+  }>({
+    selectedId: null,
+    selectedType: null,
+    preselectedId: null,
+    preselectedType: null,
+  });
+
+  useEffect(() => {
+    if (!onSelectionUpdate) return;
+
+    const updateSelection = (
+      nodeId: string | null,
+      key: "selected" | "preselected"
+    ) => {
+      if (!nodeId) {
+        if (key === "selected") {
+          selectionTypeRef.current.selectedId = null;
+          selectionTypeRef.current.selectedType = null;
+        } else {
+          selectionTypeRef.current.preselectedId = null;
+          selectionTypeRef.current.preselectedType = null;
+        }
+        return;
+      }
+      const selection = toSelection(nodeId);
+      if (!selection) return;
+      const currentId =
+        key === "selected"
+          ? selectionTypeRef.current.selectedId
+          : selectionTypeRef.current.preselectedId;
+      const currentType =
+        key === "selected"
+          ? selectionTypeRef.current.selectedType
+          : selectionTypeRef.current.preselectedType;
+      if (currentId === selection.id && currentType === selection.type) {
+        return;
+      }
+      if (key === "selected") {
+        selectionTypeRef.current.selectedId = selection.id;
+        selectionTypeRef.current.selectedType = selection.type;
+      } else {
+        selectionTypeRef.current.preselectedId = selection.id;
+        selectionTypeRef.current.preselectedType = selection.type;
+      }
+      onSelectionUpdate(selection);
+    };
+
+    updateSelection(selectedNodeId, "selected");
+    updateSelection(preselectedNodeId, "preselected");
+  }, [onSelectionUpdate, preselectedNodeId, selectedNodeId, toSelection]);
 
   const organizationIndicator = useMemo(() => {
     if (!isOrganizationMode) return null;
@@ -866,7 +934,6 @@ useEffect(() => {
                 const isPlaceholder =
                   organizationPlaceholderId !== null &&
                   node.id === organizationPlaceholderId;
-                const isGate = node.type === "gate" || !!node.isCollapsed;
                 const isHovered =
                   isSelectionMode &&
                   (hoveredSelectableId === node.id || hoveredNodeId === node.id);
@@ -902,11 +969,17 @@ useEffect(() => {
                 };
                 const handlePreselect = () => {
                   if (!isSelectionMode) return;
-                  onNodePreselect?.(toSelection(node.id, isGate));
+                  const selection = toSelection(node.id);
+                  if (selection) {
+                    onNodePreselect?.(selection);
+                  }
                 };
                 const handleConfirm = () => {
                   if (!isSelectionMode) return;
-                  onNodeConfirm?.(toSelection(node.id, isGate));
+                  const selection = toSelection(node.id);
+                  if (selection) {
+                    onNodeConfirm?.(selection);
+                  }
                 };
 
                 if (isPlaceholder) {

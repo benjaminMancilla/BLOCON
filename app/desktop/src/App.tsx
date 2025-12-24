@@ -42,6 +42,15 @@ function App() {
   const [organizationPayload, setOrganizationPayload] =
     useState<OrganizationPayload | null>(null);
   const [graphReloadToken, setGraphReloadToken] = useState(0);
+  const isGateSelection = useCallback(
+    (selection: DiagramNodeSelection | null) => selection?.type === "gate",
+    [],
+  );
+  const isComponentSelection = useCallback(
+    (selection: DiagramNodeSelection | null) =>
+      selection?.type === "component" || selection?.type === "collapsedGate",
+    [],
+  );
 
   const isSelectionMode =
     isAddMode &&
@@ -111,7 +120,7 @@ function App() {
       setSelectedGateType(null);
       setOrganizationUiState(null);
       setOrganizationPayload(null);
-      if (selection.type === "gate") {
+      if (isGateSelection(selection)) {
         setAddComponentStep("organization");
         setIsOrganizationActive(true);
       } else {
@@ -119,7 +128,7 @@ function App() {
         setAddComponentStep("gateType");
       }
     },
-    [],
+    [isGateSelection],
   );
 
   const handleSelectionReset = useCallback(() => {
@@ -170,12 +179,35 @@ function App() {
   const handleGateTypeChange = useCallback(
     (gateType: GateType | null) => {
       setSelectedGateType(gateType);
-      if (gateType && confirmedSelection?.type === "component") {
+      if (gateType && isComponentSelection(confirmedSelection)) {
         setAddComponentStep("organization");
         setIsOrganizationActive(true);
       }
     },
-    [confirmedSelection?.type],
+    [confirmedSelection, isComponentSelection],
+  );
+
+  const handleSelectionUpdate = useCallback(
+    (selection: DiagramNodeSelection) => {
+      setDraftSelection((prev) =>
+        prev?.id === selection.id ? selection : prev,
+      );
+      setConfirmedSelection((prev) =>
+        prev?.id === selection.id ? selection : prev,
+      );
+      if (confirmedSelection?.id !== selection.id) return;
+
+      const nextStep = isGateSelection(selection)
+        ? "organization"
+        : selectedGateType
+          ? "organization"
+          : "gateType";
+      setAddComponentStep(nextStep);
+      setIsOrganizationActive(nextStep === "organization");
+      setOrganizationUiState(null);
+      setOrganizationPayload(null);
+    },
+    [confirmedSelection?.id, isGateSelection, selectedGateType],
   );
 
   const handleOrganizationStart = useCallback(() => {
@@ -212,11 +244,10 @@ function App() {
       confirmedSelection?.id
         ? {
             hostId: confirmedSelection.id,
-            hostType: confirmedSelection.type,
-            relationType:
-              confirmedSelection.type === "gate"
-                ? organizationUiState.gateSubtype
-                : selectedGateType,
+            hostType: isGateSelection(confirmedSelection) ? "gate" as const : "component" as const,
+            relationType: isGateSelection(confirmedSelection)
+              ? organizationUiState.gateSubtype
+              : selectedGateType,
           }
         : null;
 
@@ -255,6 +286,7 @@ function App() {
     confirmedSelection,
     formState,
     isOrganizationMode,
+    isGateSelection,
     organizationUiState,
     selectedGateType,
   ]);
@@ -295,6 +327,7 @@ function App() {
           onNodeHover={handleNodeHover}
           onNodePreselect={handleNodePreselect}
           onNodeConfirm={handleNodeConfirm}
+          onSelectionUpdate={handleSelectionUpdate}
           onSelectionCancel={handleSelectionCancel}
           onOrganizationCancel={handleOrganizationCancel}
         />
