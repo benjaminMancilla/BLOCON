@@ -11,6 +11,7 @@ type DiagramGateNodeProps = {
   isHovered?: boolean;
   isPreselected?: boolean;
   isSelected?: boolean;
+  isInsertHighlighted?: boolean;
   isDimmed?: boolean;
   isOrganizationLocked?: boolean;
   isDraggable?: boolean;
@@ -38,6 +39,7 @@ export const DiagramGateNode = ({
   isHovered = false,
   isPreselected = false,
   isSelected = false,
+  isInsertHighlighted = false,
   isDimmed = false,
   isOrganizationLocked = false,
   isDraggable = false,
@@ -66,7 +68,8 @@ export const DiagramGateNode = ({
         isHovered ? " diagram-node--hovered" : ""
       }${isPreselected ? " diagram-node--preselected" : ""}${
         isSelected ? " diagram-node--selected" : ""
-      }${isDimmed ? " diagram-node--dimmed" : ""}${
+      }${isInsertHighlighted ? " diagram-node--insert-highlight" : ""}${
+        isDimmed ? " diagram-node--dimmed" : ""}${
         isOrganizationLocked ? " diagram-node--locked" : ""
       }${isDraggable ? " diagram-node--draggable" : ""}${
         isDragging ? " diagram-node--organization-drag-placeholder" : ""

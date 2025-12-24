@@ -33,6 +33,7 @@ type AddComponentPanelProps = {
   isOrganizing: boolean;
   confirmedSelection: DiagramNodeSelection | null;
   formState: AddComponentFormState;
+  resetToken?: number;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
@@ -55,6 +56,7 @@ export const AddComponentPanel = ({
   isOrganizing,
   confirmedSelection,
   formState,
+  resetToken = 0,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
@@ -153,6 +155,13 @@ export const AddComponentPanel = ({
       setIsGateSectionOpen(true);
     }
   }, [onGateTypeChange, step]);
+
+  useEffect(() => {
+    setSelectedComponent(null);
+    setIsSelectedSectionOpen(true);
+    setIsCalcSectionOpen(true);
+    setIsGateSectionOpen(true);
+  }, [resetToken]);
 
   const summary = useMemo(() => {
     if (state === "idle") {

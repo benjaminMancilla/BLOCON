@@ -259,6 +259,22 @@ body {
   transform: scale(1.04);
 }
 
+.diagram-node--insert-highlight {
+  position: relative;
+}
+
+.diagram-node--insert-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: inherit;
+  border: 2px solid var(--selection-color);
+  box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  opacity: 0;
+  animation: insertPulse 2.6s ease-out;
+  pointer-events: none;
+}
+
 .diagram-node--dimmed {
   opacity: 0.4;
   box-shadow: none;
@@ -476,6 +492,73 @@ body {
   border: 2px solid rgba(127, 86, 217, 0.65);
   box-shadow: 0 12px 22px var(--selection-color-shadow);
   transform: scale(1.02);
+}
+
+.diagram-gate-area--insert-highlight {
+  border-color: var(--selection-color);
+}
+
+.diagram-gate-area--insert-highlight::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  border: 2px solid var(--selection-color);
+  box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  opacity: 0;
+  animation: insertPulse 2.6s ease-out;
+  pointer-events: none;
+}
+
+.diagram-insert-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translate(-50%, 8px);
+  background: var(--selection-color);
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: 999px;
+  box-shadow: 0 12px 28px var(--selection-color-shadow);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
+  z-index: 2500;
+  animation: insertToast 2.6s ease-out;
+}
+
+@keyframes insertPulse {
+  0% {
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 rgba(127, 86, 217, 0.55);
+  }
+  35% {
+    opacity: 1;
+    box-shadow: 0 0 0 16px rgba(127, 86, 217, 0.35);
+  }
+  100% {
+    opacity: 0;
+    box-shadow: 0 0 0 28px rgba(127, 86, 217, 0);
+  }
+}
+
+@keyframes insertToast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
 }
 
 .diagram-gate-area--virtual {

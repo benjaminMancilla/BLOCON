@@ -90,6 +90,13 @@ type DiagramCanvasProps = {
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
   graphReloadToken?: number;
+  insertHighlight?: {
+    token: number;
+    componentId: string;
+    targetGateId: string | null;
+    hostComponentId: string | null;
+    gateType: GateType | null;
+  } | null;
   organizationSelection?: DiagramNodeSelection | null;
   organizationGateType?: GateType | null;
   organizationComponentId?: string | null;
@@ -113,6 +120,7 @@ export const DiagramCanvas = ({
   isSelectionMode = false,
   isOrganizationMode = false,
   graphReloadToken = 0,
+  insertHighlight = null,
   organizationSelection = null,
   organizationGateType = null,
   organizationComponentId = null,
@@ -373,6 +381,12 @@ export const DiagramCanvas = ({
     x: number;
     y: number;
   } | null>(null);
+  const [insertHighlightedComponentId, setInsertHighlightedComponentId] =
+    useState<string | null>(null);
+  const [insertHighlightedGateId, setInsertHighlightedGateId] =
+    useState<string | null>(null);
+  const insertHighlightTimeoutRef = useRef<number | null>(null);
+  const insertHighlightTokenRef = useRef<number | null>(null);
   const gateAreasById = useMemo(
     () => new Map(layout.gateAreas.map((area) => [area.id, area])),
     [layout.gateAreas]
@@ -513,6 +527,46 @@ export const DiagramCanvas = ({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [isOrganizationMode, onOrganizationCancel]);
+
+  useEffect(() => {
+    if (!insertHighlight || status !== "ready") return;
+    if (insertHighlightTokenRef.current === insertHighlight.token) return;
+
+    const edgesByFrom = new Map<string, string[]>();
+    graph.edges.forEach((edge) => {
+      if (!edgesByFrom.has(edge.from)) {
+        edgesByFrom.set(edge.from, []);
+      }
+      edgesByFrom.get(edge.from)?.push(edge.to);
+    });
+
+    const resolveGateId = () => {
+      if (insertHighlight.targetGateId) return insertHighlight.targetGateId;
+      if (!insertHighlight.hostComponentId) return null;
+      const gateNodes = graph.nodes.filter((node) => node.type === "gate");
+      for (const gate of gateNodes) {
+        const children = edgesByFrom.get(gate.id) ?? [];
+        if (
+          children.includes(insertHighlight.componentId) &&
+          children.includes(insertHighlight.hostComponentId)
+        ) {
+          return gate.id;
+        }
+      }
+      return null;
+    };
+
+    setInsertHighlightedComponentId(insertHighlight.componentId);
+    setInsertHighlightedGateId(resolveGateId());
+    insertHighlightTokenRef.current = insertHighlight.token;
+    if (insertHighlightTimeoutRef.current !== null) {
+      window.clearTimeout(insertHighlightTimeoutRef.current);
+    }
+    insertHighlightTimeoutRef.current = window.setTimeout(() => {
+      setInsertHighlightedComponentId(null);
+      setInsertHighlightedGateId(null);
+    }, 2600);
+  }, [graph.edges, graph.nodes, insertHighlight, status]);
   const selectionHandlers = useMemo(() => {
     const wrapPointer =
       <T extends (event: PointerEvent<HTMLDivElement>) => void>(handler: T) =>
@@ -866,7 +920,9 @@ const selectionTypeRef = useRef<{
                         isVisible ? " diagram-gate-area--active" : ""
                       }${isOrganizingGate ? " diagram-gate-area--organization" : ""}${
                         isSelectedGate ? " diagram-gate-area--selected" : ""
-                      }${shouldDim ? " diagram-gate-area--dimmed" : ""}`}
+                      }${insertHighlightedGateId === area.id
+                        ? " diagram-gate-area--insert-highlight"
+                        : ""}${shouldDim ? " diagram-gate-area--dimmed" : ""}`}
                       data-gate-area-id={area.id}
                       style={{
                         left: activeArea.x,
@@ -939,11 +995,14 @@ const selectionTypeRef = useRef<{
                   (hoveredSelectableId === node.id || hoveredNodeId === node.id);
                 const isPreselected =
                   isSelectionMode && preselectedNodeId === node.id;
-                 const isSelected = selectedNodeId === node.id;
+                const isSelected = selectedNodeId === node.id;
                 const isDimmed =
                   isOrganizationMode && organizationGateId
                     ? !isNodeWithinOrganization(node.id, node.parentGateId ?? null)
                     : false;
+                const isInsertHighlighted =
+                  insertHighlightedComponentId === node.id ||
+                  insertHighlightedGateId === node.id;
                 const isDirectChild =
                   isOrganizationMode && organizationGateId
                     ? node.parentGateId === organizationGateId
@@ -1006,6 +1065,7 @@ const selectionTypeRef = useRef<{
                       isHovered={isHovered}
                       isPreselected={isPreselected}
                       isSelected={isSelected}
+                      isInsertHighlighted={isInsertHighlighted}
                       isDimmed={isDimmed}
                       isOrganizationLocked={isLocked}
                       isDraggable={isDraggable}
@@ -1033,6 +1093,7 @@ const selectionTypeRef = useRef<{
                       isHovered={isHovered}
                       isPreselected={isPreselected}
                       isSelected={isSelected}
+                      isInsertHighlighted={isInsertHighlighted}
                       isDimmed={isDimmed}
                       isDraggable={isDraggable}
                       isDragging={isOrganizationDragging}
@@ -1057,6 +1118,7 @@ const selectionTypeRef = useRef<{
                     isHovered={isHovered}
                     isPreselected={isPreselected}
                     isSelected={isSelected}
+                    isInsertHighlighted={isInsertHighlighted}
                     isDimmed={isDimmed}
                     isOrganizationLocked={isLocked}
                     isDraggable={isDraggable}
