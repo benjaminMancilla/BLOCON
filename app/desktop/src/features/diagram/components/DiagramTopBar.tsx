@@ -5,6 +5,8 @@ type DiagramTopBarProps = {
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
   onToggleAddMode?: () => void;
+  onCloudSave?: () => void;
+  onCloudLoad?: () => void;
 };
 
 export const DiagramTopBar = ({
@@ -14,6 +16,8 @@ export const DiagramTopBar = ({
   isSelectionMode = false,
   isOrganizationMode = false,
   onToggleAddMode,
+  onCloudSave,
+  onCloudLoad,
 }: DiagramTopBarProps) => {
   const isBlocked = isSelectionMode || isOrganizationMode;
   return (
@@ -28,17 +32,42 @@ export const DiagramTopBar = ({
         <p className="diagram-topbar__subtitle">{subtitle}</p>
       </div>
       <div className="diagram-topbar__actions">
-        <button
-          type="button"
-          className={`diagram-topbar__button${
-            isAddMode ? " diagram-topbar__button--active" : ""
-          }`}
-          onClick={onToggleAddMode}
-          aria-pressed={isAddMode}
-          disabled={isBlocked}
-        >
-          + Agregar
-        </button>
+        <div className="diagram-topbar__section">
+          <p className="diagram-topbar__section-title">Cloud</p>
+          <div className="diagram-topbar__section-buttons">
+            <button
+              type="button"
+              className="diagram-topbar__button"
+              onClick={onCloudSave}
+              disabled={isBlocked}
+            >
+              Guardar
+            </button>
+            <button
+              type="button"
+              className="diagram-topbar__button"
+              onClick={onCloudLoad}
+              disabled={isBlocked}
+            >
+              Cargar
+            </button>
+          </div>
+        </div>
+        <div className="diagram-topbar__section diagram-topbar__section--inline">
+          <div className="diagram-topbar__section-buttons">
+            <button
+              type="button"
+              className={`diagram-topbar__button${
+                isAddMode ? " diagram-topbar__button--active" : ""
+              }`}
+              onClick={onToggleAddMode}
+              aria-pressed={isAddMode}
+              disabled={isBlocked}
+            >
+              + Agregar
+            </button>
+          </div>
+        </div>
       </div>
     </header>
   );

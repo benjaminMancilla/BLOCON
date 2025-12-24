@@ -80,6 +80,30 @@ body {
   gap: 12px;
 }
 
+.diagram-topbar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diagram-topbar__section--inline {
+  justify-content: flex-end;
+}
+
+.diagram-topbar__section-title {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #98a2b3;
+}
+
+.diagram-topbar__section-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .diagram-topbar__button {
   display: inline-flex;
   align-items: center;

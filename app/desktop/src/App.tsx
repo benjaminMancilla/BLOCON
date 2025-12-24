@@ -14,7 +14,11 @@ import type {
   OrganizationPayload,
   OrganizationUiState,
 } from "./features/diagram/types/organization";
-import { insertOrganization } from "./services/graphService";
+import {
+  insertOrganization,
+  loadCloudGraph,
+  saveCloudGraph,
+} from "./services/graphService";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 type InsertHighlight = {
@@ -356,6 +360,15 @@ function App() {
     setInsertToastToken((current) => (current ?? 0) + 1);
   }, [organizationPayload, resetAddComponentFlow, runInsertValidations]);
 
+  const handleCloudSave = useCallback(async () => {
+    await saveCloudGraph();
+  }, []);
+
+  const handleCloudLoad = useCallback(async () => {
+    await loadCloudGraph();
+    setGraphReloadToken((current) => current + 1);
+  }, []);
+
   useEffect(() => {
     if (insertToastToken === null) return;
     const timeout = window.setTimeout(() => {
@@ -371,6 +384,8 @@ function App() {
         isSelectionMode={isSelectionMode}
         isOrganizationMode={isOrganizationMode}
         onToggleAddMode={() => setIsAddMode((current) => !current)}
+        onCloudSave={handleCloudSave}
+        onCloudLoad={handleCloudLoad}
       />
       <div className="diagram-workspace">
         <DiagramCanvas
