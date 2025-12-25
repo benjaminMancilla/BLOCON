@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import os
+import sys
 import json
 import time
+import socket
+import msvcrt
+import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -18,6 +22,59 @@ from src.services.remote.cloud import CloudClient
 HOST = "127.0.0.1"
 PORT = 8000
 
+_lock_file = None
+
+
+def acquire_single_instance_lock() -> bool:
+    """
+    Intenta adquirir un lock exclusivo para garantizar una sola instancia.
+    Retorna True si se adquirió el lock, False si ya hay otra instancia corriendo.
+    """
+    global _lock_file
+    
+    lock_path = os.path.join(tempfile.gettempdir(), "blocon_api_server.lock")
+    
+    try:
+        try:
+            _lock_file = open(lock_path, 'w')
+            msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            _lock_file.write(str(os.getpid()))
+            _lock_file.flush()
+            return True
+        except (IOError, OSError):
+            if _lock_file:
+                _lock_file.close()
+            return False
+    except Exception as e:
+        print(f"Error acquiring lock: {e}", file=sys.stderr)
+        return False
+    
+def release_single_instance_lock() -> None:
+    """Libera el lock de instancia única."""
+    global _lock_file
+    if _lock_file:
+        try:
+            _lock_file.close()
+        except:
+            pass
+        _lock_file = None
+        lock_path = os.path.join(tempfile.gettempdir(), "blocon_api_server.lock")
+        try:
+            if os.path.exists(lock_path):
+                os.remove(lock_path)
+        except:
+            pass
+
+def is_port_available(host: str, port: int) -> bool:
+    """Verifica si un puerto está disponible."""
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, port))
+        sock.close()
+        return True
+    except OSError:
+        return False
 
 def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     local = local or LocalWorkspaceStore()
@@ -47,29 +104,31 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Connection", "keep-alive")
         self.end_headers()
         try:
             self.wfile.write(data)
+            self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as exc:
             self.log_message("Client disconnected before response was sent: %s", exc)
 
-    def do_OPTIONS(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+    def do_OPTIONS(self) -> None:
         self.send_response(204)
         self._send_cors_headers()
         self.end_headers()
 
     def _read_json_body(self) -> dict | None:
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-            except ValueError:
-                length = 0
-            if length <= 0:
-                return None
-            raw = self.rfile.read(length)
-            try:
-                return json.loads(raw)
-            except json.JSONDecodeError:
-                return None     
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        if length <= 0:
+            return None
+        raw = self.rfile.read(length)
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return None
 
     def _handle_cloud_load(self) -> None:
         try:
@@ -307,7 +366,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(200, {"status": "ok"})
 
-    def do_GET(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+    def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -352,7 +411,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
 
-    def do_POST(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+    def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -371,7 +430,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "not found"})
         
-    def do_PUT(self) -> None:  # noqa: N802 - required by BaseHTTPRequestHandler
+    def do_PUT(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -385,9 +444,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(404, {"error": "not found"})
-
+    
 
 def main() -> None:
+
+    if not acquire_single_instance_lock():
+        print("Another instance of api_server is already running. Exiting.", file=sys.stderr)
+        sys.exit(1)
+
+    if not is_port_available(HOST, PORT):
+        print(f"Port {PORT} is already in use. Exiting.", file=sys.stderr)
+        release_single_instance_lock()
+        sys.exit(1)
+
     local = LocalWorkspaceStore()
     es = build_graph_es(local)
     base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -395,9 +464,25 @@ def main() -> None:
     GraphRequestHandler.local = local
     GraphRequestHandler.cloud = CloudClient(base_dir=base_dir)
     GraphRequestHandler.base_dir = base_dir
-    server = HTTPServer((HOST, PORT), GraphRequestHandler)
-    print(f"API server listening on http://{HOST}:{PORT}")
-    server.serve_forever()
+
+    server = None
+    try:
+        server = HTTPServer((HOST, PORT), GraphRequestHandler)
+        print(f"API server listening on http://{HOST}:{PORT}")
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+    except Exception as e:
+        print(f"Server error: {e}", file=sys.stderr)
+    finally:
+        if server:
+            try:
+                server.shutdown()
+                server.server_close()
+            except:
+                pass
+        release_single_instance_lock()
+        print("Server stopped.")
 
 
 if __name__ == "__main__":

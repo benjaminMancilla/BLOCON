@@ -17,6 +17,7 @@ const HEALTHCHECK_INTERVAL: Duration = Duration::from_millis(250);
 
 struct BackendState {
     child: Mutex<Option<CommandChild>>,
+    we_own_backend: Mutex<bool>,
 }
 
 fn check_health() -> bool {
@@ -60,20 +61,47 @@ fn wait_for_backend() -> bool {
 
 fn main() {
     tauri::Builder::default()
-    .setup(|app| {
+        .setup(|app| {
             let window = app
                 .get_window("main")
                 .ok_or("main window not found")?;
             window.hide()?;
 
-            let (_rx, child) = Command::new_sidecar("api_server")?.spawn()?;
+            let backend_already_running = check_health();
+            
+            let (child, we_own_it) = if !backend_already_running {
+                println!("Backend not running, spawning sidecar...");
+                match Command::new_sidecar("api_server") {
+                    Ok(cmd) => match cmd.spawn() {
+                        Ok((_rx, child)) => {
+                            println!("Sidecar spawned successfully");
+                            (Some(child), true)
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to spawn sidecar: {}", e);
+                            return Err(format!("Failed to spawn backend: {}", e).into());
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to create sidecar command: {}", e);
+                        return Err(format!("Failed to create backend command: {}", e).into());
+                    }
+                }
+            } else {
+                println!("Backend already running, using existing instance");
+                (None, false)
+            };
+
             app.manage(BackendState {
-                child: Mutex::new(Some(child)),
+                child: Mutex::new(child),
+                we_own_backend: Mutex::new(we_own_it),
             });
 
+            println!("Waiting for backend healthcheck...");
             if !wait_for_backend() {
                 return Err("backend healthcheck failed".into());
             }
+            println!("Backend is healthy!");
 
             window.show()?;
             window.set_focus()?;
@@ -85,10 +113,21 @@ fn main() {
                 let app_handle = event.window().app_handle();
                 let state = app_handle.state::<BackendState>();
 
-                let mut child_guard = match state.child.lock() {
-                Ok(g) => g,
-                Err(poisoned) => poisoned.into_inner(), // por si el mutex quedó “poisoned”
-                };
+                let should_kill = *state.we_own_backend.lock().unwrap_or_else(|e| e.into_inner());
+
+                if should_kill {
+                    println!("Killing backend process...");
+                    if let Ok(mut child_guard) = state.child.lock() {
+                        if let Some(mut child) = child_guard.take() {
+                            match child.kill() {
+                                Ok(_) => println!("Backend killed successfully"),
+                                Err(e) => eprintln!("Failed to kill backend: {}", e),
+                            }
+                        }
+                    }
+                } else {
+                    println!("Not killing backend (we didn't spawn it)");
+                }
             }
         })
         .run(tauri::generate_context!())
