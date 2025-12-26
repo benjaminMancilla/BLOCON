@@ -4,6 +4,7 @@ import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
+import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
   DiagramNodeSelection,
   SelectionStatus,
@@ -29,6 +30,9 @@ type InsertHighlight = {
   gateType: GateType | null;
 };
 
+const ENTER_DEBOUNCE_MS = 650;
+const MIN_QUERY_LEN = 2;
+
 const DEFAULT_FORM_STATE: AddComponentFormState = {
   componentId: null,
   calculationType: "exponential",
@@ -39,7 +43,7 @@ function App() {
   const [addComponentStep, setAddComponentStep] =
     useState<AddComponentStep>("selection");
   const [selectionStatus, setSelectionStatus] =
-    useState<SelectionStatus>("selecting");
+    useState<SelectionStatus>("idle");
   const [draftSelection, setDraftSelection] =
     useState<DiagramNodeSelection | null>(null);
   const [confirmedSelection, setConfirmedSelection] =
@@ -63,11 +67,23 @@ function App() {
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
   const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
+  const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
+    useState<string | null>(null);
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
   const existingNodeIds = useMemo(
     () => new Set(graph.nodes.map((node) => node.id)),
     [graph.nodes],
   );
+  const pinnedExistingIds = useMemo(() => {
+    if (!recentlyInsertedComponentId) return undefined;
+    return new Set([recentlyInsertedComponentId]);
+  }, [recentlyInsertedComponentId]);
+  const componentSearch = useComponentSearch({
+    minQueryLength: MIN_QUERY_LEN,
+    debounceMs: ENTER_DEBOUNCE_MS,
+    existingIds: existingNodeIds,
+    alwaysVisibleIds: pinnedExistingIds,
+  });
   const insertValidators = useMemo(
     () => [
       {
@@ -96,19 +112,21 @@ function App() {
     [],
   );
 
+  const hasComponentSelected = Boolean(formState.componentId);
   const isSelectionMode =
     isAddMode &&
     addComponentStep === "selection" &&
-    selectionStatus === "selecting";
+    selectionStatus === "selecting" &&
+    hasComponentSelected;
   const isOrganizationStage =
     isAddMode && addComponentStep === "organization";
   const isOrganizationMode =
-    isOrganizationStage && isOrganizationActive;
+    isOrganizationStage && isOrganizationActive && hasComponentSelected;
 
   useEffect(() => {
     if (!isAddMode) {
       setAddComponentStep("selection");
-      setSelectionStatus("selecting");
+      setSelectionStatus("idle");
       setDraftSelection(null);
       setConfirmedSelection(null);
       setSelectedGateType(null);
@@ -142,7 +160,7 @@ function App() {
     setOrganizationPayload(null);
   }, []);
 
-  const resetAddComponentFlow = useCallback(() => {
+  const resetSelectionState = useCallback(() => {
     setAddComponentStep("selection");
     setSelectionStatus("idle");
     setDraftSelection(null);
@@ -150,19 +168,24 @@ function App() {
     setSelectedGateType(null);
     setIsOrganizationActive(false);
     setHoveredSelectionId(null);
-    setFormState({
-      ...DEFAULT_FORM_STATE,
-    });
     setOrganizationUiState(null);
     setOrganizationPayload(null);
   }, []);
 
-    const handleSelectionCancel = useCallback(() => {
-    resetAddComponentFlow();
-  }, [resetAddComponentFlow]);
+  const resetAddComponentFlow = useCallback(() => {
+    resetSelectionState();
+    setFormState({
+      ...DEFAULT_FORM_STATE,
+    });
+  }, [resetSelectionState]);
+
+  const handleSelectionCancel = useCallback(() => {
+    resetSelectionState();
+  }, [resetSelectionState]);
 
   const handleSelectionConfirm = useCallback(
     (selection: DiagramNodeSelection) => {
+      if (!formState.componentId) return;
       setDraftSelection(selection);
       setConfirmedSelection(selection);
       setSelectionStatus("selected");
@@ -178,7 +201,7 @@ function App() {
         setAddComponentStep("gateType");
       }
     },
-    [isGateSelection],
+    [formState.componentId, isGateSelection],
   );
 
   const handleSelectionReset = useCallback(() => {
@@ -231,6 +254,7 @@ function App() {
 
   const handleSelectionUpdate = useCallback(
     (selection: DiagramNodeSelection) => {
+      if (!formState.componentId) return;
       setDraftSelection((prev) =>
         prev?.id === selection.id ? selection : prev,
       );
@@ -249,7 +273,7 @@ function App() {
       setOrganizationUiState(null);
       setOrganizationPayload(null);
     },
-    [confirmedSelection?.id, isGateSelection, selectedGateType],
+    [confirmedSelection?.id, formState.componentId, isGateSelection, selectedGateType],
   );
 
   const handleOrganizationStart = useCallback(() => {
@@ -353,6 +377,7 @@ function App() {
     setGraphReloadToken((current) => current + 1);
     resetAddComponentFlow();
     setFormResetToken((current) => current + 1);
+    setRecentlyInsertedComponentId(organizationPayload.insert.componentId);
     setInsertHighlight((current) => ({
       ...insertMeta,
       token: (current?.token ?? 0) + 1,
@@ -424,6 +449,8 @@ function App() {
               formState={formState}
               existingNodeIds={existingNodeIds}
               resetToken={formResetToken}
+              searchState={componentSearch}
+              onCancelAdd={() => setIsAddMode(false)}
               onSelectionConfirm={handleSelectionConfirm}
               onSelectionCancel={handleSelectionCancel}
               onSelectionStart={handleSelectionStart}

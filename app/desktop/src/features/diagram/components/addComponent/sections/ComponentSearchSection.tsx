@@ -2,20 +2,19 @@ import { useCallback } from "react";
 import type { RemoteComponent } from "../../../../../services/remote/componentsService";
 import { SearchInput } from "../components/SearchInput";
 import { SearchResults } from "../components/SearchResults";
-import { useComponentSearch } from "../hooks/useComponentSearch";
+import type { ComponentSearchResult } from "../hooks/useComponentSearch";
 import { useShakeAnimation } from "../hooks/useShakeAnimation";
 
 type ComponentSearchSectionProps = {
   existingNodeIds: Set<string>;
   onComponentSelect: (component: RemoteComponent) => void;
+  searchState: ComponentSearchResult;
 };
-
-const ENTER_DEBOUNCE_MS = 650;
-const MIN_QUERY_LEN = 2;
 
 export const ComponentSearchSection = ({
   existingNodeIds,
   onComponentSelect,
+  searchState,
 }: ComponentSearchSectionProps) => {
   const {
     query,
@@ -26,11 +25,7 @@ export const ComponentSearchSection = ({
     setShowExisting,
     triggerSearch,
     resetSearch,
-  } = useComponentSearch({
-    minQueryLength: MIN_QUERY_LEN,
-    debounceMs: ENTER_DEBOUNCE_MS,
-    existingIds: existingNodeIds,
-  });
+  } = searchState;
   const { shakingItems, triggerShake } = useShakeAnimation({ durationMs: 420 });
 
   const handleQueryChange = useCallback(

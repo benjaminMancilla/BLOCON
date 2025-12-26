@@ -19,7 +19,8 @@ export const DiagramTopBar = ({
   onCloudSave,
   onCloudLoad,
 }: DiagramTopBarProps) => {
-  const isBlocked = isSelectionMode || isOrganizationMode;
+  const isBlocked = isAddMode;
+  const isAddDisabled = isSelectionMode || isOrganizationMode;
   return (
     <header
       className={`diagram-topbar${
@@ -62,7 +63,7 @@ export const DiagramTopBar = ({
               }`}
               onClick={onToggleAddMode}
               aria-pressed={isAddMode}
-              disabled={isBlocked}
+              disabled={isAddDisabled}
             >
               + Agregar
             </button>

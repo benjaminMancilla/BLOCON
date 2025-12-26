@@ -9,6 +9,7 @@ import { ComponentSearchSection } from "./addComponent/sections/ComponentSearchS
 import { GateTypeSelector } from "./addComponent/sections/GateTypeSelector";
 import { OrganizationSection } from "./addComponent/sections/OrganizationSection";
 import { SelectedComponentCard } from "./addComponent/sections/SelectedComponentCard";
+import type { ComponentSearchResult } from "./addComponent/hooks/useComponentSearch";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 
@@ -22,6 +23,8 @@ type AddComponentPanelProps = {
   formState: AddComponentFormState;
   existingNodeIds?: Set<string>;
   resetToken?: number;
+  searchState: ComponentSearchResult;
+  onCancelAdd: () => void;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
@@ -43,6 +46,8 @@ export const AddComponentPanel = ({
   formState,
   existingNodeIds = new Set<string>(),
   resetToken = 0,
+  searchState,
+  onCancelAdd,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
@@ -154,8 +159,18 @@ export const AddComponentPanel = ({
   return (
     <section className="add-component-panel">
       <header className="add-component-panel__header">
-        <h2 className="add-component-panel__title">Agregar componente</h2>
-        <p className="add-component-panel__subtitle">{subtitle}</p>
+        <div className="add-component-panel__header-text">
+          <h2 className="add-component-panel__title">Agregar componente</h2>
+          <p className="add-component-panel__subtitle">{subtitle}</p>
+        </div>
+        <button
+          className="add-component-panel__close"
+          type="button"
+          onClick={onCancelAdd}
+          aria-label="Cancelar agregar componente"
+        >
+          ×
+        </button>
       </header>
 
       {selectedComponent ? (
@@ -222,6 +237,7 @@ export const AddComponentPanel = ({
         <ComponentSearchSection
           existingNodeIds={existingNodeIds}
           onComponentSelect={handleSelectComponent}
+          searchState={searchState}
         />
       )}
     </section>

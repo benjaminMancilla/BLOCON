@@ -52,10 +52,6 @@ body {
   opacity: 0.75;
 }
 
-.diagram-topbar--blocked .diagram-topbar__actions {
-  pointer-events: none;
-}
-
 .diagram-topbar__eyebrow {
   text-transform: uppercase;
   font-size: 0.75rem;
@@ -516,6 +512,8 @@ body {
 
 .diagram-gate-area--insert-highlight {
   border-color: var(--selection-color);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .diagram-gate-area--insert-highlight::after {
@@ -712,6 +710,13 @@ body {
 
 .add-component-panel__header {
   display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.add-component-panel__header-text {
+  display: flex;
   flex-direction: column;
   gap: 4px;
 }
@@ -725,6 +730,27 @@ body {
   margin: 0;
   color: #475467;
   font-size: 0.9rem;
+}
+
+.add-component-panel__close {
+  border: none;
+  background: transparent;
+  color: #667085;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.add-component-panel__close:hover {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.add-component-panel__close:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
 }
 
 .add-component-panel__search {

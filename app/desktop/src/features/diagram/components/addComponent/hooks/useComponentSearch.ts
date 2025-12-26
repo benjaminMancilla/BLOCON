@@ -6,13 +6,14 @@ import {
 
 type SearchState = "idle" | "loading" | "ready" | "error";
 
-type ComponentSearchOptions = {
+export type ComponentSearchOptions = {
   minQueryLength: number;
   debounceMs: number;
   existingIds: Set<string>;
+  alwaysVisibleIds?: Set<string>;
 };
 
-type ComponentSearchResult = {
+export type ComponentSearchResult = {
   query: string;
   setQuery: (value: string) => void;
   results: RemoteComponent[];
@@ -30,6 +31,7 @@ export const useComponentSearch = ({
   minQueryLength,
   debounceMs,
   existingIds,
+  alwaysVisibleIds,
 }: ComponentSearchOptions): ComponentSearchResult => {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<RemoteComponent[]>([]);
@@ -109,8 +111,10 @@ export const useComponentSearch = ({
 
   const filteredResults = useMemo(() => {
     if (showExisting) return results;
-    return results.filter((item) => !existingIds.has(item.id));
-  }, [existingIds, results, showExisting]);
+    return results.filter(
+      (item) => !existingIds.has(item.id) || alwaysVisibleIds?.has(item.id)
+    );
+  }, [alwaysVisibleIds, existingIds, results, showExisting]);
 
   const summary = useMemo(() => {
     if (state === "idle") {
