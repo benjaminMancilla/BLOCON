@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,7 +19,6 @@ class SPSiteSettings:
     path: Optional[str]
 
     def validate(self) -> None:
-        # Site id o (hostname+path)
         if self.site_id:
             return
         if not (self.hostname and self.path):
@@ -40,7 +40,7 @@ class SPEventsSettings:
     field_payload: str
     field_snapshot_file: str
 
-    snapshot_threshold_bytes: int = 100 * 1024  # default 100KB
+    snapshot_threshold_bytes: int = 100 * 1024
 
     def validate(self) -> None:
         if not (self.list_id or self.list_name):
@@ -96,32 +96,83 @@ class SPSettings:
         if not (self.tenant_id and self.client_id and self.client_secret):
             raise RuntimeError("Missing SP_TENANT_ID / SP_CLIENT_ID / SP_CLIENT_SECRET")
         self.site.validate()
-        # Ojo: puedes usar solo algunos módulos (por eso no forzamos validate de todo aquí)
-        # Si quieres validarlos todos, descomenta:
-        # self.events.validate()
-        # self.failures.validate()
-        # self.components.validate()
+
+
+def _find_env_file() -> Optional[str]:
+    """
+    Busca el archivo .env en el siguiente orden:
+    1. Junto al ejecutable (PyInstaller)
+    2. En bin/.env si el ejecutable está en bin/
+    3. En el directorio app/ del proyecto
+    4. En el directorio raíz del proyecto
+    5. Usando find_dotenv() como fallback
+    """
+    candidates = []
+    
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(exe_dir, ".env"))
+        candidates.append(os.path.join(os.path.dirname(exe_dir), ".env"))
+    
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+
+    current = module_dir
+    for _ in range(5):
+        candidates.append(os.path.join(current, ".env"))
+        if os.path.basename(current) == "app":
+            candidates.append(os.path.join(os.path.dirname(current), ".env"))
+            break
+        current = os.path.dirname(current)
+    
+    candidates.append(os.path.join(os.getcwd(), ".env"))
+    
+    cwd = os.getcwd()
+    for _ in range(3):
+        cwd = os.path.dirname(cwd)
+        candidates.append(os.path.join(cwd, ".env"))
+    
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    
+    return None
 
 
 def _load_env(project_root: str | None = None, dotenv_path: str | None = None) -> None:
-    """Carga .env una sola vez, si python-dotenv está disponible."""
+    """Carga .env con búsqueda inteligente."""
     if load_dotenv is None:
+        print("Warning: python-dotenv not available, skipping .env loading", file=sys.stderr)
         return
 
     if dotenv_path:
-        load_dotenv(dotenv_path, override=False)
-        return
-
+        if os.path.isfile(dotenv_path):
+            load_dotenv(dotenv_path, override=False)
+            print(f"Loaded .env from: {dotenv_path}", file=sys.stderr)
+            return
+        else:
+            print(f"Warning: Specified .env not found: {dotenv_path}", file=sys.stderr)
+    
     if project_root:
         p = os.path.join(project_root, ".env")
-        load_dotenv(p, override=False)
+        if os.path.isfile(p):
+            load_dotenv(p, override=False)
+            print(f"Loaded .env from: {p}", file=sys.stderr)
+            return
+    
+    env_path = _find_env_file()
+    if env_path:
+        load_dotenv(env_path, override=False)
+        print(f"Loaded .env from: {env_path}", file=sys.stderr)
         return
-
-    # fallback: busca .env desde cwd
+    
     if find_dotenv is not None:
         p = find_dotenv(usecwd=True) or ""
-        if p:
+        if p and os.path.isfile(p):
             load_dotenv(p, override=False)
+            print(f"Loaded .env from: {p}", file=sys.stderr)
+            return
+    
+    print("Warning: No .env file found. SharePoint integration may not work.", file=sys.stderr)
 
 
 def _getenv(key: str, default: str = "") -> str:
@@ -129,12 +180,7 @@ def _getenv(key: str, default: str = "") -> str:
 
 
 def load_settings(project_root: str | None = None, dotenv_path: str | None = None) -> SPSettings:
-    """
-    Carga settings desde env (.env) siguiendo tus variables.
-
-    Nota: no obliga a que Events/Failures/Components estén completos, porque
-    puedes instanciar solo algunos clientes. Cada sub-settings tiene validate().
-    """
+    """Carga settings desde env (.env)."""
     _load_env(project_root=project_root, dotenv_path=dotenv_path)
 
     tenant_id = _getenv("SP_TENANT_ID")
@@ -158,7 +204,6 @@ def load_settings(project_root: str | None = None, dotenv_path: str | None = Non
         path=_getenv("SP_SITE_PATH", "") or None,
     )
 
-    # Events
     snapshot_threshold_bytes = 100 * 1024
     try:
         th = _getenv("SP_EVENTS_SNAPSHOT_THRESHOLD_KB", "")
@@ -211,6 +256,5 @@ def load_settings(project_root: str | None = None, dotenv_path: str | None = Non
         failures=failures,
         components=components,
     )
-    # Validación mínima: credenciales + site info
     s.validate()
     return s
