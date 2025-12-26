@@ -16,6 +16,7 @@ export async function fetchGraph(): Promise<GraphData> {
 export async function insertOrganization(
   payload: OrganizationPayload
 ): Promise<void> {
+  console.log('[INSERT] Sending organization insert:', payload);
   const response = await fetch(`${BACKEND_ENDPOINT}/graph/organization`, {
     method: "POST",
     headers: {
@@ -23,6 +24,7 @@ export async function insertOrganization(
     },
     body: JSON.stringify(payload),
   });
+  console.log('[INSERT] Response status:', response.status);
   if (!response.ok) {
     throw new Error(`Backend responded with ${response.status}`);
   }

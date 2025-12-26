@@ -235,7 +235,11 @@ class ReliabilityGraph:
         
         # Determine required gate type
         want_gate: GateType = self._relation_to_gate_type(relation)
-        target_parent = self.parent[target_id]
+        target_parent = self.parent.get(target_id)
+        if target_parent is None and target_id != self.root:
+            target_parent = self._infer_parent_from_children(target_id)
+            if target_parent is not None:
+                self.parent[target_id] = target_parent
         
         # KOON-specific handling
         if relation == "koon":
@@ -265,8 +269,9 @@ class ReliabilityGraph:
         
         # Case 1: Parent is already the desired gate type
         if target_parent is not None and self._is_gate(target_parent, want_gate):
+            gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
             self._insert_child_with_position(
-                target_parent,
+                gate_id,
                 new_comp_id,
                 default_after_child=target_id,
                 position_index=position_index,
@@ -299,7 +304,7 @@ class ReliabilityGraph:
         )
 
         if self.auto_normalize:
-                self.normalize()
+            self.normalize()
 
     def add_component_to_gate(
         self,
@@ -730,6 +735,13 @@ class ReliabilityGraph:
         self.add_edge(gate_id, target_id)
         return gate_id
 
+    def _infer_parent_from_children(self, child_id: str) -> Optional[str]:
+        """Fallback lookup for parent when parent map is missing."""
+        for parent_id, children in self.children.items():
+            if child_id in children:
+                return parent_id
+        return None
+    
     def _handle_koon_insertion(
         self,
         target_id: str,

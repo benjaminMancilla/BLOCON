@@ -271,6 +271,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         return relation_type
 
     def _handle_organization_insert(self, payload: dict | None) -> None:
+        print(f"[INSERT] Received organization insert request", file=sys.stderr)
+        sys.stderr.flush()
         if payload is None or not isinstance(payload, dict):
             self._send_json(400, {"error": "invalid payload"})
             return
@@ -347,6 +349,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         unit_type = insert.get("unitType")
 
         try:
+            print(f"[INSERT] Calling add_component_organization for {component_id}", file=sys.stderr)
+            sys.stderr.flush()
             self.es.add_component_organization(
                 new_comp_id=component_id,
                 calculation_type=calculation_type,
@@ -359,7 +363,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 k=k_value,
                 unit_type=unit_type,
             )
+            print(f"[INSERT] Successfully added component", file=sys.stderr)
+            sys.stderr.flush()
         except Exception as exc:
+            print(f"[INSERT] Error: {str(exc)}", file=sys.stderr)
             print(str(exc))
             self._send_json(400, {"error": str(exc)})
             return
@@ -439,6 +446,9 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if payload is None or not isinstance(payload, dict):
                 self._send_json(400, {"error": "invalid payload"})
                 return
+            if "insert" in payload:
+                self._handle_organization_insert(payload)
+                return
             self.local.save_diagram_view(payload)
             self._send_json(200, self.local.load_diagram_view())
             return
@@ -460,9 +470,20 @@ def main() -> None:
     local = LocalWorkspaceStore()
     es = build_graph_es(local)
     base_dir = os.path.abspath(os.path.dirname(__file__))
+    cloud = CloudClient(base_dir=base_dir)
+
+    print("Pre-initializing SharePoint clients...", file=sys.stderr)
+    try:
+        cloud._sp_components()  # Forzar inicialización
+        cloud._sp_snapshot()
+        cloud._sp_events()
+        print("SharePoint clients ready", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
+    
     GraphRequestHandler.es = es
     GraphRequestHandler.local = local
-    GraphRequestHandler.cloud = CloudClient(base_dir=base_dir)
+    GraphRequestHandler.cloud = cloud
     GraphRequestHandler.base_dir = base_dir
 
     server = None
