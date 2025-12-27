@@ -69,6 +69,11 @@ function App() {
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
   const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
+  const [deleteToast, setDeleteToast] = useState<{
+    token: number;
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
@@ -401,7 +406,27 @@ function App() {
 
   const deleteMode = useDeleteMode({
     isBlocked: isAddMode || isOrganizationMode || cloudActionInFlight !== null,
-    onDeleteSuccess: () => setGraphReloadToken((current) => current + 1),
+    onDeleteSuccess: (selection) => {
+      const isGate =
+        selection.type === "gate" || selection.type === "collapsedGate";
+      setGraphReloadToken((current) => current + 1);
+      setDeleteToast((current) => ({
+        token: (current?.token ?? 0) + 1,
+        message: isGate ? "Gate eliminada" : "Nodo eliminado",
+        type: "success",
+      }));
+    },
+    onDeleteError: (selection) => {
+      const isGate =
+        selection.type === "gate" || selection.type === "collapsedGate";
+      setDeleteToast((current) => ({
+        token: (current?.token ?? 0) + 1,
+        message: isGate
+          ? "No se pudo eliminar la gate"
+          : "No se pudo eliminar el nodo",
+        type: "error",
+      }));
+    },
   });
 
   useEffect(() => {
@@ -418,6 +443,14 @@ function App() {
     }, 2600);
     return () => window.clearTimeout(timeout);
   }, [insertToastToken]);
+
+  useEffect(() => {
+    if (!deleteToast) return;
+    const timeout = window.setTimeout(() => {
+      setDeleteToast(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [deleteToast]);
 
   const isCloudBusy = cloudActionInFlight !== null;
   const cloudSaveState = {
@@ -537,6 +570,14 @@ function App() {
           key={cloudToast.token}
           message={cloudToast.message}
           type={cloudToast.type}
+        />
+      ) : null}
+      {deleteToast ? (
+        <CloudToast
+          key={deleteToast.token}
+          message={deleteToast.message}
+          type={deleteToast.type}
+          className="diagram-delete-toast"
         />
       ) : null}
       {insertToastToken !== null ? (

@@ -104,18 +104,18 @@ export const DiagramCanvas = ({
 
   const handleCollapseGate = useCallback(
     (gateId: string) => {
-      if (isOrganizationMode || isDeleteMode) return;
+      if (isOrganizationMode) return;
       collapseGate(gateId);
     },
-    [collapseGate, isDeleteMode, isOrganizationMode]
+    [collapseGate, isOrganizationMode]
   );
 
   const handleExpandGate = useCallback(
     (gateId: string) => {
-      if (isOrganizationMode || isDeleteMode) return;
+      if (isOrganizationMode) return;
       expandGate(gateId);
     },
-    [expandGate, isDeleteMode, isOrganizationMode]
+    [expandGate, isOrganizationMode]
   );
 
   const organization = useOrganizationMode({

@@ -101,8 +101,7 @@ class ReliabilityGraph:
         """
         Remove a node from the graph.
         
-        For gates with >1 child, raises an error (ambiguous).
-        For gates with 1 child, adopts the child.
+        For gates, removes the entire subgraph.
         For components, simply removes the node.
         
         Args:
@@ -110,7 +109,7 @@ class ReliabilityGraph:
             
         Raises:
             KeyError: If node doesn't exist
-            ValueError: If gate has >1 child
+            ValueError: If node removal is invalid
         """
         if node_id not in self.nodes:
             raise KeyError(f"Unknown node '{node_id}'")
@@ -451,31 +450,36 @@ class ReliabilityGraph:
     # PRIVATE HELPERS - Node manipulation
 
     def _remove_gate(self, node_id: str) -> None:
-        """Remove a gate node, handling child adoption"""
-        chs = list(self.children[node_id])
-        
-        if len(chs) > 1:
-            raise ValueError(
-                "Cannot remove a gate with >1 child (ambiguous). "
-                "Remove/rewire children first or leave only 1 child to collapse."
-            )
-        
-        adopt_child = chs[0] if len(chs) == 1 else None
-        p = self.parent[node_id]
-        
-        if p is None:
-            # Removing root gate
-            if adopt_child is not None:
-                self.parent[adopt_child] = None
-                self.root = adopt_child
-            else:
-                self.root = None
-        else:
-            # Gate has parent: replace in parent's children
-            self._replace_child(p, node_id, adopt_child)
-        
-        self.children[node_id] = []
-        self._delete_node(node_id)
+        """Remove a gate node and its subgraph."""
+        to_delete: set[str] = set()
+        stack = [node_id]
+
+        while stack:
+            current = stack.pop()
+            if current in to_delete:
+                continue
+            to_delete.add(current)
+            stack.extend(self.children.get(current, []))
+
+        for parent_id, child_list in list(self.children.items()):
+            if not child_list:
+                continue
+            self.children[parent_id] = [
+                child for child in child_list if child not in to_delete
+            ]
+
+        if self.root in to_delete:
+            self.root = None
+
+        for gid in to_delete:
+            for child in self.children.get(gid, []):
+                if self.parent.get(child) == gid:
+                    self.parent[child] = None
+
+        for gid in to_delete:
+            self.children.pop(gid, None)
+            self.parent.pop(gid, None)
+            self.nodes.pop(gid, None)
 
     def _remove_component(self, node_id: str) -> None:
         """Remove a component node"""

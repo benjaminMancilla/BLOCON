@@ -115,7 +115,10 @@ export const DiagramTopBar = ({
             >
               Borrar
             </button>
-            <label className="diagram-topbar__toggle">
+            <label
+              className="diagram-topbar__delete-toggle"
+              title="Omitir confirmación al borrar (solo esta sesión)"
+            >
               <input
                 type="checkbox"
                 checked={skipDeleteConfirmation}
@@ -123,10 +126,16 @@ export const DiagramTopBar = ({
                   onSkipDeleteConfirmationChange?.(event.target.checked)
                 }
                 disabled={isDeleteDisabled}
+                aria-label="Omitir confirmación al borrar (solo esta sesión)"
               />
-              <span className="diagram-topbar__toggle-track" aria-hidden="true" />
-              <span className="diagram-topbar__toggle-label">
-                Sin confirmación
+              <span
+                className="diagram-topbar__delete-toggle-icon"
+                aria-hidden="true"
+              >
+                ⚡
+              </span>
+              <span className="diagram-topbar__delete-toggle-text">
+                Sin confirm.
               </span>
             </label>
           </div>

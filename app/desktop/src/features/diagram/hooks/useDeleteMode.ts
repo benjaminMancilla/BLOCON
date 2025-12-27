@@ -4,7 +4,8 @@ import { deleteNode } from "../../../services/graphService";
 
 type UseDeleteModeArgs = {
   isBlocked?: boolean;
-  onDeleteSuccess?: () => void;
+  onDeleteSuccess?: (selection: DiagramNodeSelection) => void;
+  onDeleteError?: (selection: DiagramNodeSelection, error: unknown) => void;
 };
 
 type UseDeleteModeResult = {
@@ -33,6 +34,7 @@ const isGateSelection = (selection: DiagramNodeSelection | null) =>
 export const useDeleteMode = ({
   isBlocked = false,
   onDeleteSuccess,
+  onDeleteError,
 }: UseDeleteModeArgs): UseDeleteModeResult => {
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [skipConfirmForComponents, setSkipConfirmForComponents] =
@@ -81,15 +83,16 @@ export const useDeleteMode = ({
       setIsDeleting(true);
       try {
         await deleteNode(selection.id);
-        onDeleteSuccess?.();
+        onDeleteSuccess?.(selection);
         resetSelection();
       } catch (error) {
         console.error("Error deleting node:", error);
+        onDeleteError?.(selection, error);
       } finally {
         setIsDeleting(false);
       }
     },
-    [isDeleting, onDeleteSuccess, resetSelection],
+    [isDeleting, onDeleteError, onDeleteSuccess, resetSelection],
   );
 
   const requestDelete = useCallback(
