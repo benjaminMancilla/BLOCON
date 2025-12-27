@@ -10,7 +10,7 @@ import socket
 import msvcrt
 import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, unquote
 
 from src.model.graph.graph import ReliabilityGraph
 from src.model.eventsourcing.service import GraphES
@@ -95,7 +95,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, status_code: int, payload: dict) -> None:
@@ -451,6 +451,28 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 return
             self.local.save_diagram_view(payload)
             self._send_json(200, self.local.load_diagram_view())
+            return
+
+        self._send_json(404, {"error": "not found"})
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path.startswith("/graph/node/"):
+            node_id = unquote(path[len("/graph/node/"):].strip())
+            if not node_id:
+                self._send_json(404, {"error": "missing node id"})
+                return
+            if node_id not in self.es.graph.nodes:
+                self._send_json(404, {"error": f"node '{node_id}' not found"})
+                return
+            try:
+                self.es.remove_node(node_id)
+            except Exception as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            self._send_json(200, {"status": "ok"})
             return
 
         self._send_json(404, {"error": "not found"})

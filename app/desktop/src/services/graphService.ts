@@ -35,6 +35,20 @@ export async function insertOrganization(
   });
 }
 
+export async function deleteNode(nodeId: string): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    const response = await fetch(
+      `${BACKEND_ENDPOINT}/graph/node/${encodeURIComponent(nodeId)}`,
+      {
+      method: "DELETE",
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Backend responded with ${response.status}`);
+    }
+  });
+}
+
 export async function saveCloudGraph(): Promise<void> {
   return enqueueGraphRequest(async () => {
     const response = await fetch(`${BACKEND_ENDPOINT}/cloud/save`, {

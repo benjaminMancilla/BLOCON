@@ -6,6 +6,9 @@
   --selection-color: #7f56d9;
   --selection-color-soft: rgba(127, 86, 217, 0.14);
   --selection-color-shadow: rgba(127, 86, 217, 0.28);
+  --delete-color: #dc2626;
+  --delete-color-soft: rgba(220, 38, 38, 0.18);
+  --delete-color-shadow: rgba(220, 38, 38, 0.28);
 }
 
 * {
@@ -131,6 +134,86 @@ body {
   box-shadow: 0 10px 18px rgba(29, 78, 216, 0.2);
 }
 
+.diagram-topbar__button--danger {
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.diagram-topbar__button--danger:hover {
+  border-color: rgba(248, 113, 113, 0.85);
+}
+
+.diagram-topbar__button--danger.diagram-topbar__button--active {
+  background: var(--delete-color);
+  border-color: var(--delete-color);
+  color: #ffffff;
+  box-shadow: 0 10px 18px rgba(220, 38, 38, 0.25);
+}
+
+.diagram-topbar__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #475467;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e4e7ec;
+  background: #f9fafb;
+  position: relative;
+  cursor: pointer;
+}
+
+.diagram-topbar__toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.diagram-topbar__toggle-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d0d5dd;
+  transition: background 0.2s ease;
+}
+
+.diagram-topbar__toggle-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+  transition: transform 0.2s ease;
+}
+
+.diagram-topbar__toggle input:checked + .diagram-topbar__toggle-track {
+  background: var(--delete-color);
+}
+
+.diagram-topbar__toggle input:checked + .diagram-topbar__toggle-track::after {
+  transform: translateX(16px);
+}
+
+.diagram-topbar__toggle input:disabled + .diagram-topbar__toggle-track {
+  background: #e4e7ec;
+}
+
+.diagram-topbar__toggle input:disabled + .diagram-topbar__toggle-track,
+.diagram-topbar__toggle input:disabled ~ .diagram-topbar__toggle-label {
+  opacity: 0.6;
+}
+
+.diagram-topbar__toggle-label {
+  font-weight: 600;
+}
+
 .diagram-topbar__spinner {
   width: 14px;
   height: 14px;
@@ -209,6 +292,12 @@ body {
   color: #1d2939;
 }
 
+.diagram-modal__button--danger {
+  border-color: var(--delete-color);
+  background: var(--delete-color);
+  color: #ffffff;
+}
+
 .diagram-modal__button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -221,6 +310,38 @@ body {
   position: relative;
   z-index: 0;
   min-height: 0;
+}
+
+.diagram-delete-action {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  z-index: 1200;
+}
+
+.diagram-delete-action__button {
+  border: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--delete-color);
+  color: #ffffff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  box-shadow: 0 14px 26px rgba(220, 38, 38, 0.28);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.diagram-delete-action__button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 30px rgba(220, 38, 38, 0.32);
+}
+
+.diagram-delete-action__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+  transform: none;
 }
 
 .diagram-canvas__surface {
@@ -237,6 +358,14 @@ body {
 
 .diagram-canvas__surface--selection {
   cursor: grab;
+}
+
+.diagram-canvas__surface--delete {
+  --selection-color: var(--delete-color);
+  --selection-color-soft: var(--delete-color-soft);
+  --selection-color-shadow: var(--delete-color-shadow);
+  border-color: rgba(248, 113, 113, 0.55);
+  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.18);
 }
 
 .diagram-canvas__surface--organization {
@@ -259,6 +388,12 @@ body {
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 5;
+}
+
+.diagram-canvas__mode-indicator--delete {
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.95);
 }
 
 .diagram-canvas__surface:active {
@@ -588,7 +723,7 @@ body {
 
 .diagram-gate-area--selected {
   background-color: var(--selection-color-soft);
-  border: 2px solid rgba(127, 86, 217, 0.65);
+  border: 2px solid var(--selection-color);
   box-shadow: 0 12px 22px var(--selection-color-shadow);
   transform: scale(1.02);
 }

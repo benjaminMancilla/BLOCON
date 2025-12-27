@@ -24,6 +24,7 @@ type DiagramCanvasProps = {
   label?: string;
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
+  isDeleteMode?: boolean;
   graph: GraphData;
   status: DiagramStatus;
   errorMessage?: string | null;
@@ -41,6 +42,9 @@ type DiagramCanvasProps = {
   hoveredNodeId?: string | null;
   preselectedNodeId?: string | null;
   selectedNodeId?: string | null;
+  deleteHoveredNodeId?: string | null;
+  deletePreselectedNodeId?: string | null;
+  deleteSelectedNodeId?: string | null;
   onEnterSelectionMode?: () => void;
   onExitSelectionMode?: () => void;
   onNodeHover?: (nodeId: string | null) => void;
@@ -48,6 +52,12 @@ type DiagramCanvasProps = {
   onNodeConfirm?: (selection: DiagramNodeSelection) => void;
   onSelectionUpdate?: (selection: DiagramNodeSelection) => void;
   onSelectionCancel?: () => void;
+  onEnterDeleteMode?: () => void;
+  onExitDeleteMode?: () => void;
+  onDeleteNodeHover?: (nodeId: string | null) => void;
+  onDeleteNodePreselect?: (selection: DiagramNodeSelection) => void;
+  onDeleteNodeConfirm?: (selection: DiagramNodeSelection) => void;
+  onDeleteSelectionCancel?: () => void;
   onOrganizationCancel?: () => void;
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
 };
@@ -56,6 +66,7 @@ export const DiagramCanvas = ({
   label = "Canvas",
   isSelectionMode = false,
   isOrganizationMode = false,
+  isDeleteMode = false,
   graph,
   status,
   errorMessage = null,
@@ -67,6 +78,9 @@ export const DiagramCanvas = ({
   hoveredNodeId = null,
   preselectedNodeId = null,
   selectedNodeId = null,
+  deleteHoveredNodeId = null,
+  deletePreselectedNodeId = null,
+  deleteSelectedNodeId = null,
   onEnterSelectionMode,
   onExitSelectionMode,
   onNodeHover,
@@ -74,6 +88,12 @@ export const DiagramCanvas = ({
   onNodeConfirm,
   onSelectionUpdate,
   onSelectionCancel,
+  onEnterDeleteMode,
+  onExitDeleteMode,
+  onDeleteNodeHover,
+  onDeleteNodePreselect,
+  onDeleteNodeConfirm,
+  onDeleteSelectionCancel,
   onOrganizationCancel,
   onOrganizationStateChange,
 }: DiagramCanvasProps) => {
@@ -84,18 +104,18 @@ export const DiagramCanvas = ({
 
   const handleCollapseGate = useCallback(
     (gateId: string) => {
-      if (isOrganizationMode) return;
+      if (isOrganizationMode || isDeleteMode) return;
       collapseGate(gateId);
     },
-    [collapseGate, isOrganizationMode]
+    [collapseGate, isDeleteMode, isOrganizationMode]
   );
 
   const handleExpandGate = useCallback(
     (gateId: string) => {
-      if (isOrganizationMode) return;
+      if (isOrganizationMode || isDeleteMode) return;
       expandGate(gateId);
     },
-    [expandGate, isOrganizationMode]
+    [expandGate, isDeleteMode, isOrganizationMode]
   );
 
   const organization = useOrganizationMode({
@@ -144,6 +164,33 @@ export const DiagramCanvas = ({
     onSelectionUpdate,
     onSelectionCancel,
   });
+
+  const deleteSelection = useSelectionMode({
+    isActive: isDeleteMode,
+    handlers,
+    layoutNodeById,
+    selectedNodeId: deleteSelectedNodeId,
+    preselectedNodeId: deletePreselectedNodeId,
+    onEnter: onEnterDeleteMode,
+    onExit: onExitDeleteMode,
+    onNodeHover: onDeleteNodeHover,
+    onNodePreselect: onDeleteNodePreselect,
+    onNodeConfirm: onDeleteNodeConfirm,
+    onSelectionCancel: onDeleteSelectionCancel,
+  });
+
+  const activeSelection = isDeleteMode ? deleteSelection : selection;
+  const isInteractionMode = isSelectionMode || isDeleteMode;
+  const activeHoveredSelectableId = isDeleteMode
+    ? deleteSelection.hoveredSelectableId
+    : selection.hoveredSelectableId;
+  const activeHoveredNodeId = isDeleteMode ? deleteHoveredNodeId : hoveredNodeId;
+  const activePreselectedNodeId = isDeleteMode
+    ? deletePreselectedNodeId
+    : preselectedNodeId;
+  const activeSelectedNodeId = isDeleteMode
+    ? deleteSelectedNodeId
+    : selectedNodeId;
 
   const organizationGateArea = useMemo(() => {
     if (!organization.gateId) return null;
@@ -265,14 +312,21 @@ export const DiagramCanvas = ({
     <section className="diagram-canvas" aria-label={label}>
       <div
         className={`diagram-canvas__surface${
-          isSelectionMode ? " diagram-canvas__surface--selection" : ""
-        }${isOrganizationMode ? " diagram-canvas__surface--organization" : ""}`}
-        {...selection.cameraHandlers}
+          isInteractionMode ? " diagram-canvas__surface--selection" : ""
+        }${isOrganizationMode ? " diagram-canvas__surface--organization" : ""}${
+          isDeleteMode ? " diagram-canvas__surface--delete" : ""
+        }`}
+        {...activeSelection.cameraHandlers}
         ref={surfaceRef}
       >
         {isOrganizationMode ? (
           <div className="diagram-canvas__mode-indicator">
             {organizationIndicator}
+          </div>
+        ) : null}
+        {isDeleteMode ? (
+          <div className="diagram-canvas__mode-indicator diagram-canvas__mode-indicator--delete">
+            Modo borrar
           </div>
         ) : null}
         <div className="diagram-canvas__viewport" style={cameraStyle}>
@@ -305,7 +359,7 @@ export const DiagramCanvas = ({
                 isOrganizationMode={isOrganizationMode}
                 organizationGateId={organization.gateId}
                 organizationArea={organizationArea}
-                selectedNodeId={selectedNodeId}
+                selectedNodeId={activeSelectedNodeId}
                 insertHighlightedGateId={insertHighlightState.highlightedGateId}
                 isGateWithinOrganization={isGateWithinOrganization}
                 onHoverGateIdChange={setHoveredGateId}
@@ -317,12 +371,12 @@ export const DiagramCanvas = ({
               />
               <DiagramNodes
                 nodes={layout.nodes}
-                isSelectionMode={isSelectionMode}
+                isSelectionMode={isInteractionMode}
                 isOrganizationMode={isOrganizationMode}
-                hoveredSelectableId={selection.hoveredSelectableId}
-                hoveredNodeId={hoveredNodeId}
-                preselectedNodeId={preselectedNodeId}
-                selectedNodeId={selectedNodeId}
+                hoveredSelectableId={activeHoveredSelectableId}
+                hoveredNodeId={activeHoveredNodeId}
+                preselectedNodeId={activePreselectedNodeId}
+                selectedNodeId={activeSelectedNodeId}
                 organizationGateId={organization.gateId}
                 organizationPlaceholderId={organization.placeholderId}
                 organizationLockedGateIds={organization.lockedGateIds}
@@ -336,7 +390,7 @@ export const DiagramCanvas = ({
                 onHoverGateIdChange={setHoveredGateId}
                 onExpandGate={handleExpandGate}
                 onDragStart={dragDrop.handlers.onDragStart}
-                selectionHandlers={selection.handlers}
+                selectionHandlers={activeSelection.handlers}
               />
               <DiagramOverlays
                 dragGhostNode={dragDrop.ghostNode}

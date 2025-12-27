@@ -5,8 +5,11 @@ import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { CloudConfirmDialog } from "./features/diagram/components/CloudConfirmDialog";
 import { CloudToast } from "./features/diagram/components/CloudToast";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
+import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
+import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
+import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
   DiagramNodeSelection,
@@ -396,6 +399,18 @@ function App() {
     onLoadSuccess: () => setGraphReloadToken((current) => current + 1),
   });
 
+  const deleteMode = useDeleteMode({
+    isBlocked: isAddMode || isOrganizationMode || cloudActionInFlight !== null,
+    onDeleteSuccess: () => setGraphReloadToken((current) => current + 1),
+  });
+
+  useEffect(() => {
+    if (!deleteMode.isDeleteMode) return;
+    if (isAddMode) {
+      setIsAddMode(false);
+    }
+  }, [deleteMode.isDeleteMode, isAddMode]);
+
   useEffect(() => {
     if (insertToastToken === null) return;
     const timeout = window.setTimeout(() => {
@@ -415,16 +430,24 @@ function App() {
     label: cloudActionInFlight === "load" ? "Cargando..." : "Cargar",
     disabled: isAddMode || isCloudBusy,
   };
+  const isDeleteDisabled = isAddMode || isOrganizationMode || isCloudBusy;
 
   return (
     <div className="app">
       <DiagramTopBar
         isAddMode={isAddMode}
-        isBlocked={isAddMode}
-        isAddDisabled={isSelectionMode || isOrganizationMode || isCloudBusy}
+        isBlocked={isAddMode || deleteMode.isDeleteMode}
+        isAddDisabled={
+          isSelectionMode || isOrganizationMode || isCloudBusy || deleteMode.isDeleteMode
+        }
+        isDeleteMode={deleteMode.isDeleteMode}
+        isDeleteDisabled={isDeleteDisabled}
+        skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
         cloudSaveState={cloudSaveState}
         cloudLoadState={cloudLoadState}
         onToggleAddMode={() => setIsAddMode((current) => !current)}
+        onToggleDeleteMode={deleteMode.toggleDeleteMode}
+        onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={requestSave}
         onCloudLoad={requestLoad}
       />
@@ -432,6 +455,7 @@ function App() {
         <DiagramCanvas
           isSelectionMode={isSelectionMode}
           isOrganizationMode={isOrganizationMode}
+          isDeleteMode={deleteMode.isDeleteMode}
           graph={graph}
           status={status}
           errorMessage={errorMessage}
@@ -443,6 +467,9 @@ function App() {
           preselectedNodeId={selectionMeta.preselectedId}
           selectedNodeId={selectionMeta.selectedId}
           hoveredNodeId={selectionMeta.hoveredId}
+          deletePreselectedNodeId={deleteMode.draftSelection?.id ?? null}
+          deleteSelectedNodeId={deleteMode.selectedSelection?.id ?? null}
+          deleteHoveredNodeId={deleteMode.hoveredNodeId}
           insertHighlight={insertHighlight}
           onEnterSelectionMode={handleSelectionModeEnter}
           onExitSelectionMode={handleSelectionModeExit}
@@ -451,7 +478,16 @@ function App() {
           onNodeConfirm={handleNodeConfirm}
           onSelectionUpdate={handleSelectionUpdate}
           onSelectionCancel={handleSelectionCancel}
+          onDeleteNodeHover={deleteMode.onNodeHover}
+          onDeleteNodePreselect={deleteMode.onNodePreselect}
+          onDeleteNodeConfirm={deleteMode.onNodeConfirm}
+          onDeleteSelectionCancel={deleteMode.onSelectionCancel}
           onOrganizationCancel={handleOrganizationCancel}
+        />
+        <DeleteActionButton
+          isVisible={deleteMode.isDeleteMode}
+          isDisabled={!deleteMode.selectedSelection || deleteMode.isDeleting}
+          onClick={deleteMode.requestDelete}
         />
         {isAddMode ? (
           <DiagramSidePanel>
@@ -486,6 +522,14 @@ function App() {
           isLoading={cloudActionInFlight !== null}
           onConfirm={confirmAction}
           onCancel={cancelAction}
+        />
+      ) : null}
+      {deleteMode.confirmSelection ? (
+        <DeleteConfirmDialog
+          selection={deleteMode.confirmSelection}
+          isLoading={deleteMode.isDeleting}
+          onConfirm={deleteMode.confirmDelete}
+          onCancel={deleteMode.cancelDelete}
         />
       ) : null}
       {cloudToast ? (

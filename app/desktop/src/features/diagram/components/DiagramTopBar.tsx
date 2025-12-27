@@ -14,7 +14,12 @@ type DiagramTopBarProps = {
     label: string;
     disabled: boolean;
   };
+  isDeleteMode?: boolean;
+  isDeleteDisabled?: boolean;
+  skipDeleteConfirmation?: boolean;
   onToggleAddMode?: () => void;
+  onToggleDeleteMode?: () => void;
+  onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
 };
@@ -35,7 +40,12 @@ export const DiagramTopBar = ({
     label: "Cargar",
     disabled: false,
   },
+  isDeleteMode = false,
+  isDeleteDisabled = false,
+  skipDeleteConfirmation = false,
   onToggleAddMode,
+  onToggleDeleteMode,
+  onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
 }: DiagramTopBarProps) => {
@@ -94,6 +104,31 @@ export const DiagramTopBar = ({
             >
               + Agregar
             </button>
+            <button
+              type="button"
+              className={`diagram-topbar__button diagram-topbar__button--danger${
+                isDeleteMode ? " diagram-topbar__button--active" : ""
+              }`}
+              onClick={onToggleDeleteMode}
+              aria-pressed={isDeleteMode}
+              disabled={isDeleteDisabled}
+            >
+              Borrar
+            </button>
+            <label className="diagram-topbar__toggle">
+              <input
+                type="checkbox"
+                checked={skipDeleteConfirmation}
+                onChange={(event) =>
+                  onSkipDeleteConfirmationChange?.(event.target.checked)
+                }
+                disabled={isDeleteDisabled}
+              />
+              <span className="diagram-topbar__toggle-track" aria-hidden="true" />
+              <span className="diagram-topbar__toggle-label">
+                Sin confirmación
+              </span>
+            </label>
           </div>
         </div>
       </div>
