@@ -2,9 +2,18 @@ type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
   isAddMode?: boolean;
-  isSelectionMode?: boolean;
-  isOrganizationMode?: boolean;
-  cloudActionInFlight?: "save" | "load" | null;
+  isBlocked?: boolean;
+  isAddDisabled?: boolean;
+  cloudSaveState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
+  cloudLoadState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
   onToggleAddMode?: () => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
@@ -14,18 +23,22 @@ export const DiagramTopBar = ({
   title = "BLOCON",
   subtitle = "Lienzo base de diagrama",
   isAddMode = false,
-  isSelectionMode = false,
-  isOrganizationMode = false,
-  cloudActionInFlight = null,
+  isBlocked = false,
+  isAddDisabled = false,
+  cloudSaveState = {
+    isBusy: false,
+    label: "Guardar",
+    disabled: false,
+  },
+  cloudLoadState = {
+    isBusy: false,
+    label: "Cargar",
+    disabled: false,
+  },
   onToggleAddMode,
   onCloudSave,
   onCloudLoad,
 }: DiagramTopBarProps) => {
-  const isBlocked = isAddMode;
-  const isAddDisabled = isSelectionMode || isOrganizationMode;
-  const isCloudBusy = cloudActionInFlight !== null;
-  const isCloudSaveBusy = cloudActionInFlight === "save";
-  const isCloudLoadBusy = cloudActionInFlight === "load";
   return (
     <header
       className={`diagram-topbar${
@@ -45,25 +58,25 @@ export const DiagramTopBar = ({
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudSave}
-              disabled={isBlocked || isCloudBusy}
-              aria-busy={isCloudSaveBusy}
+              disabled={cloudSaveState.disabled}
+              aria-busy={cloudSaveState.isBusy}
             >
-              {isCloudSaveBusy ? (
+              {cloudSaveState.isBusy ? (
                 <span className="diagram-topbar__spinner" aria-hidden="true" />
               ) : null}
-              {isCloudSaveBusy ? "Guardando..." : "Guardar"}
+              {cloudSaveState.label}
             </button>
             <button
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudLoad}
-              disabled={isBlocked || isCloudBusy}
-              aria-busy={isCloudLoadBusy}
+              disabled={cloudLoadState.disabled}
+              aria-busy={cloudLoadState.isBusy}
             >
-              {isCloudLoadBusy ? (
+              {cloudLoadState.isBusy ? (
                 <span className="diagram-topbar__spinner" aria-hidden="true" />
               ) : null}
-              {isCloudLoadBusy ? "Cargando..." : "Cargar"}
+              {cloudLoadState.label}
             </button>
           </div>
         </div>
