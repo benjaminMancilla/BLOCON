@@ -130,6 +130,11 @@ fn main() {
             let window = app
                 .get_window("main")
                 .ok_or("main window not found")?;
+            
+                #[cfg(debug_assertions)]
+                {
+                    window.open_devtools();
+                }
             window.hide()?;
 
             let backend_already_running = check_health();
