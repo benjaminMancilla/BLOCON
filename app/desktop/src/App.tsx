@@ -29,6 +29,12 @@ type InsertHighlight = {
   hostComponentId: string | null;
   gateType: GateType | null;
 };
+type CloudAction = "save" | "load";
+type CloudToast = {
+  message: string;
+  type: "success" | "error";
+  token: number;
+};
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
@@ -67,6 +73,11 @@ function App() {
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
   const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
+  const [cloudDialogAction, setCloudDialogAction] =
+    useState<CloudAction | null>(null);
+  const [cloudActionInFlight, setCloudActionInFlight] =
+    useState<CloudAction | null>(null);
+  const [cloudToast, setCloudToast] = useState<CloudToast | null>(null);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
@@ -386,13 +397,48 @@ function App() {
   }, [organizationPayload, resetAddComponentFlow, runInsertValidations]);
 
   const handleCloudSave = useCallback(async () => {
-    await saveCloudGraph();
+    setCloudDialogAction("save");
   }, []);
 
   const handleCloudLoad = useCallback(async () => {
-    await loadCloudGraph();
-    setGraphReloadToken((current) => current + 1);
+    setCloudDialogAction("load");
   }, []);
+
+  const handleConfirmCloudAction = useCallback(async () => {
+    if (!cloudDialogAction) return;
+    const action = cloudDialogAction;
+    setCloudDialogAction(null);
+    setCloudActionInFlight(action);
+    try {
+      if (action === "save") {
+        await saveCloudGraph();
+        setCloudToast({
+          message: "Guardado en la nube exitoso.",
+          type: "success",
+          token: Date.now(),
+        });
+      } else {
+        await loadCloudGraph();
+        setGraphReloadToken((current) => current + 1);
+        setCloudToast({
+          message: "Carga completada desde la nube.",
+          type: "success",
+          token: Date.now(),
+        });
+      }
+    } catch (error) {
+      setCloudToast({
+        message:
+          action === "save"
+            ? "No se pudo guardar en la nube. Intenta nuevamente."
+            : "No se pudo cargar desde la nube. Intenta nuevamente.",
+        type: "error",
+        token: Date.now(),
+      });
+    } finally {
+      setCloudActionInFlight(null);
+    }
+  }, [cloudDialogAction]);
 
   useEffect(() => {
     if (insertToastToken === null) return;
@@ -402,12 +448,36 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [insertToastToken]);
 
+  useEffect(() => {
+    if (!cloudToast) return;
+    const timeout = window.setTimeout(() => {
+      setCloudToast(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [cloudToast?.token]);
+
+  const cloudDialogCopy =
+    cloudDialogAction === "save"
+      ? {
+          title: "Confirmar guardado en la nube",
+          description:
+            "Esta acción sobrescribirá el estado actual almacenado en la nube.",
+          confirmLabel: "Guardar ahora",
+        }
+      : {
+          title: "Confirmar carga desde la nube",
+          description:
+            "Esta acción reemplazará el estado local por la versión en la nube.",
+          confirmLabel: "Cargar ahora",
+        };
+
   return (
     <div className="app">
       <DiagramTopBar
         isAddMode={isAddMode}
         isSelectionMode={isSelectionMode}
         isOrganizationMode={isOrganizationMode}
+        cloudActionInFlight={cloudActionInFlight}
         onToggleAddMode={() => setIsAddMode((current) => !current)}
         onCloudSave={handleCloudSave}
         onCloudLoad={handleCloudLoad}
@@ -464,6 +534,47 @@ function App() {
           </DiagramSidePanel>
         ) : null}
       </div>
+      {cloudDialogAction ? (
+        <div className="diagram-modal" role="dialog" aria-modal="true">
+          <div className="diagram-modal__backdrop" />
+          <div className="diagram-modal__content">
+            <div>
+              <p className="diagram-modal__eyebrow">Cloud</p>
+              <h2 className="diagram-modal__title">{cloudDialogCopy.title}</h2>
+              <p className="diagram-modal__description">
+                {cloudDialogCopy.description}
+              </p>
+            </div>
+            <div className="diagram-modal__actions">
+              <button
+                type="button"
+                className="diagram-modal__button diagram-modal__button--ghost"
+                onClick={() => setCloudDialogAction(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="diagram-modal__button"
+                onClick={handleConfirmCloudAction}
+                disabled={cloudActionInFlight !== null}
+              >
+                {cloudDialogCopy.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {cloudToast ? (
+        <div
+          key={cloudToast.token}
+          className={`diagram-cloud-toast diagram-cloud-toast--${cloudToast.type}`}
+          role="status"
+          aria-live="polite"
+        >
+          {cloudToast.message}
+        </div>
+      ) : null}
       {insertToastToken !== null ? (
         <div
           key={insertToastToken}

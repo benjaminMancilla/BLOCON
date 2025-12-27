@@ -4,6 +4,7 @@ type DiagramTopBarProps = {
   isAddMode?: boolean;
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
+  cloudActionInFlight?: "save" | "load" | null;
   onToggleAddMode?: () => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
@@ -15,12 +16,16 @@ export const DiagramTopBar = ({
   isAddMode = false,
   isSelectionMode = false,
   isOrganizationMode = false,
+  cloudActionInFlight = null,
   onToggleAddMode,
   onCloudSave,
   onCloudLoad,
 }: DiagramTopBarProps) => {
   const isBlocked = isAddMode;
   const isAddDisabled = isSelectionMode || isOrganizationMode;
+  const isCloudBusy = cloudActionInFlight !== null;
+  const isCloudSaveBusy = cloudActionInFlight === "save";
+  const isCloudLoadBusy = cloudActionInFlight === "load";
   return (
     <header
       className={`diagram-topbar${
@@ -40,21 +45,30 @@ export const DiagramTopBar = ({
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudSave}
-              disabled={isBlocked}
+              disabled={isBlocked || isCloudBusy}
+              aria-busy={isCloudSaveBusy}
             >
-              Guardar
+              {isCloudSaveBusy ? (
+                <span className="diagram-topbar__spinner" aria-hidden="true" />
+              ) : null}
+              {isCloudSaveBusy ? "Guardando..." : "Guardar"}
             </button>
             <button
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudLoad}
-              disabled={isBlocked}
+              disabled={isBlocked || isCloudBusy}
+              aria-busy={isCloudLoadBusy}
             >
-              Cargar
+              {isCloudLoadBusy ? (
+                <span className="diagram-topbar__spinner" aria-hidden="true" />
+              ) : null}
+              {isCloudLoadBusy ? "Cargando..." : "Cargar"}
             </button>
           </div>
         </div>
-        <div className="diagram-topbar__section diagram-topbar__section--inline">
+        <div className="diagram-topbar__section">
+          <p className="diagram-topbar__section-title">Edición</p>
           <div className="diagram-topbar__section-buttons">
             <button
               type="button"
