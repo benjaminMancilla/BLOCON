@@ -288,6 +288,35 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self.cloud_baseline = snapshot
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
+    def _handle_event_history(self, params: dict[str, list[str]]) -> None:
+        try:
+            offset = int((params.get("offset") or ["0"])[0])
+        except ValueError:
+            offset = 0
+        try:
+            limit = int((params.get("limit") or ["50"])[0])
+        except ValueError:
+            limit = 50
+
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 50
+
+        events = self.cloud.load_events()
+        total = len(events)
+        page = events[offset : offset + limit]
+
+        self._send_json(
+            200,
+            {
+                "events": page,
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+            },
+        )
+
     def _cloud_head_version(self) -> int:
         try:
             return len(self.cloud.load_events())
@@ -470,6 +499,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/health":
             self._send_json(200, {"status": "ok"})
+            return
+
+        if path == "/event-history":
+            params = parse_qs(parsed.query)
+            self._handle_event_history(params)
             return
 
         if path == "/graph":

@@ -1066,6 +1066,10 @@ body {
   transition: width 0.2s ease;
 }
 
+.diagram-side-panel--version-history {
+  width: 420px;
+}
+
 .diagram-side-panel__collapse {
   align-self: flex-start;
   margin: 16px;
@@ -1623,4 +1627,187 @@ body {
 
 .add-component-panel__diagram-button--ghost {
   background: transparent;
+}
+
+.version-history-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+}
+
+.version-history-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.version-history-panel__header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.version-history-panel__title {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.version-history-panel__subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475467;
+}
+
+.version-history-panel__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.version-history-panel__close:hover {
+  background: #f9fafb;
+}
+
+.version-history-panel__search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-history-panel__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1d2939;
+}
+
+.version-history-panel__input {
+  border-radius: 12px;
+  border: 1px solid #d0d5dd;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  background: #f8fafc;
+}
+
+.version-history-panel__helper {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #667085;
+}
+
+.version-history-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.version-history-panel__list-header {
+  display: grid;
+  grid-template-columns: 72px 1fr 1fr;
+  gap: 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #98a2b3;
+}
+
+.version-history-panel__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: auto;
+}
+
+.version-history-panel__item {
+  display: grid;
+  grid-template-columns: 72px 1fr 1fr;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e4e7ec;
+  font-size: 0.85rem;
+}
+
+.version-history-panel__item-version {
+  font-weight: 700;
+  color: #1d2939;
+  display: flex;
+  align-items: center;
+  padding-left: 4px;
+}
+
+.version-history-panel__item-kind {
+  color: #1d2939;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+.version-history-panel__item-ts {
+  color: #475467;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  word-break: break-word;
+}
+
+.version-history-panel__item-time {
+  font-size: 0.78rem;
+  color: #667085;
+}
+
+.version-history-panel__status {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 0.85rem;
+}
+
+.version-history-panel__status--error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.version-history-panel__footer {
+  border-top: 1px solid #e4e7ec;
+  padding-top: 12px;
+}
+
+.version-history-panel__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.version-history-panel__page-button {
+  border-radius: 999px;
+  border: 1px solid #d0d5dd;
+  padding: 6px 14px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.version-history-panel__page-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.version-history-panel__page-info {
+  font-size: 0.8rem;
+  color: #475467;
 }

@@ -8,11 +8,13 @@ import { AddComponentPanel } from "./features/diagram/components/AddComponentPan
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
+import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useDrafts } from "./features/diagram/hooks/useDrafts";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
+import { useVersionHistoryPanel } from "./features/diagram/hooks/useVersionHistoryPanel";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
   DiagramNodeSelection,
@@ -84,6 +86,7 @@ function App() {
   } | null>(null);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
+  const versionHistoryPanel = useVersionHistoryPanel();
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
   const existingNodeIds = useMemo(
     () => new Set(graph.nodes.map((node) => node.id)),
@@ -480,6 +483,12 @@ function App() {
 
   const isCloudBusy = cloudActionInFlight !== null;
   const isDraftBusy = draftActionInFlight !== null || isCloudBusy;
+  const isVersionHistoryDisabled =
+    isCloudBusy ||
+    isAddMode ||
+    deleteMode.isDeleteMode ||
+    isSelectionMode ||
+    isOrganizationMode;
   const cloudSaveState = {
     isBusy: cloudActionInFlight === "save",
     label: cloudActionInFlight === "save" ? "Guardando..." : "Guardar",
@@ -622,17 +631,34 @@ function App() {
     <div className="app">
       <DiagramTopBar
         isAddMode={isAddMode}
-        isBlocked={isAddMode || deleteMode.isDeleteMode}
+        isBlocked={
+          isAddMode || deleteMode.isDeleteMode || versionHistoryPanel.isOpen
+        }
         isAddDisabled={
-          isSelectionMode || isOrganizationMode || isCloudBusy || deleteMode.isDeleteMode
+          isSelectionMode ||
+          isOrganizationMode ||
+          isCloudBusy ||
+          deleteMode.isDeleteMode ||
+          versionHistoryPanel.isOpen
         }
         isDeleteMode={deleteMode.isDeleteMode}
-        isDeleteDisabled={isDeleteDisabled}
+        isDeleteDisabled={isDeleteDisabled || versionHistoryPanel.isOpen}
+        isVersionHistoryOpen={versionHistoryPanel.isOpen}
+        isVersionHistoryDisabled={
+          isVersionHistoryDisabled && !versionHistoryPanel.isOpen
+        }
         skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
-        cloudSaveState={cloudSaveState}
-        cloudLoadState={cloudLoadState}
+        cloudSaveState={{
+          ...cloudSaveState,
+          disabled: cloudSaveState.disabled || versionHistoryPanel.isOpen,
+        }}
+        cloudLoadState={{
+          ...cloudLoadState,
+          disabled: cloudLoadState.disabled || versionHistoryPanel.isOpen,
+        }}
         onToggleAddMode={() => setIsAddMode((current) => !current)}
         onToggleDeleteMode={deleteMode.toggleDeleteMode}
+        onToggleVersionHistory={versionHistoryPanel.toggle}
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={requestSave}
         onCloudLoad={requestLoad}
@@ -641,7 +667,14 @@ function App() {
             drafts={drafts}
             isLoading={draftsLoading}
             isBusy={isDraftBusy}
-            disabled={isAddMode || deleteMode.isDeleteMode || isOrganizationMode || isCloudBusy || isSelectionMode}
+            disabled={
+              isAddMode ||
+              deleteMode.isDeleteMode ||
+              isOrganizationMode ||
+              isCloudBusy ||
+              isSelectionMode ||
+              versionHistoryPanel.isOpen
+            }
             onCreateDraft={handleDraftCreate}
             onSaveDraft={handleDraftSave}
             onLoadDraft={handleDraftLoad}
@@ -714,6 +747,10 @@ function App() {
             />
           </DiagramSidePanel>
         ) : null}
+        <VersionHistoryPanelContainer
+          isOpen={versionHistoryPanel.isOpen}
+          onClose={versionHistoryPanel.close}
+        />
       </div>
       {cloudDialogAction ? (
         <CloudConfirmDialog

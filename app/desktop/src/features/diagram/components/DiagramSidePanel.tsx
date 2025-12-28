@@ -2,14 +2,18 @@ import { useState, type ReactNode } from "react";
 
 type DiagramSidePanelProps = {
   children: ReactNode;
+  className?: string;
 };
 
-export const DiagramSidePanel = ({ children }: DiagramSidePanelProps) => {
+export const DiagramSidePanel = ({
+  children,
+  className,
+}: DiagramSidePanelProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
     <aside
-      className={`diagram-side-panel${
+      className={`diagram-side-panel${className ? ` ${className}` : ""}${
         isCollapsed ? " diagram-side-panel--collapsed" : ""
       }`}
     >

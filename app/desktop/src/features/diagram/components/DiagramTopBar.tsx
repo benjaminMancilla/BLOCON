@@ -18,9 +18,12 @@ type DiagramTopBarProps = {
   };
   isDeleteMode?: boolean;
   isDeleteDisabled?: boolean;
+  isVersionHistoryOpen?: boolean;
+  isVersionHistoryDisabled?: boolean;
   skipDeleteConfirmation?: boolean;
   onToggleAddMode?: () => void;
   onToggleDeleteMode?: () => void;
+  onToggleVersionHistory?: () => void;
   onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
@@ -46,9 +49,12 @@ export const DiagramTopBar = ({
   },
   isDeleteMode = false,
   isDeleteDisabled = false,
+  isVersionHistoryOpen = false,
+  isVersionHistoryDisabled = false,
   skipDeleteConfirmation = false,
   onToggleAddMode,
   onToggleDeleteMode,
+  onToggleVersionHistory,
   onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
@@ -149,6 +155,22 @@ export const DiagramTopBar = ({
                 Sin confirm.
               </span>
             </label>
+          </div>
+        </div>
+        <div className="diagram-topbar__section">
+          <p className="diagram-topbar__section-title">Versiones</p>
+          <div className="diagram-topbar__section-buttons">
+            <button
+              type="button"
+              className={`diagram-topbar__button${
+                isVersionHistoryOpen ? " diagram-topbar__button--active" : ""
+              }`}
+              onClick={onToggleVersionHistory}
+              aria-pressed={isVersionHistoryOpen}
+              disabled={isVersionHistoryDisabled}
+            >
+              Historial
+            </button>
           </div>
         </div>
       </div>
