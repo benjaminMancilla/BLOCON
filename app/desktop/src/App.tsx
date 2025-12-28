@@ -539,7 +539,7 @@ function App() {
   const cloudSaveState = {
     isBusy: cloudActionInFlight === "save",
     label: cloudActionInFlight === "save" ? "Guardando..." : "Guardar",
-    disabled: isAddMode || isCloudBusy,
+    disabled: isAddMode || isCloudBusy || isViewerMode,
   };
   const cloudLoadState = {
     isBusy: cloudActionInFlight === "load",
