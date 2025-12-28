@@ -337,6 +337,7 @@ class SharePointEventsClient:
                 payload_dict = {}
 
         ev = dict(payload_dict or {})
+        ev["payload"] = payload_raw
 
         if self.field_kind and fields.get(self.field_kind) is not None:
             ev["kind"] = fields.get(self.field_kind)

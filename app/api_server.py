@@ -15,7 +15,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 
 from src.model.graph.graph import ReliabilityGraph
-from src.model.eventsourcing.events import SnapshotEvent, event_from_dict
+from src.model.eventsourcing.events import (
+    SnapshotEvent,
+    SetIgnoreRangeEvent,
+    event_from_dict,
+)
 from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
@@ -161,7 +165,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return None
 
-    def _handle_cloud_load(self) -> None:
+    def _refresh_cloud_state(self) -> None:
         try:
             if self.es.store:
                 self.es.store.clear()
@@ -230,7 +234,91 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def _handle_cloud_load(self) -> None:
+        self._refresh_cloud_state()
         self._send_json(200, {"status": "ok"})
+
+    @staticmethod
+    def _safe_event_version(event: object, index: int) -> int:
+        ver = getattr(event, "version", None)
+        return ver if isinstance(ver, int) else (index + 1)
+
+    def _events_upto_version(self, all_events: list[object], version: int) -> list[object]:
+        events_upto = []
+        for idx, event in enumerate(all_events):
+            ver = self._safe_event_version(event, idx)
+            if ver <= version:
+                events_upto.append(event)
+        return events_upto
+
+    def _load_event_objects(self) -> list[object]:
+        raw = self.cloud.load_events()
+        events: list[object] = []
+        for entry in raw:
+            try:
+                events.append(event_from_dict(entry))
+            except Exception:
+                continue
+        return events
+
+    def _handle_event_version_graph(self, version: int) -> None:
+        try:
+            events = self._load_event_objects()
+            events_upto = self._events_upto_version(events, version)
+            graph = GraphES.rebuild(events_upto)
+            self._send_json(200, serialize_graph(graph))
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+
+    def _handle_event_version_rebuild(self, version: int) -> None:
+        try:
+            events = self._load_event_objects()
+            head_prev = len(events)
+            events_upto = self._events_upto_version(events, version)
+            graph = GraphES.rebuild(events_upto)
+
+            snapshot_event = SnapshotEvent.create(
+                data=graph.to_data(), actor="version-control"
+            )
+            snapshot_dict = snapshot_event.to_dict()
+            snapshot_dict["version"] = head_prev + 1
+
+            to_append = [snapshot_dict]
+
+            if version < head_prev:
+                ignore_event = SetIgnoreRangeEvent.create(
+                    start_v=version + 1,
+                    end_v=head_prev,
+                    actor="version-control",
+                )
+                ignore_dict = ignore_event.to_dict()
+                ignore_dict["version"] = head_prev + 2
+                to_append.append(ignore_dict)
+
+            self.cloud.append_events(to_append)
+
+            try:
+                self.cloud.save_snapshot(graph.to_data())
+            except Exception:
+                pass
+
+            try:
+                self.local.draft_delete()
+            except Exception:
+                pass
+
+            self._refresh_cloud_state()
+
+            self._send_json(
+                200,
+                {
+                    "status": "ok",
+                    "version": version,
+                    "head_previous": head_prev,
+                },
+            )
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
 
     def _handle_cloud_save(self) -> None:
         cloud = self.cloud
@@ -574,6 +662,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"status": "ok"})
             return
 
+        if path.startswith("/event-history/version/") and path.endswith("/graph"):
+            version_value = path[
+                len("/event-history/version/") : -len("/graph")
+            ].strip("/")
+            if not version_value:
+                self._send_json(404, {"error": "missing version"})
+                return
+            try:
+                version = int(version_value)
+            except ValueError:
+                self._send_json(400, {"error": "invalid version"})
+                return
+            self._handle_event_version_graph(version)
+            return
+
         if path == "/event-history":
             params = parse_qs(parsed.query)
             self._handle_event_history(params)
@@ -644,6 +747,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"status": "ok"})
                 return
             self._send_json(200, {"status": "noop"})
+            return
+
+        if path.startswith("/event-history/version/") and path.endswith("/rebuild"):
+            version_value = path[
+                len("/event-history/version/") : -len("/rebuild")
+            ].strip("/")
+            if not version_value:
+                self._send_json(404, {"error": "missing version"})
+                return
+            try:
+                version = int(version_value)
+            except ValueError:
+                self._send_json(400, {"error": "invalid version"})
+                return
+            self._handle_event_version_rebuild(version)
             return
 
         if path == "/graph/organization":
