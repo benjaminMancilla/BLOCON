@@ -185,6 +185,79 @@ class SharePointEventsClient:
         path = f"sites/{site_id}/lists/{list_id}/items"
         self.session.post_json(path, {"fields": fields})
 
+    @staticmethod
+    def _escape_odata(value: str) -> str:
+        return (value or "").replace("'", "''")
+
+    def _query_events_filtered(
+        self,
+        *,
+        filter_clause: str,
+        offset: int,
+        limit: int,
+        order_by: str | None = None,
+    ) -> tuple[list[dict], int]:
+        site_id = self._resolve_site_id()
+        list_id = self._resolve_events_list_id()
+
+        select_fields = [
+            self.field_kind,
+            self.field_ts,
+            self.field_actor,
+            self.field_version,
+            self.field_payload,
+            self.field_snapshot_file,
+        ]
+        select_fields = [f for f in select_fields if f]
+
+        limit = max(1, int(limit))
+        offset = max(0, int(offset))
+
+        params: dict[str, str] = {
+            "$select": "id,fields",
+            "$expand": f"fields($select={','.join(select_fields)})",
+            "$filter": filter_clause,
+            "$top": str(min(limit, 200)),
+        }
+
+        if order_by:
+            params["$orderby"] = f"fields/{order_by} asc"
+
+        path = f"sites/{site_id}/lists/{list_id}/items"
+
+        data = self.session.request_json("GET", path, params=params)
+        total = 0
+
+        out: list[dict] = []
+        skip_remaining = offset
+
+        while True:
+            items = data.get("value", []) if isinstance(data, dict) else []
+            total += len(items)
+
+            for it in items:
+                if skip_remaining > 0:
+                    skip_remaining -= 1
+                    continue
+                if len(out) >= limit:
+                    continue
+                fields = (it or {}).get("fields") or {}
+                ev_dict = self._build_event_dict(fields)
+                if not ev_dict:
+                    continue
+                try:
+                    ev_obj = event_from_dict(ev_dict)
+                    out.append(ev_obj.to_dict())
+                except Exception:
+                    continue
+
+            next_link = data.get("@odata.nextLink") if isinstance(data, dict) else None
+            if not next_link:
+                break
+            data = self.session.request_json("GET", next_link)
+
+        return out, total
+    
     # ---------------- public API ----------------
 
     def append_events(self, events: list[dict]) -> int:
@@ -335,3 +408,68 @@ class SharePointEventsClient:
             data = self.session.get_json(next_link)
 
         return out
+    
+    def search_events_by_version(self, version: int, offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
+        if not self.field_version:
+            return [], 0
+        try:
+            version_value = int(version)
+        except Exception:
+            return [], 0
+
+        filter_clause = f"fields/{self.field_version} eq {version_value}"
+        order_by = self.field_version or self.field_ts
+        return self._query_events_filtered(
+            filter_clause=filter_clause,
+            offset=offset,
+            limit=limit,
+            order_by=order_by,
+        )
+
+    def search_events_by_kind(
+        self,
+        *,
+        kind_prefix: str | None = None,
+        kinds: list[str] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[dict], int]:
+        if not self.field_kind:
+            return [], 0
+
+        clauses = []
+        if kind_prefix:
+            escaped_prefix = self._escape_odata(kind_prefix)
+            clauses.append(f"startswith(fields/{self.field_kind}, '{escaped_prefix}')")
+
+        for kind in sorted({k for k in (kinds or []) if k}):
+            escaped_kind = self._escape_odata(str(kind))
+            clauses.append(f"fields/{self.field_kind} eq '{escaped_kind}'")
+
+        if not clauses:
+            return [], 0
+
+        filter_clause = " or ".join(f"({clause})" for clause in clauses)
+        order_by = self.field_version or self.field_ts
+        return self._query_events_filtered(
+            filter_clause=filter_clause,
+            offset=offset,
+            limit=limit,
+            order_by=order_by,
+        )
+
+    def search_events_by_timestamp(
+        self, timestamp_prefix: str, offset: int = 0, limit: int = 50
+    ) -> tuple[list[dict], int]:
+        if not self.field_ts or not timestamp_prefix:
+            return [], 0
+
+        escaped = self._escape_odata(timestamp_prefix)
+        filter_clause = f"startswith(fields/{self.field_ts}, '{escaped}')"
+        order_by = self.field_version or self.field_ts
+        return self._query_events_filtered(
+            filter_clause=filter_clause,
+            offset=offset,
+            limit=limit,
+            order_by=order_by,
+        )

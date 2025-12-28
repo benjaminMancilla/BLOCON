@@ -146,6 +146,71 @@ class CloudClient:
                 pass
         return self.local.append_events(events)
 
+    def search_events_by_version(self, *, version: int, offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
+        sp = self._sp_events()
+        if sp is not None:
+            return sp.search_events_by_version(version, offset=offset, limit=limit)
+
+        events = self.local.load_events()
+        filtered = []
+        for ev in events:
+            try:
+                if int(ev.get("version")) == int(version):
+                    filtered.append(ev)
+            except Exception:
+                continue
+        total = len(filtered)
+        return filtered[offset : offset + limit], total
+
+    def search_events_by_kind(
+        self,
+        *,
+        kind_prefix: str | None = None,
+        kinds: list[str] | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[dict], int]:
+        sp = self._sp_events()
+        if sp is not None:
+            return sp.search_events_by_kind(
+                kind_prefix=kind_prefix, kinds=kinds, offset=offset, limit=limit
+            )
+
+        prefix = (kind_prefix or "").strip().lower()
+        kinds_set = {str(kind).strip().lower() for kind in (kinds or []) if kind}
+
+        def matches(event: dict) -> bool:
+            kind = str(event.get("kind") or "").strip().lower()
+            if prefix and kind.startswith(prefix):
+                return True
+            if kinds_set and kind in kinds_set:
+                return True
+            return False
+
+        filtered = [ev for ev in self.local.load_events() if matches(ev)]
+        total = len(filtered)
+        return filtered[offset : offset + limit], total
+
+    def search_events_by_timestamp(
+        self, *, timestamp_prefix: str, offset: int = 0, limit: int = 50
+    ) -> tuple[list[dict], int]:
+        sp = self._sp_events()
+        if sp is not None:
+            return sp.search_events_by_timestamp(
+                timestamp_prefix, offset=offset, limit=limit
+            )
+
+        prefix = (timestamp_prefix or "").strip()
+        if not prefix:
+            return [], 0
+        filtered = [
+            ev
+            for ev in self.local.load_events()
+            if str(ev.get("ts") or "").startswith(prefix)
+        ]
+        total = len(filtered)
+        return filtered[offset : offset + limit], total
+
     def fetch_failures_by_ids(self, component_ids, page=1, page_size=200):
         sp = getattr(self, "_sp_failures", lambda: None)()
         if sp is not None:
@@ -155,4 +220,3 @@ class CloudClient:
             start = (max(1, page)-1) * max(1, page_size)
             return rows[start:start+page_size], total
         return self.local.fetch_failures_by_ids(component_ids, page=page, page_size=page_size)
-

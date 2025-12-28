@@ -1,37 +1,6 @@
 import type { EventHistoryItem } from "../../../services/eventHistoryService";
+import { formatEventKind } from "../utils/eventKindLabels";
 import { DiagramSidePanel } from "./DiagramSidePanel";
-
-const EVENT_KIND_LABELS: Record<string, string> = {
-  add_component: "Agregar componente",
-  add_component_relative: "Agregar componente",
-  add_root_component: "Agregar raíz",
-  add_gate: "Agregar gate",
-  add_edge: "Agregar enlace",
-  delete_node: "Eliminar nodo",
-  remove_node: "Eliminar nodo",
-  move_node: "Mover nodo",
-  rename_node: "Renombrar nodo",
-  update_node: "Actualizar nodo",
-  set_head: "Establecer versión",
-  edit_component: "Editar componente",
-  edit_gate: "Editar gate",
-  set_ignore_range: "Ignorar rango",
-  snapshot: "Snapshot",
-};
-
-const toTitleCase = (value: string) =>
-  value
-    .split(" ")
-    .map((word) =>
-      word ? `${word[0].toUpperCase()}${word.slice(1).toLowerCase()}` : word,
-    )
-    .join(" ");
-
-const formatKind = (kind?: string) => {
-  const raw = typeof kind === "string" ? kind.trim() : "";
-  if (!raw) return "Evento";
-  return EVENT_KIND_LABELS[raw] ?? toTitleCase(raw.replace(/_/g, " "));
-};
 
 const formatTimestamp = (value?: string) => {
   if (typeof value !== "string" || !value.trim()) {
@@ -56,6 +25,9 @@ type VersionHistoryPanelProps = {
   offset: number;
   isLoading: boolean;
   errorMessage: string | null;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  onSearchSubmit: () => void;
   page: number;
   totalPages: number;
   canGoNext: boolean;
@@ -70,6 +42,9 @@ export const VersionHistoryPanel = ({
   offset,
   isLoading,
   errorMessage,
+  searchQuery,
+  onSearchChange,
+  onSearchSubmit,
   page,
   totalPages,
   canGoNext,
@@ -105,18 +80,24 @@ export const VersionHistoryPanel = ({
               className="version-history-panel__label"
               htmlFor="history-search"
             >
-              Buscar (próximamente)
+              Buscar
             </label>
             <input
               id="history-search"
               type="search"
-              placeholder="Buscar por versión, tipo de evento o detalle"
+              placeholder="Buscar por versión, tipo de evento o fecha"
               className="version-history-panel__input"
-              disabled
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                onSearchSubmit();
+              }}
             />
             <p className="version-history-panel__helper">
-              Este campo quedará habilitado en la próxima iteración para filtrar el
-              historial.
+              Usa una versión exacta, un tipo de evento o fecha (YYYY-MM o
+              YYYY-MM-DD).
             </p>
           </div>
 
@@ -145,7 +126,7 @@ export const VersionHistoryPanel = ({
                     typeof event.version === "number"
                       ? event.version
                       : offset + index + 1;
-                  const kind = formatKind(event.kind);
+                  const kind = formatEventKind(event.kind);
                   const timestamp = formatTimestamp(event.ts);
                   return (
                     <li key={`${version}-${index}`} className="version-history-panel__item">

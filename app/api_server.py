@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import time
+import re
 from datetime import datetime, timezone
 import socket
 import msvcrt
@@ -317,6 +318,78 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def _handle_event_history_search(self, params: dict[str, list[str]]) -> None:
+        try:
+            offset = int((params.get("offset") or ["0"])[0])
+        except ValueError:
+            offset = 0
+        try:
+            limit = int((params.get("limit") or ["50"])[0])
+        except ValueError:
+            limit = 50
+
+        if offset < 0:
+            offset = 0
+        if limit <= 0:
+            limit = 50
+
+        version_value = (params.get("version") or [None])[0]
+        timestamp_value = (params.get("timestamp") or [None])[0]
+        kind_prefix = (params.get("kind_prefix") or [None])[0]
+        kinds_raw = (params.get("kinds") or [None])[0]
+
+        search_modes = [
+            bool(version_value),
+            bool(timestamp_value),
+            bool(kind_prefix or kinds_raw),
+        ]
+        if sum(search_modes) != 1:
+            self._send_json(400, {"error": "invalid search parameters"})
+            return
+
+        if version_value:
+            try:
+                version = int(version_value)
+            except ValueError:
+                self._send_json(400, {"error": "invalid version"})
+                return
+            events, total = self.cloud.search_events_by_version(
+                version=version, offset=offset, limit=limit
+            )
+        elif timestamp_value:
+            timestamp = str(timestamp_value or "").strip()
+            if not timestamp or not re.match(r"^\d{4}-\d{2}(-\d{2})?$", timestamp):
+                self._send_json(400, {"error": "invalid timestamp"})
+                return
+            events, total = self.cloud.search_events_by_timestamp(
+                timestamp_prefix=timestamp, offset=offset, limit=limit
+            )
+        else:
+            kinds = []
+            if kinds_raw:
+                kinds = [
+                    kind.strip()
+                    for kind in str(kinds_raw).split(",")
+                    if kind.strip()
+                ]
+            prefix = str(kind_prefix or "").strip() or None
+            if not prefix and not kinds:
+                self._send_json(400, {"error": "invalid kind search"})
+                return
+            events, total = self.cloud.search_events_by_kind(
+                kind_prefix=prefix, kinds=kinds, offset=offset, limit=limit
+            )
+
+        self._send_json(
+            200,
+            {
+                "events": events,
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+            },
+        )
+
     def _cloud_head_version(self) -> int:
         try:
             return len(self.cloud.load_events())
@@ -504,6 +577,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/event-history":
             params = parse_qs(parsed.query)
             self._handle_event_history(params)
+            return
+
+        if path == "/event-history/search":
+            params = parse_qs(parsed.query)
+            self._handle_event_history_search(params)
             return
 
         if path == "/graph":
