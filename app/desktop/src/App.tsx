@@ -7,9 +7,11 @@ import { CloudToast } from "./features/diagram/components/CloudToast";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
+import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
+import { useDrafts } from "./features/diagram/hooks/useDrafts";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
   DiagramNodeSelection,
@@ -70,6 +72,11 @@ function App() {
     useState<InsertHighlight | null>(null);
   const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
   const [deleteToast, setDeleteToast] = useState<{
+    token: number;
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [draftToast, setDraftToast] = useState<{
     token: number;
     message: string;
     type: "success" | "error";
@@ -403,6 +410,16 @@ function App() {
   } = useCloudActions({
     onLoadSuccess: () => setGraphReloadToken((current) => current + 1),
   });
+  const {
+    drafts,
+    isLoading: draftsLoading,
+    actionInFlight: draftActionInFlight,
+    createDraft,
+    saveDraft,
+    loadDraft,
+    renameDraft,
+    deleteDraft,
+  } = useDrafts();
 
   const deleteMode = useDeleteMode({
     isBlocked: isAddMode || isOrganizationMode || cloudActionInFlight !== null,
@@ -452,7 +469,16 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [deleteToast]);
 
+  useEffect(() => {
+    if (!draftToast) return;
+    const timeout = window.setTimeout(() => {
+      setDraftToast(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [draftToast?.token]);
+
   const isCloudBusy = cloudActionInFlight !== null;
+  const isDraftBusy = draftActionInFlight !== null || isCloudBusy;
   const cloudSaveState = {
     isBusy: cloudActionInFlight === "save",
     label: cloudActionInFlight === "save" ? "Guardando..." : "Guardar",
@@ -464,6 +490,122 @@ function App() {
     disabled: isAddMode || isCloudBusy,
   };
   const isDeleteDisabled = isAddMode || isOrganizationMode || isCloudBusy;
+
+    const handleDraftCreate = useCallback(
+    async (name?: string) => {
+      try {
+        await createDraft(name);
+        setDraftToast({
+          token: Date.now(),
+          message: "Borrador guardado correctamente.",
+          type: "success",
+        });
+      } catch (error) {
+        setDraftToast({
+          token: Date.now(),
+          message: "No se pudo guardar el borrador.",
+          type: "error",
+        });
+      }
+    },
+    [createDraft],
+  );
+
+  const handleDraftSave = useCallback(
+    async (draftId: string) => {
+      try {
+        await saveDraft(draftId);
+        setDraftToast({
+          token: Date.now(),
+          message: "Borrador actualizado.",
+          type: "success",
+        });
+      } catch (error) {
+        setDraftToast({
+          token: Date.now(),
+          message: "No se pudo actualizar el borrador.",
+          type: "error",
+        });
+      }
+    },
+    [saveDraft],
+  );
+
+  const handleDraftRename = useCallback(
+    async (draftId: string, name: string) => {
+      try {
+        await renameDraft(draftId, name);
+        setDraftToast({
+          token: Date.now(),
+          message: "Nombre del borrador actualizado.",
+          type: "success",
+        });
+      } catch (error) {
+        setDraftToast({
+          token: Date.now(),
+          message: "No se pudo renombrar el borrador.",
+          type: "error",
+        });
+      }
+    },
+    [renameDraft],
+  );
+
+  const handleDraftDelete = useCallback(
+    async (draftId: string) => {
+      try {
+        await deleteDraft(draftId);
+        setDraftToast({
+          token: Date.now(),
+          message: "Borrador eliminado.",
+          type: "success",
+        });
+      } catch (error) {
+        setDraftToast({
+          token: Date.now(),
+          message: "No se pudo eliminar el borrador.",
+          type: "error",
+        });
+      }
+    },
+    [deleteDraft],
+  );
+
+  const handleDraftLoad = useCallback(
+    async (draftId: string) => {
+      try {
+        const result = await loadDraft(draftId);
+        if (result.status === "ok") {
+          setGraphReloadToken((current) => current + 1);
+          setDraftToast({
+            token: Date.now(),
+            message: "Borrador cargado en el lienzo.",
+            type: "success",
+          });
+        } else if (result.status === "conflict") {
+          setDraftToast({
+            token: Date.now(),
+            message:
+              "El borrador estaba desactualizado y se eliminó automáticamente.",
+            type: "error",
+          });
+        } else {
+          setDraftToast({
+            token: Date.now(),
+            message: "No se encontró el borrador solicitado.",
+            type: "error",
+          });
+        }
+      } catch (error) {
+        setDraftToast({
+          token: Date.now(),
+          message: "No se pudo cargar el borrador.",
+          type: "error",
+        });
+      }
+    },
+    [loadDraft],
+  );
 
   return (
     <div className="app">
@@ -483,6 +625,19 @@ function App() {
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={requestSave}
         onCloudLoad={requestLoad}
+        draftsMenu={
+          <DraftsMenu
+            drafts={drafts}
+            isLoading={draftsLoading}
+            isBusy={isDraftBusy}
+            disabled={isAddMode || deleteMode.isDeleteMode || isOrganizationMode || isCloudBusy || isSelectionMode}
+            onCreateDraft={handleDraftCreate}
+            onSaveDraft={handleDraftSave}
+            onLoadDraft={handleDraftLoad}
+            onRenameDraft={handleDraftRename}
+            onDeleteDraft={handleDraftDelete}
+          />
+        }
       />
       <div className="diagram-workspace">
         <DiagramCanvas
@@ -570,6 +725,14 @@ function App() {
           key={cloudToast.token}
           message={cloudToast.message}
           type={cloudToast.type}
+        />
+      ) : null}
+      {draftToast ? (
+        <CloudToast
+          key={draftToast.token}
+          message={draftToast.message}
+          type={draftToast.type}
+          className="diagram-draft-toast"
         />
       ) : null}
       {deleteToast ? (

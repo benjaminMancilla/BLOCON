@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
@@ -22,6 +24,8 @@ type DiagramTopBarProps = {
   onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
+  draftsMenu?: ReactNode;
+  isDraftsDisabled?: boolean;
 };
 
 export const DiagramTopBar = ({
@@ -48,6 +52,7 @@ export const DiagramTopBar = ({
   onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
+  draftsMenu,
 }: DiagramTopBarProps) => {
   return (
     <header
@@ -90,6 +95,12 @@ export const DiagramTopBar = ({
             </button>
           </div>
         </div>
+        {draftsMenu ? (
+          <div className="diagram-topbar__section diagram-topbar__section--inline">
+            <p className="diagram-topbar__section-title">Borradores</p>
+            <div className="diagram-topbar__section-buttons">{draftsMenu}</div>
+          </div>
+        ) : null}
         <div className="diagram-topbar__section">
           <p className="diagram-topbar__section-title">Edición</p>
           <div className="diagram-topbar__section-buttons">
