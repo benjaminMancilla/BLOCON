@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 
 from src.model.graph.graph import ReliabilityGraph
+from src.model.eventsourcing.events import event_from_dict
 from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
@@ -95,7 +96,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header(
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        )
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, status_code: int, payload: dict) -> None:
@@ -255,6 +259,64 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             pass
 
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
+
+    def _cloud_head_version(self) -> int:
+        try:
+            return len(self.cloud.load_events())
+        except Exception:
+            return 0
+
+    def _collect_draft_state(self) -> tuple[dict, list, int]:
+        base_version = self._cloud_head_version()
+        if not self.es.store:
+            self.es.set_store(EventStore(self.local))
+        try:
+            if self.es.store:
+                self.es.store.resequence_versions(base_version)
+        except Exception:
+            pass
+
+        snapshot = self.es.graph.to_data()
+        events: list = []
+        try:
+            events = [ev.to_dict() for ev in (self.es.store.active() if self.es.store else [])]
+        except Exception:
+            events = []
+        return snapshot, events, base_version
+
+    def _apply_loaded_draft(self, snapshot: dict, events: list, meta: dict) -> None:
+        self.es.graph = ReliabilityGraph.from_data(snapshot or {})
+        if not self.es.store:
+            self.es.set_store(EventStore(self.local))
+
+        evs = []
+        try:
+            for d in (events or []):
+                try:
+                    evs.append(event_from_dict(d))
+                except Exception:
+                    pass
+        except Exception:
+            evs = []
+
+        try:
+            if self.es.store:
+                self.es.store.replace(evs)
+        except Exception:
+            try:
+                if self.es.store:
+                    self.es.store.clear()
+                    for ev in evs:
+                        self.es.store.append(ev)
+            except Exception:
+                pass
+
+        try:
+            bv = meta.get("base_version", None) if isinstance(meta, dict) else None
+            if bv is not None and self.es.store:
+                self.es.store.base_version = int(bv)
+        except Exception:
+            pass
 
     @staticmethod
     def _normalize_relation_type(relation_type: str | None) -> str | None:
@@ -416,6 +478,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"items": items, "total": total})
             return
 
+        if path == "/drafts":
+            drafts = self.local.drafts_list()
+            self._send_json(200, {"drafts": drafts})
+            return
+
         self._send_json(404, {"error": "not found"})
 
     def do_POST(self) -> None:
@@ -435,6 +502,41 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             self._handle_cloud_load()
             return
 
+        if path == "/drafts":
+            payload = self._read_json_body()
+            name = None
+            if isinstance(payload, dict):
+                name = payload.get("name")
+            snapshot, events, base_version = self._collect_draft_state()
+            result = self.local.drafts_create(
+                snapshot=snapshot,
+                events=events,
+                base_version=base_version,
+                name=name if isinstance(name, str) else None,
+            )
+            self._send_json(200, {"status": "ok", "draft": result})
+            return
+
+        if path.startswith("/drafts/") and path.endswith("/load"):
+            draft_id = unquote(path[len("/drafts/"):-len("/load")].strip("/"))
+            if not draft_id:
+                self._send_json(404, {"error": "missing draft id"})
+                return
+            cloud_head = self._cloud_head_version()
+            result = self.local.drafts_load(draft_id=draft_id, cloud_head=cloud_head)
+            status = result.get("status")
+            if status == "ok":
+                meta = (result.get("draft") or {}).get("meta") or {}
+                self._apply_loaded_draft(
+                    result.get("snapshot") or {},
+                    result.get("events") or [],
+                    meta,
+                )
+                self._send_json(200, {"status": "ok", "draft": result.get("draft")})
+                return
+            self._send_json(200, {"status": status, "deleted": result.get("deleted", False)})
+            return
+
         self._send_json(404, {"error": "not found"})
         
     def do_PUT(self) -> None:
@@ -451,6 +553,57 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 return
             self.local.save_diagram_view(payload)
             self._send_json(200, self.local.load_diagram_view())
+            return
+
+        if path.startswith("/drafts/"):
+            draft_id = unquote(path[len("/drafts/"):].strip())
+            if not draft_id:
+                self._send_json(404, {"error": "missing draft id"})
+                return
+            payload = self._read_json_body()
+            name = None
+            if isinstance(payload, dict):
+                name = payload.get("name")
+            snapshot, events, base_version = self._collect_draft_state()
+            try:
+                result = self.local.drafts_save(
+                    draft_id=draft_id,
+                    snapshot=snapshot,
+                    events=events,
+                    base_version=base_version,
+                    name=name if isinstance(name, str) else None,
+                )
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            self._send_json(200, {"status": "ok", "draft": result})
+            return
+
+        self._send_json(404, {"error": "not found"})
+
+    def do_PATCH(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path.startswith("/drafts/"):
+            draft_id = unquote(path[len("/drafts/"):].strip())
+            if not draft_id:
+                self._send_json(404, {"error": "missing draft id"})
+                return
+            payload = self._read_json_body()
+            if payload is None or not isinstance(payload, dict):
+                self._send_json(400, {"error": "invalid payload"})
+                return
+            name = payload.get("name")
+            if not isinstance(name, str) or not name.strip():
+                self._send_json(400, {"error": "invalid name"})
+                return
+            try:
+                result = self.local.drafts_rename(draft_id=draft_id, name=name)
+            except ValueError as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+            self._send_json(200, {"status": "ok", "draft": result})
             return
 
         self._send_json(404, {"error": "not found"})
@@ -473,6 +626,15 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": str(exc)})
                 return
             self._send_json(200, {"status": "ok"})
+            return
+
+        if path.startswith("/drafts/"):
+            draft_id = unquote(path[len("/drafts/"):].strip())
+            if not draft_id:
+                self._send_json(404, {"error": "missing draft id"})
+                return
+            deleted = self.local.drafts_delete(draft_id=draft_id)
+            self._send_json(200, {"status": "ok", "deleted": deleted})
             return
 
         self._send_json(404, {"error": "not found"})
