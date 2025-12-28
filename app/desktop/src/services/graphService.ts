@@ -70,3 +70,25 @@ export async function loadCloudGraph(): Promise<void> {
     }
   });
 }
+
+export async function undoGraph(): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    const response = await fetch(`${BACKEND_ENDPOINT}/graph/undo`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Backend responded with ${response.status}`);
+    }
+  });
+}
+
+export async function redoGraph(): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    const response = await fetch(`${BACKEND_ENDPOINT}/graph/redo`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Backend responded with ${response.status}`);
+    }
+  });
+}

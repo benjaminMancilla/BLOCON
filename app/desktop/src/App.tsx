@@ -12,6 +12,7 @@ import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useDrafts } from "./features/diagram/hooks/useDrafts";
+import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
   DiagramNodeSelection,
@@ -490,6 +491,16 @@ function App() {
     disabled: isAddMode || isCloudBusy,
   };
   const isDeleteDisabled = isAddMode || isOrganizationMode || isCloudBusy;
+
+  useUndoRedo({
+    isBlocked:
+      isCloudBusy ||
+      deleteMode.isDeleteMode ||
+      isSelectionMode ||
+      isOrganizationMode ||
+      isAddMode,
+    onCompleted: () => setGraphReloadToken((current) => current + 1),
+  });
 
     const handleDraftCreate = useCallback(
     async (name?: string) => {

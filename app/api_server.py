@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import time
+from datetime import datetime, timezone
 import socket
 import msvcrt
 import tempfile
@@ -13,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 
 from src.model.graph.graph import ReliabilityGraph
-from src.model.eventsourcing.events import event_from_dict
+from src.model.eventsourcing.events import SnapshotEvent, event_from_dict
 from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
@@ -93,6 +94,31 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
     local: LocalWorkspaceStore
     cloud: CloudClient
     base_dir: str
+    cloud_baseline: dict | None = None
+
+    def _replay_local(self) -> None:
+        if not self.es.store:
+            return
+
+        active_events = []
+        try:
+            active_events = self.es.store.active()
+        except Exception:
+            active_events = []
+
+        events = active_events
+        baseline = self.cloud_baseline
+        if baseline is not None:
+            ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            snapshot_event = SnapshotEvent(
+                kind="snapshot", actor="api", ts=ts, data=baseline
+            )
+            events = [snapshot_event] + active_events
+
+        try:
+            self.es.graph = self.es.rebuild(events)
+        except Exception:
+            pass
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -194,6 +220,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             pass
 
         self.es.graph = graph
+        self.cloud_baseline = graph.to_data()
 
         try:
             head = len(cloud.load_events())
@@ -258,6 +285,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+        self.cloud_baseline = snapshot
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
     def _cloud_head_version(self) -> int:
@@ -286,6 +314,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _apply_loaded_draft(self, snapshot: dict, events: list, meta: dict) -> None:
         self.es.graph = ReliabilityGraph.from_data(snapshot or {})
+        self.cloud_baseline = self.es.graph.to_data()
         if not self.es.store:
             self.es.set_store(EventStore(self.local))
 
@@ -489,6 +518,22 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
+        if path == "/graph/undo":
+            if self.es.store and self.es.store.undo():
+                self._replay_local()
+                self._send_json(200, {"status": "ok"})
+                return
+            self._send_json(200, {"status": "noop"})
+            return
+
+        if path == "/graph/redo":
+            if self.es.store and self.es.store.redo():
+                self._replay_local()
+                self._send_json(200, {"status": "ok"})
+                return
+            self._send_json(200, {"status": "noop"})
+            return
+
         if path == "/graph/organization":
             payload = self._read_json_body()
             self._handle_organization_insert(payload)
@@ -669,6 +714,7 @@ def main() -> None:
     GraphRequestHandler.local = local
     GraphRequestHandler.cloud = cloud
     GraphRequestHandler.base_dir = base_dir
+    GraphRequestHandler.cloud_baseline = es.graph.to_data()
 
     server = None
     try:
