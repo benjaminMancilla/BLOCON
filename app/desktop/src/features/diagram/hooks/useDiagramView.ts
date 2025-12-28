@@ -6,6 +6,12 @@ import {
   saveDiagramView,
 } from "../../../services/diagramViewService";
 
+export type DiagramViewStateController = {
+  collapsedGateIdSet: Set<string>;
+  collapseGate: (gateId: string) => void;
+  expandGate: (gateId: string) => void;
+};
+
 const filterExistingGateIds = (graph: GraphData, ids: string[]): string[] => {
   const gateIds = new Set(
     graph.nodes.filter((node) => node.type === "gate").map((node) => node.id)
@@ -26,7 +32,7 @@ const normalizeCollapsedIds = (ids: string[]): string[] => {
   return normalized;
 };
 
-export const useDiagramView = (graph: GraphData) => {
+export const useDiagramView = (graph: GraphData): DiagramViewStateController => {
   const [collapsedGateIds, setCollapsedGateIds] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const hasHydratedRef = useRef(false);
@@ -110,7 +116,6 @@ export const useDiagramView = (graph: GraphData) => {
   }, []);
 
   return {
-    collapsedGateIds,
     collapsedGateIdSet,
     collapseGate,
     expandGate,

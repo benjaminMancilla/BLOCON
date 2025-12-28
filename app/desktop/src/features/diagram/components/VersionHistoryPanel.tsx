@@ -35,6 +35,10 @@ type VersionHistoryPanelProps = {
   onNext: () => void;
   onPrevious: () => void;
   onClose: () => void;
+  onEventMenuOpen?: (
+    event: EventHistoryItem,
+    options: { version: number; position: { x: number; y: number } },
+  ) => void;
 };
 
 export const VersionHistoryPanel = ({
@@ -52,7 +56,16 @@ export const VersionHistoryPanel = ({
   onNext,
   onPrevious,
   onClose,
+  onEventMenuOpen,
 }: VersionHistoryPanelProps) => {
+  const handleEventMenuOpen = (
+    event: EventHistoryItem,
+    version: number,
+    position: { x: number; y: number },
+  ) => {
+    onEventMenuOpen?.(event, { version, position });
+  };
+
   return (
     <DiagramSidePanel className="diagram-side-panel--version-history">
       <section className="version-history-panel">
@@ -129,21 +142,40 @@ export const VersionHistoryPanel = ({
                   const kind = formatEventKind(event.kind);
                   const timestamp = formatTimestamp(event.ts);
                   return (
-                    <li key={`${version}-${index}`} className="version-history-panel__item">
-                      <span className="version-history-panel__item-version">
-                        v{version}
-                      </span>
-                      <span className="version-history-panel__item-kind">
-                        {kind}
-                      </span>
-                      <span className="version-history-panel__item-ts">
-                        <span>{timestamp.date}</span>
-                        {timestamp.time ? (
-                          <span className="version-history-panel__item-time">
-                            {timestamp.time}
-                          </span>
-                        ) : null}
-                      </span>
+                    <li key={`${version}-${index}`}>
+                      <button
+                        type="button"
+                        className="version-history-panel__item"
+                        onClick={(eventItem) => {
+                          handleEventMenuOpen(event, version, {
+                            x: eventItem.clientX,
+                            y: eventItem.clientY,
+                          });
+                        }}
+                        onContextMenu={(eventItem) => {
+                          eventItem.preventDefault();
+                          handleEventMenuOpen(event, version, {
+                            x: eventItem.clientX,
+                            y: eventItem.clientY,
+                          });
+                        }}
+                        aria-haspopup="menu"
+                      >
+                        <span className="version-history-panel__item-version">
+                          v{version}
+                        </span>
+                        <span className="version-history-panel__item-kind">
+                          {kind}
+                        </span>
+                        <span className="version-history-panel__item-ts">
+                          <span>{timestamp.date}</span>
+                          {timestamp.time ? (
+                            <span className="version-history-panel__item-time">
+                              {timestamp.time}
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
                     </li>
                   );
                 })}

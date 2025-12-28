@@ -5,6 +5,7 @@ export type EventHistoryItem = {
   version?: number;
   kind?: string;
   ts?: string;
+  payload?: unknown;
   [key: string]: unknown;
 };
 

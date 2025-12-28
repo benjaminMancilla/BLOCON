@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
-import { useDiagramView } from "../hooks/useDiagramView";
+import type { DiagramViewStateController } from "../hooks/useDiagramView";
 import type { DiagramNodeSelection } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { OrganizationUiState } from "../types/organization";
@@ -25,6 +25,7 @@ type DiagramCanvasProps = {
   isSelectionMode?: boolean;
   isOrganizationMode?: boolean;
   isDeleteMode?: boolean;
+  viewState: DiagramViewStateController;
   graph: GraphData;
   status: DiagramStatus;
   errorMessage?: string | null;
@@ -67,6 +68,7 @@ export const DiagramCanvas = ({
   isSelectionMode = false,
   isOrganizationMode = false,
   isDeleteMode = false,
+  viewState,
   graph,
   status,
   errorMessage = null,
@@ -99,7 +101,7 @@ export const DiagramCanvas = ({
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
-  const { collapsedGateIdSet, collapseGate, expandGate } = useDiagramView(graph);
+  const { collapsedGateIdSet, collapseGate, expandGate } = viewState;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
 
   const handleCollapseGate = useCallback(

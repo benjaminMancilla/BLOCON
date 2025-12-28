@@ -21,12 +21,15 @@ type DiagramTopBarProps = {
   isVersionHistoryOpen?: boolean;
   isVersionHistoryDisabled?: boolean;
   skipDeleteConfirmation?: boolean;
+  isViewerMode?: boolean;
+  viewerVersion?: number | null;
   onToggleAddMode?: () => void;
   onToggleDeleteMode?: () => void;
   onToggleVersionHistory?: () => void;
   onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
+  onExitViewer?: () => void;
   draftsMenu?: ReactNode;
   isDraftsDisabled?: boolean;
 };
@@ -52,12 +55,15 @@ export const DiagramTopBar = ({
   isVersionHistoryOpen = false,
   isVersionHistoryDisabled = false,
   skipDeleteConfirmation = false,
+  isViewerMode = false,
+  viewerVersion = null,
   onToggleAddMode,
   onToggleDeleteMode,
   onToggleVersionHistory,
   onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
+  onExitViewer,
   draftsMenu,
 }: DiagramTopBarProps) => {
   return (
@@ -70,8 +76,27 @@ export const DiagramTopBar = ({
         <p className="diagram-topbar__eyebrow">Diagrama</p>
         <h1 className="diagram-topbar__title">{title}</h1>
         <p className="diagram-topbar__subtitle">{subtitle}</p>
+        {isViewerMode ? (
+          <p className="diagram-topbar__viewer-label">
+            VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
+          </p>
+        ) : null}
       </div>
       <div className="diagram-topbar__actions">
+        {isViewerMode ? (
+          <div className="diagram-topbar__section diagram-topbar__section--viewer">
+            <p className="diagram-topbar__section-title">Visualizador</p>
+            <div className="diagram-topbar__section-buttons">
+              <button
+                type="button"
+                className="diagram-topbar__button diagram-topbar__button--ghost"
+                onClick={onExitViewer}
+              >
+                Salir / Volver
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="diagram-topbar__section">
           <p className="diagram-topbar__section-title">Cloud</p>
           <div className="diagram-topbar__section-buttons">

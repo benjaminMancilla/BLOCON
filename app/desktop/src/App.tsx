@@ -7,13 +7,18 @@ import { CloudToast } from "./features/diagram/components/CloudToast";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
+import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPanel";
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
+import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
+import { useDiagramView } from "./features/diagram/hooks/useDiagramView";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useDrafts } from "./features/diagram/hooks/useDrafts";
+import { useEventDetails } from "./features/diagram/hooks/useEventDetails";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
+import { useVersionViewer } from "./features/diagram/hooks/useVersionViewer";
 import { useVersionHistoryPanel } from "./features/diagram/hooks/useVersionHistoryPanel";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
 import type {
@@ -27,6 +32,7 @@ import type {
   OrganizationUiState,
 } from "./features/diagram/types/organization";
 import { insertOrganization } from "./services/graphService";
+import { rebuildGraphAtVersion } from "./services/versionViewerService";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
 type InsertHighlight = {
@@ -84,10 +90,24 @@ function App() {
     message: string;
     type: "success" | "error";
   } | null>(null);
+  const [rebuildToast, setRebuildToast] = useState<{
+    token: number;
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
+  const [rebuildDialog, setRebuildDialog] = useState<{
+    version: number;
+    step: 1 | 2;
+  } | null>(null);
+  const [isRebuildLoading, setIsRebuildLoading] = useState(false);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
   const versionHistoryPanel = useVersionHistoryPanel();
+  const eventDetails = useEventDetails();
+  const versionViewer = useVersionViewer();
+  const isViewerMode = versionViewer.isActive;
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
+  const diagramView = useDiagramView(graph);
   const existingNodeIds = useMemo(
     () => new Set(graph.nodes.map((node) => node.id)),
     [graph.nodes],
@@ -426,7 +446,11 @@ function App() {
   } = useDrafts();
 
   const deleteMode = useDeleteMode({
-    isBlocked: isAddMode || isOrganizationMode || cloudActionInFlight !== null,
+    isBlocked:
+      isAddMode ||
+      isOrganizationMode ||
+      cloudActionInFlight !== null ||
+      isViewerMode,
     onDeleteSuccess: (selection) => {
       const isGate =
         selection.type === "gate" || selection.type === "collapsedGate";
@@ -458,6 +482,21 @@ function App() {
   }, [deleteMode.isDeleteMode, isAddMode]);
 
   useEffect(() => {
+    if (!isViewerMode) return;
+    if (isAddMode) {
+      setIsAddMode(false);
+    }
+    if (deleteMode.isDeleteMode) {
+      deleteMode.onSelectionCancel();
+    }
+  }, [
+    deleteMode.isDeleteMode,
+    deleteMode.onSelectionCancel,
+    isAddMode,
+    isViewerMode,
+  ]);
+
+  useEffect(() => {
     if (insertToastToken === null) return;
     const timeout = window.setTimeout(() => {
       setInsertToastToken(null);
@@ -481,6 +520,14 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [draftToast?.token]);
 
+  useEffect(() => {
+    if (!rebuildToast) return;
+    const timeout = window.setTimeout(() => {
+      setRebuildToast(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [rebuildToast?.token]);
+
   const isCloudBusy = cloudActionInFlight !== null;
   const isDraftBusy = draftActionInFlight !== null || isCloudBusy;
   const isVersionHistoryDisabled =
@@ -497,9 +544,10 @@ function App() {
   const cloudLoadState = {
     isBusy: cloudActionInFlight === "load",
     label: cloudActionInFlight === "load" ? "Cargando..." : "Cargar",
-    disabled: isAddMode || isCloudBusy,
+    disabled: isAddMode || isCloudBusy || isViewerMode,
   };
-  const isDeleteDisabled = isAddMode || isOrganizationMode || isCloudBusy;
+  const isDeleteDisabled =
+    isAddMode || isOrganizationMode || isCloudBusy || isViewerMode;
 
   useUndoRedo({
     isBlocked:
@@ -507,11 +555,12 @@ function App() {
       deleteMode.isDeleteMode ||
       isSelectionMode ||
       isOrganizationMode ||
-      isAddMode,
+      isAddMode ||
+      isViewerMode,
     onCompleted: () => setGraphReloadToken((current) => current + 1),
   });
 
-    const handleDraftCreate = useCallback(
+  const handleDraftCreate = useCallback(
     async (name?: string) => {
       try {
         await createDraft(name);
@@ -627,26 +676,88 @@ function App() {
     [loadDraft],
   );
 
+  const handleRebuildRequest = useCallback((version: number) => {
+    setRebuildDialog({ version, step: 1 });
+  }, []);
+
+  const handleRebuildCancel = useCallback(() => {
+    if (isRebuildLoading) return;
+    setRebuildDialog(null);
+  }, [isRebuildLoading]);
+
+  const handleRebuildConfirm = useCallback(async () => {
+    if (!rebuildDialog) return;
+    if (rebuildDialog.step === 1) {
+      setRebuildDialog((current) =>
+        current ? { ...current, step: 2 } : current,
+      );
+      return;
+    }
+    setIsRebuildLoading(true);
+    try {
+      await rebuildGraphAtVersion(rebuildDialog.version);
+      setGraphReloadToken((current) => current + 1);
+      versionViewer.exitViewer();
+      versionHistoryPanel.close();
+      eventDetails.close();
+      setRebuildToast({
+        token: Date.now(),
+        message: `Rebuild completado en v${rebuildDialog.version}.`,
+        type: "success",
+      });
+    } catch (error) {
+      setRebuildToast({
+        token: Date.now(),
+        message: "No se pudo completar el rebuild.",
+        type: "error",
+      });
+    } finally {
+      setIsRebuildLoading(false);
+      setRebuildDialog(null);
+    }
+  }, [
+    eventDetails,
+    rebuildDialog,
+    versionHistoryPanel,
+    versionViewer,
+  ]);
+
+  const activeGraph = isViewerMode ? versionViewer.graph : graph;
+  const activeStatus = isViewerMode ? versionViewer.status : status;
+  const activeErrorMessage = isViewerMode
+    ? versionViewer.errorMessage
+    : errorMessage;
+  const activeViewState = isViewerMode ? versionViewer.viewState : diagramView;
+  const isSelectionModeActive = !isViewerMode && isSelectionMode;
+  const isOrganizationModeActive = !isViewerMode && isOrganizationMode;
+  const isDeleteModeActive = !isViewerMode && deleteMode.isDeleteMode;
+
   return (
     <div className="app">
       <DiagramTopBar
         isAddMode={isAddMode}
         isBlocked={
-          isAddMode || deleteMode.isDeleteMode || versionHistoryPanel.isOpen
+          isAddMode ||
+          deleteMode.isDeleteMode ||
+          versionHistoryPanel.isOpen ||
+          isViewerMode
         }
         isAddDisabled={
           isSelectionMode ||
           isOrganizationMode ||
           isCloudBusy ||
           deleteMode.isDeleteMode ||
-          versionHistoryPanel.isOpen
+          versionHistoryPanel.isOpen ||
+          isViewerMode
         }
-        isDeleteMode={deleteMode.isDeleteMode}
+        isDeleteMode={isDeleteModeActive}
         isDeleteDisabled={isDeleteDisabled || versionHistoryPanel.isOpen}
         isVersionHistoryOpen={versionHistoryPanel.isOpen}
         isVersionHistoryDisabled={
           isVersionHistoryDisabled && !versionHistoryPanel.isOpen
         }
+        isViewerMode={isViewerMode}
+        viewerVersion={versionViewer.version}
         skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
         cloudSaveState={{
           ...cloudSaveState,
@@ -662,7 +773,9 @@ function App() {
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={requestSave}
         onCloudLoad={requestLoad}
+        onExitViewer={versionViewer.exitViewer}
         draftsMenu={
+          isViewerMode ? null : (
           <DraftsMenu
             drafts={drafts}
             isLoading={draftsLoading}
@@ -681,16 +794,26 @@ function App() {
             onRenameDraft={handleDraftRename}
             onDeleteDraft={handleDraftDelete}
           />
+          )
         }
       />
       <div className="diagram-workspace">
+        <EventDetailsPanel
+          isOpen={eventDetails.isOpen}
+          dependency={versionHistoryPanel.isOpen}
+          event={eventDetails.event}
+          version={eventDetails.version}
+          payloadText={eventDetails.payloadText}
+          onClose={eventDetails.close}
+        />
         <DiagramCanvas
-          isSelectionMode={isSelectionMode}
-          isOrganizationMode={isOrganizationMode}
-          isDeleteMode={deleteMode.isDeleteMode}
-          graph={graph}
-          status={status}
-          errorMessage={errorMessage}
+          isSelectionMode={isSelectionModeActive}
+          isOrganizationMode={isOrganizationModeActive}
+          isDeleteMode={isDeleteModeActive}
+          viewState={activeViewState}
+          graph={activeGraph}
+          status={activeStatus}
+          errorMessage={activeErrorMessage}
           organizationSelection={confirmedSelection}
           organizationGateType={selectedGateType}
           organizationComponentId={formState.componentId}
@@ -717,7 +840,7 @@ function App() {
           onOrganizationCancel={handleOrganizationCancel}
         />
         <DeleteActionButton
-          isVisible={deleteMode.isDeleteMode}
+          isVisible={isDeleteModeActive}
           isDisabled={!deleteMode.selectedSelection || deleteMode.isDeleting}
           onClick={deleteMode.requestDelete}
         />
@@ -750,6 +873,9 @@ function App() {
         <VersionHistoryPanelContainer
           isOpen={versionHistoryPanel.isOpen}
           onClose={versionHistoryPanel.close}
+          onViewDetails={eventDetails.open}
+          onShowVersion={versionViewer.enterVersion}
+          onRebuild={handleRebuildRequest}
         />
       </div>
       {cloudDialogAction ? (
@@ -783,6 +909,14 @@ function App() {
           className="diagram-draft-toast"
         />
       ) : null}
+      {rebuildToast ? (
+        <CloudToast
+          key={rebuildToast.token}
+          message={rebuildToast.message}
+          type={rebuildToast.type}
+          className="diagram-rebuild-toast"
+        />
+      ) : null}
       {deleteToast ? (
         <CloudToast
           key={deleteToast.token}
@@ -800,6 +934,15 @@ function App() {
         >
           Componente agregado correctamente
         </div>
+      ) : null}
+      {rebuildDialog ? (
+        <RebuildConfirmDialog
+          version={rebuildDialog.version}
+          step={rebuildDialog.step}
+          isLoading={isRebuildLoading}
+          onCancel={handleRebuildCancel}
+          onConfirm={handleRebuildConfirm}
+        />
       ) : null}
     </div>
   );
