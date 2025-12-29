@@ -86,6 +86,31 @@ class GraphES:
         active = [i for i, v in enumerate(versions) if v not in ignored_versions]
         return active
 
+    @staticmethod
+    def _normalize_children_order(
+        children_order: list[str] | None,
+        current_children: list[str],
+    ) -> list[str] | None:
+        if children_order is None or not isinstance(children_order, list):
+            return None
+
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for child_id in children_order:
+            if child_id in current_children and child_id not in seen:
+                ordered.append(child_id)
+                seen.add(child_id)
+
+        for child_id in current_children:
+            if child_id not in seen:
+                ordered.append(child_id)
+                seen.add(child_id)
+
+        if len(ordered) != len(current_children):
+            return None
+
+        return ordered
+
     # ---------- Mutadores + registro de eventos (sin params, sólo kind) ----------
 
     def add_root_component(self, new_id: str, dist: Dist, unit_type: str | None = None) -> None:
@@ -282,12 +307,18 @@ class GraphES:
                     position_reference_id=effective_position_reference_id,
                 )
                 if children_order is not None:
-                    gate_id = g.parent.get(ev.new_comp_id)
-                    if gate_id is None:
-                        raise ValueError("Inserted component has no parent gate for reorder")
-                    if not g.nodes[gate_id].is_gate():
-                        raise ValueError(f"Parent '{gate_id}' is not a gate")
-                    g.reorder_children(gate_id, children_order)
+                    gate_id = None
+                    if ev.target_id in g.nodes and g.nodes[ev.target_id].is_gate():
+                        gate_id = ev.target_id
+                    else:
+                        gate_id = g.parent.get(ev.new_comp_id)
+                    if gate_id is not None and gate_id in g.nodes and g.nodes[gate_id].is_gate():
+                        normalized_order = GraphES._normalize_children_order(
+                            children_order,
+                            g.children.get(gate_id, []),
+                        )
+                        if normalized_order is not None:
+                            g.reorder_children(gate_id, normalized_order)
             elif isinstance(ev, RemoveNodeEvent):
                 try:
                     g.remove_node(ev.node_id)

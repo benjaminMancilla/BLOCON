@@ -268,6 +268,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             graph = GraphES.rebuild(events_upto)
             self._send_json(200, serialize_graph(graph))
         except Exception as exc:
+            print(str(exc))
             self._send_json(500, {"error": str(exc)})
 
     def _handle_event_version_rebuild(self, version: int) -> None:
@@ -674,7 +675,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self._send_json(400, {"error": "invalid version"})
                 return
-            self._handle_event_version_graph(version)
+            print("hola")            
+            try:
+                self._handle_event_version_graph(version)
+            except ValueError as exc:
+                print(str(exc))
+                self._send_json(500, {"error": str(exc)})
             return
 
         if path == "/event-history":
