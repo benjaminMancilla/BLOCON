@@ -102,7 +102,9 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
     cloud_baseline: dict | None = None
 
     def _replay_local(self) -> None:
+        """Reconstruye el grafo desde baseline + eventos activos."""
         if not self.es.store:
+            print("ERROR NO STORE IN REPLAY LOCAL")
             return
 
         active_events = []
@@ -113,6 +115,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         events = active_events
         baseline = self.cloud_baseline
+        print("BASE DEL REPLAY")
+        print(len(baseline["nodes"]))
         if baseline is not None:
             ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             snapshot_event = SnapshotEvent(
@@ -122,6 +126,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         try:
             self.es.graph = self.es.rebuild(events)
+            print("GRAFO DESPUES DE REPLAY LOCAL")
+            print(self.es.graph.count_components())
         except Exception:
             pass
 
@@ -210,6 +216,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 local.upsert_components_cache(items_to_cache)
 
         snap = cloud.load_snapshot() or {}
+        print("SNAP DE CLOUD LOAD")
+        print(len(snap["nodes"]))
         graph = ReliabilityGraph.from_data(snap)
         if local:
             graph.failures_cache = local.failures_cache
@@ -224,8 +232,20 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+        print("GRAFO ANTES DEL REFRESH")
+        print(self.es.graph.count_components())
         self.es.graph = graph
+        print("GRAFO LUEGO DEL REFRESH")
+        print(self.es.graph.count_components())
         self.cloud_baseline = graph.to_data()
+        print("BASE LUEGO DEL REFRESH")
+        print(len(self.cloud_baseline["nodes"]))
+
+        try:
+            if local:
+                local.save_snapshot(snap)
+        except Exception:
+            pass
 
         try:
             head = len(cloud.load_events())
@@ -296,7 +316,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 ignore_dict["version"] = head_prev + 2
                 to_append.append(ignore_dict)
 
-            self.cloud.append_events(to_append)
+            # ACA SUBIR ATOMICO
+            try:
+                self.cloud.append_events(to_append)
+            except Exception:
+                pass
 
             try:
                 self.cloud.save_snapshot(graph.to_data())
@@ -309,6 +333,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 pass
 
             self._refresh_cloud_state()
+            print("GRAFO DESPUES DEL REBUILD")
+            print(self.es.graph.count_components())
 
             self._send_json(
                 200,
@@ -674,8 +700,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 version = int(version_value)
             except ValueError:
                 self._send_json(400, {"error": "invalid version"})
-                return
-            print("hola")            
+                return         
             try:
                 self._handle_event_version_graph(version)
             except ValueError as exc:
@@ -694,6 +719,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/graph":
+            print("GRAFO DEL GET")
+            print(self.es.graph.count_components())
             self._send_json(200, serialize_graph(self.es.graph))
             return
 

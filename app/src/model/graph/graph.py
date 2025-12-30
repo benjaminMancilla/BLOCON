@@ -47,6 +47,15 @@ class ReliabilityGraph:
 
     # PUBLIC API - Core graph operations
 
+    def count_components(self) -> int:
+        """
+        Count the number of component nodes (leaves) in the graph.
+        
+        Returns:
+            Number of component nodes
+        """
+        return sum(1 for node in self.nodes.values() if node.is_component())
+
     def clear(self) -> None:
         """Clear all nodes, edges, and reset the graph"""
         self.nodes.clear()

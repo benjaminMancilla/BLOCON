@@ -31,7 +31,7 @@ import type {
   OrganizationPayload,
   OrganizationUiState,
 } from "./features/diagram/types/organization";
-import { insertOrganization } from "./services/graphService";
+import { insertOrganization, loadCloudGraph } from "./services/graphService";
 import { rebuildGraphAtVersion } from "./services/versionViewerService";
 
 type AddComponentStep = "selection" | "gateType" | "organization";
@@ -556,7 +556,9 @@ function App() {
       isSelectionMode ||
       isOrganizationMode ||
       isAddMode ||
-      isViewerMode,
+      isViewerMode ||
+      isRebuildLoading ||
+      rebuildDialog !== null,
     onCompleted: () => setGraphReloadToken((current) => current + 1),
   });
 
@@ -696,6 +698,7 @@ function App() {
     setIsRebuildLoading(true);
     try {
       await rebuildGraphAtVersion(rebuildDialog.version);
+      await loadCloudGraph();
       setGraphReloadToken((current) => current + 1);
       versionViewer.exitViewer();
       versionHistoryPanel.close();

@@ -10,12 +10,10 @@ if (true) {
     const url = typeof input === "string" ? input : (input as Request).url;
     const method = init?.method ?? "GET";
 
-    if (url.includes("/diagram-view") || url.includes("/graph/organization")) {
-      console.log("[FETCH TRACE]", method, url, {
+    console.log("[HTTP TRACE]", method, url, {
         insertCount: (window as any).__insertInProgressCount ?? 0,
       });
-      console.log(new Error("fetch trace").stack);
-    }
+      console.trace();
 
     return origFetch(input as any, init);
   };
