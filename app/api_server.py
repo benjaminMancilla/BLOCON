@@ -26,7 +26,7 @@ from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
-from src.services.remote.cloud import CloudClient
+from src.services.remote.client import CloudClient
 from src.services.remote.errors import normalize_cloud_error
 
 HOST = "127.0.0.1"

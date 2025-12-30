@@ -19,7 +19,7 @@ from ..model.graph.graph import ReliabilityGraph
 from ..model.graph.dist import Dist
 from ..model.eventsourcing.events import SnapshotEvent 
 from ..model.eventsourcing.service import GraphES
-from ..services.remote.cloud import CloudClient
+from ..services.remote.client import CloudClient
 from ..services.cache.event_store import EventStore
 
 from ..model.eventsourcing.events import event_from_dict

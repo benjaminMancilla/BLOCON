@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Optional, Any
 
-from ...services.remote.cloud import CloudClient
+from ...services.remote.client import CloudClient
 from ...model.eventsourcing.events import event_from_dict, SnapshotEvent, SetIgnoreRangeEvent
 
 from .event_details import EventDetailsDialog
