@@ -114,7 +114,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             active_events = []
 
         events = active_events
-        baseline = self.cloud_baseline
+        baseline = GraphRequestHandler.cloud_baseline
         print("BASE DEL REPLAY")
         print(len(baseline["nodes"]))
         if baseline is not None:
@@ -237,9 +237,9 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         self.es.graph = graph
         print("GRAFO LUEGO DEL REFRESH")
         print(self.es.graph.count_components())
-        self.cloud_baseline = graph.to_data()
+        GraphRequestHandler.cloud_baseline = graph.to_data()
         print("BASE LUEGO DEL REFRESH")
-        print(len(self.cloud_baseline["nodes"]))
+        print(len(GraphRequestHandler.cloud_baseline["nodes"]))
 
         try:
             if local:
@@ -401,7 +401,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        self.cloud_baseline = snapshot
+        GraphRequestHandler.cloud_baseline = snapshot
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
     def _handle_event_history(self, params: dict[str, list[str]]) -> None:
@@ -531,7 +531,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _apply_loaded_draft(self, snapshot: dict, events: list, meta: dict) -> None:
         self.es.graph = ReliabilityGraph.from_data(snapshot or {})
-        self.cloud_baseline = self.es.graph.to_data()
+        GraphRequestHandler.cloud_baseline = self.es.graph.to_data()
         if not self.es.store:
             self.es.set_store(EventStore(self.local))
 
