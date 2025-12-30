@@ -47,6 +47,15 @@ class ReliabilityGraph:
 
     # PUBLIC API - Core graph operations
 
+    def count_components(self) -> int:
+        """
+        Count the number of component nodes (leaves) in the graph.
+        
+        Returns:
+            Number of component nodes
+        """
+        return sum(1 for node in self.nodes.values() if node.is_component())
+
     def clear(self) -> None:
         """Clear all nodes, edges, and reset the graph"""
         self.nodes.clear()
@@ -101,8 +110,7 @@ class ReliabilityGraph:
         """
         Remove a node from the graph.
         
-        For gates with >1 child, raises an error (ambiguous).
-        For gates with 1 child, adopts the child.
+        For gates, removes the entire subgraph.
         For components, simply removes the node.
         
         Args:
@@ -110,7 +118,7 @@ class ReliabilityGraph:
             
         Raises:
             KeyError: If node doesn't exist
-            ValueError: If gate has >1 child
+            ValueError: If node removal is invalid
         """
         if node_id not in self.nodes:
             raise KeyError(f"Unknown node '{node_id}'")
@@ -235,7 +243,11 @@ class ReliabilityGraph:
         
         # Determine required gate type
         want_gate: GateType = self._relation_to_gate_type(relation)
-        target_parent = self.parent[target_id]
+        target_parent = self.parent.get(target_id)
+        if target_parent is None and target_id != self.root:
+            target_parent = self._infer_parent_from_children(target_id)
+            if target_parent is not None:
+                self.parent[target_id] = target_parent
         
         # KOON-specific handling
         if relation == "koon":
@@ -265,8 +277,9 @@ class ReliabilityGraph:
         
         # Case 1: Parent is already the desired gate type
         if target_parent is not None and self._is_gate(target_parent, want_gate):
+            gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
             self._insert_child_with_position(
-                target_parent,
+                gate_id,
                 new_comp_id,
                 default_after_child=target_id,
                 position_index=position_index,
@@ -299,7 +312,7 @@ class ReliabilityGraph:
         )
 
         if self.auto_normalize:
-                self.normalize()
+            self.normalize()
 
     def add_component_to_gate(
         self,
@@ -446,31 +459,36 @@ class ReliabilityGraph:
     # PRIVATE HELPERS - Node manipulation
 
     def _remove_gate(self, node_id: str) -> None:
-        """Remove a gate node, handling child adoption"""
-        chs = list(self.children[node_id])
-        
-        if len(chs) > 1:
-            raise ValueError(
-                "Cannot remove a gate with >1 child (ambiguous). "
-                "Remove/rewire children first or leave only 1 child to collapse."
-            )
-        
-        adopt_child = chs[0] if len(chs) == 1 else None
-        p = self.parent[node_id]
-        
-        if p is None:
-            # Removing root gate
-            if adopt_child is not None:
-                self.parent[adopt_child] = None
-                self.root = adopt_child
-            else:
-                self.root = None
-        else:
-            # Gate has parent: replace in parent's children
-            self._replace_child(p, node_id, adopt_child)
-        
-        self.children[node_id] = []
-        self._delete_node(node_id)
+        """Remove a gate node and its subgraph."""
+        to_delete: set[str] = set()
+        stack = [node_id]
+
+        while stack:
+            current = stack.pop()
+            if current in to_delete:
+                continue
+            to_delete.add(current)
+            stack.extend(self.children.get(current, []))
+
+        for parent_id, child_list in list(self.children.items()):
+            if not child_list:
+                continue
+            self.children[parent_id] = [
+                child for child in child_list if child not in to_delete
+            ]
+
+        if self.root in to_delete:
+            self.root = None
+
+        for gid in to_delete:
+            for child in self.children.get(gid, []):
+                if self.parent.get(child) == gid:
+                    self.parent[child] = None
+
+        for gid in to_delete:
+            self.children.pop(gid, None)
+            self.parent.pop(gid, None)
+            self.nodes.pop(gid, None)
 
     def _remove_component(self, node_id: str) -> None:
         """Remove a component node"""
@@ -730,6 +748,13 @@ class ReliabilityGraph:
         self.add_edge(gate_id, target_id)
         return gate_id
 
+    def _infer_parent_from_children(self, child_id: str) -> Optional[str]:
+        """Fallback lookup for parent when parent map is missing."""
+        for parent_id, children in self.children.items():
+            if child_id in children:
+                return parent_id
+        return None
+    
     def _handle_koon_insertion(
         self,
         target_id: str,

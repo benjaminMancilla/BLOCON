@@ -6,6 +6,13 @@ import {
   saveDiagramView,
 } from "../../../services/diagramViewService";
 
+export type DiagramViewStateController = {
+  collapsedGateIdSet: Set<string>;
+  collapseGate: (gateId: string) => void;
+  expandGate: (gateId: string) => void;
+  refresh: () => Promise<void>;
+};
+
 const filterExistingGateIds = (graph: GraphData, ids: string[]): string[] => {
   const gateIds = new Set(
     graph.nodes.filter((node) => node.type === "gate").map((node) => node.id)
@@ -26,33 +33,46 @@ const normalizeCollapsedIds = (ids: string[]): string[] => {
   return normalized;
 };
 
-export const useDiagramView = (graph: GraphData) => {
+export const useDiagramView = (graph: GraphData): DiagramViewStateController => {
   const [collapsedGateIds, setCollapsedGateIds] = useState<string[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
   const hasHydratedRef = useRef(false);
   const hasUserInteractionRef = useRef(false);
+  const hasPendingSaveRef = useRef(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchDiagramView();
+      hasHydratedRef.current = true;
+      setCollapsedGateIds(normalizeCollapsedIds(data.collapsedGateIds ?? []));
+    } catch (error) {
+      setCollapsedGateIds([]);
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
-    fetchDiagramView()
-      .then((data: DiagramViewState) => {
+    const load = async () => {
+      try {
+        const data = await fetchDiagramView();
         if (!active) {
           return;
         }
         hasHydratedRef.current = true;
         setCollapsedGateIds(normalizeCollapsedIds(data.collapsedGateIds ?? []));
-      })
-      .catch(() => {
+      } catch (error) {
         if (!active) {
           return;
         }
         setCollapsedGateIds([]);
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setIsLoaded(true);
         }
-      });
+      }
+    };
+
+    void load();
 
     return () => {
       active = false;
@@ -68,6 +88,9 @@ export const useDiagramView = (graph: GraphData) => {
       reconciled.length !== collapsedGateIds.length ||
       reconciled.some((id, index) => id !== collapsedGateIds[index]);
     if (hasDiff) {
+      if (hasUserInteractionRef.current) {
+        hasPendingSaveRef.current = true;
+      }
       setCollapsedGateIds(reconciled);
     }
   }, [graph, collapsedGateIds]);
@@ -76,9 +99,13 @@ export const useDiagramView = (graph: GraphData) => {
     if (!isLoaded) {
       return;
     }
-    if (!hasHydratedRef.current && !hasUserInteractionRef.current) {
+    if (!hasHydratedRef.current) {
       return;
     }
+    if (!hasPendingSaveRef.current) {
+      return;
+    }
+    hasPendingSaveRef.current = false;
     void saveDiagramView({ collapsedGateIds });
   }, [collapsedGateIds, isLoaded]);
 
@@ -89,6 +116,7 @@ export const useDiagramView = (graph: GraphData) => {
 
   const collapseGate = useCallback((gateId: string) => {
     hasUserInteractionRef.current = true;
+    hasPendingSaveRef.current = true;
     setCollapsedGateIds((prev) =>
       prev.includes(gateId) ? prev : [...prev, gateId]
     );
@@ -96,13 +124,14 @@ export const useDiagramView = (graph: GraphData) => {
 
   const expandGate = useCallback((gateId: string) => {
     hasUserInteractionRef.current = true;
+    hasPendingSaveRef.current = true;
     setCollapsedGateIds((prev) => prev.filter((id) => id !== gateId));
   }, []);
 
   return {
-    collapsedGateIds,
     collapsedGateIdSet,
     collapseGate,
     expandGate,
+    refresh,
   };
 };

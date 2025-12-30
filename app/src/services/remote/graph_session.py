@@ -7,10 +7,14 @@ from typing import Any, Optional
 
 try:
     import requests
+    from requests import RequestException
 except Exception:
     requests = None  # type: ignore
+    class RequestException(Exception):
+        pass
 
 from .settings import SPSettings
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 
 @dataclass
@@ -24,6 +28,29 @@ class GraphError(RuntimeError):
         if len(tail) > 500:
             tail = tail[:500] + "..."
         return f"Graph request failed: {self.status_code} {self.url} {tail}"
+
+
+def _is_retryable_graph_error(exc: Exception) -> bool:
+    if isinstance(exc, GraphError):
+        if exc.status_code in (408, 429):
+            return True
+        if exc.status_code >= 500:
+            return True
+        return False
+    if isinstance(exc, RequestException):
+        return True
+    if isinstance(exc, TimeoutError):
+        return True
+    return False
+
+
+def _sharepoint_retry():
+    return retry(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1, min=1, max=30),
+        retry=retry_if_exception(_is_retryable_graph_error),
+        reraise=True,
+    )
 
 
 class GraphSession:
@@ -86,6 +113,7 @@ class GraphSession:
             return url_or_path
         return f"{self.s.graph_base}/{url_or_path.lstrip('/')}"
 
+    @_sharepoint_retry() 
     def request_json(self, method: str, url_or_path: str, *, params: dict | None = None, json_body: Any | None = None, headers: dict | None = None) -> dict:
         url = self._abs_url(url_or_path)
         r = self._http.request(
@@ -129,6 +157,7 @@ class GraphSession:
     def patch_json(self, url_or_path: str, payload: dict) -> dict:
         return self.request_json("PATCH", url_or_path, json_body=payload)
 
+    @_sharepoint_retry()
     def put_bytes(self, url_or_path: str, content: bytes, *, content_type: str = "application/octet-stream") -> dict:
         url = self._abs_url(url_or_path)
         r = self._http.put(

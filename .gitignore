@@ -12,6 +12,8 @@ wheels/
 
 # Ignore .env files
 .env
+*.env
+!.env.example
 
 # Ignore log files
 *.log
@@ -55,6 +57,7 @@ src-tauri/tauri.dev.conf.json
 # src-tauri
 bin/
 target/
+temp_dist/
 
 # Cargo lock
 Cargo.lock

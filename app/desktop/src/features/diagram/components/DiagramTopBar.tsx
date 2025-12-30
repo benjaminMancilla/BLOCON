@@ -1,25 +1,71 @@
+import type { ReactNode } from "react";
+
 type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
   isAddMode?: boolean;
-  isSelectionMode?: boolean;
-  isOrganizationMode?: boolean;
+  isBlocked?: boolean;
+  isAddDisabled?: boolean;
+  cloudSaveState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
+  cloudLoadState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
+  isDeleteMode?: boolean;
+  isDeleteDisabled?: boolean;
+  isVersionHistoryOpen?: boolean;
+  isVersionHistoryDisabled?: boolean;
+  skipDeleteConfirmation?: boolean;
+  isViewerMode?: boolean;
+  viewerVersion?: number | null;
   onToggleAddMode?: () => void;
+  onToggleDeleteMode?: () => void;
+  onToggleVersionHistory?: () => void;
+  onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
+  onExitViewer?: () => void;
+  draftsMenu?: ReactNode;
+  isDraftsDisabled?: boolean;
 };
 
 export const DiagramTopBar = ({
   title = "BLOCON",
   subtitle = "Lienzo base de diagrama",
   isAddMode = false,
-  isSelectionMode = false,
-  isOrganizationMode = false,
+  isBlocked = false,
+  isAddDisabled = false,
+  cloudSaveState = {
+    isBusy: false,
+    label: "Guardar",
+    disabled: false,
+  },
+  cloudLoadState = {
+    isBusy: false,
+    label: "Cargar",
+    disabled: false,
+  },
+  isDeleteMode = false,
+  isDeleteDisabled = false,
+  isVersionHistoryOpen = false,
+  isVersionHistoryDisabled = false,
+  skipDeleteConfirmation = false,
+  isViewerMode = false,
+  viewerVersion = null,
   onToggleAddMode,
+  onToggleDeleteMode,
+  onToggleVersionHistory,
+  onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
+  onExitViewer,
+  draftsMenu,
 }: DiagramTopBarProps) => {
-  const isBlocked = isSelectionMode || isOrganizationMode;
   return (
     <header
       className={`diagram-topbar${
@@ -30,8 +76,27 @@ export const DiagramTopBar = ({
         <p className="diagram-topbar__eyebrow">Diagrama</p>
         <h1 className="diagram-topbar__title">{title}</h1>
         <p className="diagram-topbar__subtitle">{subtitle}</p>
+        {isViewerMode ? (
+          <p className="diagram-topbar__viewer-label">
+            VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
+          </p>
+        ) : null}
       </div>
       <div className="diagram-topbar__actions">
+        {isViewerMode ? (
+          <div className="diagram-topbar__section diagram-topbar__section--viewer">
+            <p className="diagram-topbar__section-title">Visualizador</p>
+            <div className="diagram-topbar__section-buttons">
+              <button
+                type="button"
+                className="diagram-topbar__button diagram-topbar__button--ghost"
+                onClick={onExitViewer}
+              >
+                Salir / Volver
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="diagram-topbar__section">
           <p className="diagram-topbar__section-title">Cloud</p>
           <div className="diagram-topbar__section-buttons">
@@ -39,21 +104,36 @@ export const DiagramTopBar = ({
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudSave}
-              disabled={isBlocked}
+              disabled={cloudSaveState.disabled}
+              aria-busy={cloudSaveState.isBusy}
             >
-              Guardar
+              {cloudSaveState.isBusy ? (
+                <span className="diagram-topbar__spinner" aria-hidden="true" />
+              ) : null}
+              {cloudSaveState.label}
             </button>
             <button
               type="button"
               className="diagram-topbar__button"
               onClick={onCloudLoad}
-              disabled={isBlocked}
+              disabled={cloudLoadState.disabled}
+              aria-busy={cloudLoadState.isBusy}
             >
-              Cargar
+              {cloudLoadState.isBusy ? (
+                <span className="diagram-topbar__spinner" aria-hidden="true" />
+              ) : null}
+              {cloudLoadState.label}
             </button>
           </div>
         </div>
-        <div className="diagram-topbar__section diagram-topbar__section--inline">
+        {draftsMenu ? (
+          <div className="diagram-topbar__section diagram-topbar__section--inline">
+            <p className="diagram-topbar__section-title">Borradores</p>
+            <div className="diagram-topbar__section-buttons">{draftsMenu}</div>
+          </div>
+        ) : null}
+        <div className="diagram-topbar__section">
+          <p className="diagram-topbar__section-title">Edición</p>
           <div className="diagram-topbar__section-buttons">
             <button
               type="button"
@@ -62,9 +142,59 @@ export const DiagramTopBar = ({
               }`}
               onClick={onToggleAddMode}
               aria-pressed={isAddMode}
-              disabled={isBlocked}
+              disabled={isAddDisabled}
             >
               + Agregar
+            </button>
+            <button
+              type="button"
+              className={`diagram-topbar__button diagram-topbar__button--danger${
+                isDeleteMode ? " diagram-topbar__button--active" : ""
+              }`}
+              onClick={onToggleDeleteMode}
+              aria-pressed={isDeleteMode}
+              disabled={isDeleteDisabled}
+            >
+              Borrar
+            </button>
+            <label
+              className="diagram-topbar__delete-toggle"
+              title="Omitir confirmación al borrar (solo esta sesión)"
+            >
+              <input
+                type="checkbox"
+                checked={skipDeleteConfirmation}
+                onChange={(event) =>
+                  onSkipDeleteConfirmationChange?.(event.target.checked)
+                }
+                disabled={isDeleteDisabled}
+                aria-label="Omitir confirmación al borrar (solo esta sesión)"
+              />
+              <span
+                className="diagram-topbar__delete-toggle-icon"
+                aria-hidden="true"
+              >
+                ⚡
+              </span>
+              <span className="diagram-topbar__delete-toggle-text">
+                Sin confirm.
+              </span>
+            </label>
+          </div>
+        </div>
+        <div className="diagram-topbar__section">
+          <p className="diagram-topbar__section-title">Versiones</p>
+          <div className="diagram-topbar__section-buttons">
+            <button
+              type="button"
+              className={`diagram-topbar__button${
+                isVersionHistoryOpen ? " diagram-topbar__button--active" : ""
+              }`}
+              onClick={onToggleVersionHistory}
+              aria-pressed={isVersionHistoryOpen}
+              disabled={isVersionHistoryDisabled}
+            >
+              Historial
             </button>
           </div>
         </div>

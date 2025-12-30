@@ -1,4 +1,5 @@
 import { BACKEND_ENDPOINT } from "../graphService";
+import { fetchWithCloudErrorHandling } from "../apiClient";
 
 export type RemoteComponent = {
   id: string;
@@ -53,10 +54,9 @@ export async function searchRemoteComponents(
   url.searchParams.set("page", String(page));
   url.searchParams.set("page_size", String(pageSize));
 
-  const response = await fetch(url.toString(), { signal: options.signal });
-  if (!response.ok) {
-    throw new Error(`Remote search failed (${response.status})`);
-  }
+  const response = await fetchWithCloudErrorHandling(url.toString(), {
+    signal: options.signal,
+  });
   const data = (await response.json()) as unknown;
   return normalizeResponse(data);
 }

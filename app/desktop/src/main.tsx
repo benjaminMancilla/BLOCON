@@ -3,6 +3,22 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 
+if (true) {
+  const origFetch = window.fetch.bind(window);
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : (input as Request).url;
+    const method = init?.method ?? "GET";
+
+    console.log("[HTTP TRACE]", method, url, {
+        insertCount: (window as any).__insertInProgressCount ?? 0,
+      });
+      console.trace();
+
+    return origFetch(input as any, init);
+  };
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <App />

@@ -2,7 +2,7 @@ from .components import ComponentsCacheRepo
 from .failures import FailuresCacheRepo
 from .json import JsonRepo
 from .jsonl import JsonlRepo
-from .draft import DraftRepo
+from .draft import DraftRepo, DraftsRepo
 from .event_log import EventLogRepo
 from .event_store_jsonl import JsonlEventStore
 from .diagram_view import DiagramViewRepo
@@ -14,6 +14,7 @@ __all__ = [
     "JsonRepo",
     "JsonlRepo",
     "DraftRepo",
+    "DraftsRepo",
     "EventLogRepo",
     "EventStoreJsonlRepo",
     "DiagramViewRepo",

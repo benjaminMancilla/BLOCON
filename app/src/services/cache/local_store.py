@@ -11,6 +11,7 @@ from .repositories import (
     JsonRepo,
     JsonlRepo,
     DraftRepo,
+    DraftsRepo,
     DiagramViewRepo,
 )
 
@@ -58,6 +59,7 @@ class LocalWorkspaceStore:
         self.components_cache = ComponentsCacheRepo(data_dir=self.cache_dir)
         self.failures_cache = FailuresCacheRepo(data_dir=self.cache_dir)
         self.draft = DraftRepo(data_dir=self.data_dir)
+        self.drafts = DraftsRepo(data_dir=self.data_dir)
         self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
 
     # --- snapshot ---
@@ -153,6 +155,50 @@ class LocalWorkspaceStore:
     def draft_delete_if_conflict(self, cloud_head: int) -> bool:
         return self.draft.delete_if_conflict(int(cloud_head))
 
+   # --- drafts (multi) ---
+    def drafts_list(self) -> List[Dict[str, Any]]:
+        return self.drafts.list_drafts()
+
+    def drafts_create(
+        self,
+        *,
+        snapshot: Dict[str, Any],
+        events: List[dict],
+        base_version: int,
+        name: str | None = None,
+    ) -> Dict[str, Any]:
+        return self.drafts.create_draft(
+            snapshot=snapshot,
+            events=events,
+            base_version=int(base_version),
+            name=name,
+        )
+
+    def drafts_save(
+        self,
+        *,
+        draft_id: str,
+        snapshot: Dict[str, Any],
+        events: List[dict],
+        base_version: int,
+        name: str | None = None,
+    ) -> Dict[str, Any]:
+        return self.drafts.save_draft(
+            draft_id=draft_id,
+            snapshot=snapshot,
+            events=events,
+            base_version=int(base_version),
+            name=name,
+        )
+
+    def drafts_rename(self, *, draft_id: str, name: str) -> Dict[str, Any]:
+        return self.drafts.rename_draft(draft_id=draft_id, name=name)
+
+    def drafts_delete(self, *, draft_id: str) -> bool:
+        return self.drafts.delete_draft(draft_id=draft_id)
+
+    def drafts_load(self, *, draft_id: str, cloud_head: int) -> Dict[str, Any]:
+        return self.drafts.load_draft(draft_id=draft_id, cloud_head=int(cloud_head))
 
 # Alias por compat / naming
 LocalCloudStore = LocalWorkspaceStore

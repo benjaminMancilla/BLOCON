@@ -37,6 +37,7 @@ class InMemoryEventStore:
     def clear(self) -> None:
         self.events.clear()
         self.head = -1
+        self.base_version = None
 
     def replace(self, events: List[Event]) -> None:
         self.events = list(events or [])

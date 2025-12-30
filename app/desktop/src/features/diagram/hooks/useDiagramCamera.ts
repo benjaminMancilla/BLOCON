@@ -31,6 +31,7 @@ export const useDiagramCamera = (): UseDiagramCameraResult => {
     scale: 1,
   });
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const activePointerId = useRef<number | null>(null);
 
   const updateCamera = useCallback((next: Partial<CameraState>) => {
     setCamera((current) => ({ ...current, ...next }));
@@ -39,6 +40,8 @@ export const useDiagramCamera = (): UseDiagramCameraResult => {
   const onPointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.button !== 0) return;
+      event.preventDefault();
+      activePointerId.current = event.pointerId;
       event.currentTarget.setPointerCapture(event.pointerId);
       lastPoint.current = { x: event.clientX, y: event.clientY };
     },
@@ -47,29 +50,40 @@ export const useDiagramCamera = (): UseDiagramCameraResult => {
 
   const onPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (activePointerId.current !== event.pointerId) return;
       if (!lastPoint.current) return;
+      event.preventDefault();
       const deltaX = event.clientX - lastPoint.current.x;
       const deltaY = event.clientY - lastPoint.current.y;
 
       lastPoint.current = { x: event.clientX, y: event.clientY };
-      updateCamera({
-        x: camera.x + deltaX,
-        y: camera.y + deltaY,
-      });
+      setCamera((current) => ({
+        ...current,
+        x: current.x + deltaX,
+        y: current.y + deltaY,
+      }));
     },
-    [camera.x, camera.y, updateCamera]
+    []
   );
 
   const onPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerId.current !== event.pointerId) return;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     lastPoint.current = null;
+    activePointerId.current = null;
   }, []);
 
-  const onPointerLeave = useCallback(() => {
-    lastPoint.current = null;
-  }, []);
+  const onPointerLeave = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (activePointerId.current !== event.pointerId) return;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) return;
+      lastPoint.current = null;
+      activePointerId.current = null;
+    },
+    []
+  );
 
   const onWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
