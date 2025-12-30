@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 import time
 from contextlib import contextmanager
 from typing import Dict, Any, List, Tuple
@@ -14,6 +15,7 @@ from ...model.eventsourcing.events import SetIgnoreRangeEvent
 
 
 ISO = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+LOG = logging.getLogger(__name__)
 
 class CloudAtomicOperation:
     def __init__(self, cloud: "CloudClient", name: str):
@@ -27,6 +29,9 @@ class CloudAtomicOperation:
         self._expected_events = 0
         self._events_payload: list[dict] = []
         self._snapshot_payload: dict | None = None
+        self._coordination_id: str | None = None
+        self._committed = False
+        self._events_committed = False
 
     def head_version(self) -> int:
         return len(self._sp_events.load_events())
@@ -38,18 +43,118 @@ class CloudAtomicOperation:
         self._events_payload = [dict(ev) for ev in events]
         if self._head_before is None:
             self._head_before = self.head_version()
-        count = self._sp_events.append_events(events)
-        if count != len(events):
-            raise RuntimeError(
-                f"Partial event append ({count}/{len(events)}) during {self.name}"
-            )
-        return count
+        return len(events)
 
     def save_snapshot(self, snapshot: Dict[str, Any]) -> None:
         snapshot = dict(snapshot or {})
-        snapshot["saved_at"] = ISO()
         self._snapshot_payload = snapshot
+
+    def commit(self) -> None:
+        if self._committed:
+            return
+        if not self._events_payload or self._snapshot_payload is None:
+            raise RuntimeError(f"{self.name} is missing events or snapshot payload")
+        if self._head_before is None:
+            self._head_before = self.head_version()
+        coordination = {
+            "id": f"{self.name}-{ISO()}-{self._head_before}",
+            "timestamp": ISO(),
+            "expected_events": self._expected_events,
+            "head_before": self._head_before,
+            "operation": self.name,
+        }
+        self._coordination_id = coordination["id"]
+        for event in self._events_payload:
+            event["coordination"] = dict(coordination)
+        snapshot = dict(self._snapshot_payload or {})
+        snapshot["saved_at"] = ISO()
+        snapshot["coordination"] = {
+            **coordination,
+            "events_appended": self._expected_events,
+        }
+        self._snapshot_payload = snapshot
+        count = self._sp_events.append_events(self._events_payload)
+        if count != len(self._events_payload):
+            raise RuntimeError(
+                f"Partial event append ({count}/{len(self._events_payload)}) during {self.name}"
+            )
+        self._events_committed = True
         self._sp_snapshot.save_snapshot(snapshot)
+        try:
+            self._validate_consistency()
+        except Exception as exc:
+            LOG.warning("Consistency check failed for %s: %s", self.name, exc)
+            self._repair_with_retry()
+            self._validate_consistency()
+        self._committed = True
+
+    def _validate_consistency(self) -> None:
+        if not self._coordination_id:
+            raise RuntimeError(f"{self.name} missing coordination id")
+        snapshot = self._sp_snapshot.load_snapshot()
+        if not isinstance(snapshot, dict):
+            raise RuntimeError(f"{self.name} snapshot missing after commit")
+        snapshot_coord = snapshot.get("coordination") or {}
+        if snapshot_coord.get("id") != self._coordination_id:
+            raise RuntimeError(
+                f"{self.name} snapshot coordination mismatch ({snapshot_coord.get('id')})"
+            )
+        if int(snapshot_coord.get("expected_events") or 0) != int(self._expected_events):
+            raise RuntimeError(
+                f"{self.name} snapshot expected_events mismatch ({snapshot_coord.get('expected_events')})"
+            )
+        if self._expected_events <= 0:
+            return
+        events = self._sp_events.load_events()
+        if len(events) < self._expected_events:
+            raise RuntimeError(f"{self.name} events missing after commit")
+        tail = events[-self._expected_events :]
+        coord_ids = {
+            (ev.get("coordination") or {}).get("id")
+            for ev in tail
+        }
+        if coord_ids != {self._coordination_id}:
+            raise RuntimeError(
+                f"{self.name} events coordination mismatch ({coord_ids})"
+            )
+
+    def _repair_with_retry(self, max_attempts: int = 3, base_delay: float = 0.2) -> None:
+        if not self._coordination_id:
+            raise RuntimeError(f"{self.name} missing coordination id for repair")
+        events = self._sp_events.load_events()
+        events_written = False
+        if self._expected_events > 0 and len(events) >= self._expected_events:
+            tail = events[-self._expected_events :]
+            events_written = all(
+                (ev.get("coordination") or {}).get("id") == self._coordination_id
+                for ev in tail
+            )
+        snapshot = self._sp_snapshot.load_snapshot()
+        snapshot_coord = snapshot.get("coordination") if isinstance(snapshot, dict) else {}
+        snapshot_written = snapshot_coord and snapshot_coord.get("id") == self._coordination_id
+        if snapshot_written and not events_written:
+            raise RuntimeError(f"{self.name} snapshot written but events missing; aborting")
+        if not events_written:
+            raise RuntimeError(f"{self.name} events missing; cannot repair snapshot")
+        for attempt in range(1, max_attempts + 1):
+            delay = base_delay * (2 ** (attempt - 1))
+            LOG.warning(
+                "Repair attempt %s/%s for %s (snapshot)", attempt, max_attempts, self.name
+            )
+            snapshot_payload = dict(self._snapshot_payload or {})
+            snapshot_payload["repair"] = {
+                "attempt": attempt,
+                "attempted_at": ISO(),
+                "operation": self.name,
+            }
+            self._sp_snapshot.save_snapshot(snapshot_payload)
+            time.sleep(delay)
+            try:
+                self._validate_consistency()
+                return
+            except Exception:
+                continue
+        raise RuntimeError(f"{self.name} failed to repair snapshot after {max_attempts} attempts")
 
     def commit_local(self) -> None:
         if self._snapshot_payload is not None:
@@ -58,7 +163,7 @@ class CloudAtomicOperation:
             self.cloud.local.append_events(self._events_payload)
 
     def rollback(self) -> None:
-        if not self._events_payload:
+        if not self._events_payload or not self._events_committed:
             return
         if self._head_before is None:
             return
@@ -91,6 +196,7 @@ class CloudClient:
         op = CloudAtomicOperation(self, name)
         try:
             yield op
+            op.commit()
             op.commit_local()
         except Exception as exc:
             try:
