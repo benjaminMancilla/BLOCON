@@ -105,6 +105,14 @@ class SharedState:
     cloud: CloudClient
     base_dir: str
     cloud_baseline: dict | None = None
+    pending_cloud_op: "PendingCloudOperation | None" = None
+
+
+@dataclass
+class PendingCloudOperation:
+    operation: str
+    payload: dict
+    timestamp: datetime
 
 
 class GraphRequestHandler(BaseHTTPRequestHandler):
@@ -276,6 +284,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
     def _send_cloud_error(self, operation: str, exc: Exception) -> None:
         error = normalize_cloud_error(operation, exc)
         status = error.http_status or (503 if error.retryable else 400)
+        has_pending = self.shared.pending_cloud_op is not None
         self._send_json(
             status,
             {
@@ -284,22 +293,123 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                     "kind": "cloud",
                     "operation": error.operation,
                     "retryable": error.retryable,
+                    "has_pending_operation": has_pending,
                     "message": error.message,
                     "details": error.details,
                 },
             },
         )
 
-    def _run_cloud_op(self, operation: str, fn) -> bool:
+    def _run_cloud_op(self, operation: str, fn, *, payload: dict | None = None) -> bool:
         try:
             fn()
+            self.shared.pending_cloud_op = None
             return True
         except Exception as exc:
+            error = normalize_cloud_error(operation, exc)
+            if error.retryable:
+                self.shared.pending_cloud_op = PendingCloudOperation(
+                    operation=operation,
+                    payload=payload or {},
+                    timestamp=datetime.now(timezone.utc),
+                )
             self._send_cloud_error(operation, exc)
             return False
 
+    @staticmethod
+    def _ensure_dict_list(items: object) -> list[dict]:
+        if not isinstance(items, list):
+            return []
+        result = []
+        for item in items:
+            if isinstance(item, dict):
+                result.append(dict(item))
+        return result
+
+    def _prepare_cloud_save_payload(self) -> tuple[dict, ReliabilityGraph]:
+        graph = self.shared.es.graph
+        try:
+            graph.project_root = self.shared.base_dir
+            graph.failures_cache = self.shared.local.failures_cache
+            self.shared.es.evaluate()
+        except Exception:
+            pass
+
+        snapshot = graph.to_data()
+        local_events: list[dict] = []
+        if self.shared.es.store:
+            try:
+                local_events = [
+                    ev.to_dict()
+                    for ev in self.shared.es.store.active()
+                ]
+            except Exception:
+                local_events = []
+        payload = {
+            "snapshot": snapshot,
+            "local_events": local_events,
+        }
+        return payload, graph
+
+    def _execute_cloud_save_commit(self, payload: dict) -> int:
+        snapshot = payload.get("snapshot") or {}
+        raw_events = self._ensure_dict_list(payload.get("local_events"))
+        to_append: list[dict] = []
+        with self.shared.cloud.atomic_operation("cloud-save") as op:
+            if raw_events:
+                head = op.head_version()
+                for idx, event_payload in enumerate(raw_events):
+                    payload_copy = dict(event_payload)
+                    payload_copy["version"] = head + idx + 1
+                    to_append.append(payload_copy)
+                op.append_events(to_append)
+            op.save_snapshot(snapshot)
+        return len(to_append)
+
+    def _finalize_cloud_save(self, snapshot: dict, graph: ReliabilityGraph) -> None:
+        cache = self.shared.local.load_components_cache()
+        component_ids = sorted(
+            [node_id for node_id, node in graph.nodes.items() if node.is_component()]
+        )
+        comp_entries = []
+        for component_id in component_ids:
+            etag = (cache.get(component_id) or {}).get("etag")
+            entry = {"id": component_id}
+            if etag:
+                entry["etag"] = etag
+            comp_entries.append(entry)
+
+        manifest = {
+            "diagram_id": "default",
+            "version": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "component_ids": comp_entries,
+        }
+        self.shared.cloud.save_manifest(manifest)
+
+        try:
+            if self.shared.es.store:
+                self.shared.es.store.clear()
+        except Exception:
+            pass
+
+        try:
+            self.shared.local.draft_delete()
+        except Exception:
+            pass
+
+        self.shared.cloud_baseline = snapshot
+
+    def _run_rebuild_from_payload(self, payload: dict) -> None:
+        snapshot = payload.get("snapshot") or {}
+        events = self._ensure_dict_list(payload.get("events"))
+        self._run_rebuild_commit(snapshot, events)
+
     def _handle_cloud_load(self) -> None:
-        if not self._run_cloud_op("cloud-load", self._refresh_cloud_state):
+        if not self._run_cloud_op(
+            "cloud-load",
+            self._refresh_cloud_state,
+            payload={},
+        ):
             return
         self._send_json(200, {"status": "ok"})
 
@@ -353,9 +463,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             head_prev = len(events)
             events_upto = self._events_upto_version(events, version)
             graph = GraphES.rebuild(events_upto)
+            snapshot = graph.to_data()
 
             snapshot_event = SnapshotEvent.create(
-                data=graph.to_data(), actor="version-control"
+                data=snapshot, actor="version-control"
             )
             snapshot_dict = snapshot_event.to_dict()
             snapshot_dict["version"] = head_prev + 1
@@ -374,7 +485,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
             if not self._run_cloud_op(
                 "rebuild",
-                lambda: self._run_rebuild_commit(graph.to_data(), to_append),
+                lambda: self._run_rebuild_commit(snapshot, to_append),
+                payload={"snapshot": snapshot, "events": to_append},
             ):
                 return
 
@@ -383,7 +495,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-            if not self._run_cloud_op("cloud-load", self._refresh_cloud_state):
+            if not self._run_cloud_op(
+                "cloud-load",
+                self._refresh_cloud_state,
+                payload={},
+            ):
                 return
 
             self._send_json(
@@ -403,70 +519,91 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             op.save_snapshot(snapshot)
 
     def _handle_cloud_save(self) -> None:
-        cloud = self.shared.cloud
-        graph = self.shared.es.graph
-
-        try:
-            graph.project_root = self.shared.base_dir
-            graph.failures_cache = self.shared.local.failures_cache
-            self.shared.es.evaluate()
-        except Exception:
-            pass
-
-        snapshot = graph.to_data()
+        payload, graph = self._prepare_cloud_save_payload()
+        snapshot = payload.get("snapshot") or {}
         appended = 0
-        local_events: list[dict] = []
 
         def _commit() -> None:
-            nonlocal appended, local_events
-            local_events = []
-            with self.shared.cloud.atomic_operation("cloud-save") as op:
-                if self.shared.es.store:
-                    head = op.head_version()
-                    local_events = []
-                    for idx, ev in enumerate(self.shared.es.store.active()):
-                        payload = ev.to_dict()
-                        payload["version"] = head + idx + 1
-                        local_events.append(payload)
-                    op.append_events(local_events)
-                op.save_snapshot(snapshot)
-            appended = len(local_events)
+            nonlocal appended
+            appended = self._execute_cloud_save_commit(payload)
 
-        if not self._run_cloud_op("cloud-save", _commit):
+        if not self._run_cloud_op("cloud-save", _commit, payload=payload):
+            return
+        self._finalize_cloud_save(snapshot, graph)
+        self._send_json(200, {"status": "ok", "events_uploaded": appended})
+
+    def _handle_cloud_retry(self) -> None:
+        pending = self.shared.pending_cloud_op
+        if not pending:
+            self._send_json(400, {"error": "no pending cloud operation"})
             return
 
-        cache = self.shared.local.load_components_cache()
-        component_ids = sorted(
-            [node_id for node_id, node in graph.nodes.items() if node.is_component()]
-        )
-        comp_entries = []
-        for component_id in component_ids:
-            etag = (cache.get(component_id) or {}).get("etag")
-            entry = {"id": component_id}
-            if etag:
-                entry["etag"] = etag
-            comp_entries.append(entry)
+        operation = pending.operation
+        payload = pending.payload or {}
 
-        manifest = {
-            "diagram_id": "default",
-            "version": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "component_ids": comp_entries,
-        }
-        cloud.save_manifest(manifest)
+        if operation == "cloud-load":
+            if not self._run_cloud_op(
+                "cloud-load",
+                self._refresh_cloud_state,
+                payload=payload,
+            ):
+                return
+            self._send_json(200, {"status": "ok"})
+            return
 
-        try:
-            if self.shared.es.store:
-                self.shared.es.store.clear()
-        except Exception:
-            pass
+        if operation == "cloud-save":
+            appended = 0
 
-        try:
-            self.shared.local.draft_delete()
-        except Exception:
-            pass
+            def _commit() -> None:
+                nonlocal appended
+                appended = self._execute_cloud_save_commit(payload)
 
-        self.shared.cloud_baseline = snapshot
-        self._send_json(200, {"status": "ok", "events_uploaded": appended})
+            if not self._run_cloud_op("cloud-save", _commit, payload=payload):
+                return
+            snapshot = payload.get("snapshot") or {}
+            graph = ReliabilityGraph.from_data(snapshot or {})
+            self._finalize_cloud_save(snapshot, graph)
+            self._send_json(200, {"status": "ok", "events_uploaded": appended})
+            return
+
+        if operation == "rebuild":
+            if not self._run_cloud_op(
+                "rebuild",
+                lambda: self._run_rebuild_from_payload(payload),
+                payload=payload,
+            ):
+                return
+            self._send_json(200, {"status": "ok"})
+            return
+
+        if operation == "search-components":
+            result: tuple[list, int] | None = None
+
+            def _search() -> None:
+                nonlocal result
+                result = self.shared.cloud.search_components(
+                    payload.get("query", ""),
+                    page=int(payload.get("page", 1)),
+                    page_size=int(payload.get("page_size", 20)),
+                    allow_local_fallback=False,
+                    operation="search-components",
+                )
+
+            if not self._run_cloud_op(
+                "search-components",
+                _search,
+                payload=payload,
+            ):
+                return
+            items, total = result if result is not None else ([], 0)
+            self._send_json(200, {"items": items, "total": total})
+            return
+
+        self._send_json(400, {"error": "unsupported pending operation"})
+
+    def _handle_cloud_cancel(self) -> None:
+        self.shared.pending_cloud_op = None
+        self._send_json(200, {"status": "ok"})
 
     def _handle_event_history(self, params: dict[str, list[str]]) -> None:
         try:
@@ -830,7 +967,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                     operation="search-components",
                 )
 
-            if not self._run_cloud_op("search-components", _search):
+            if not self._run_cloud_op(
+                "search-components",
+                _search,
+                payload={"query": query, "page": page, "page_size": page_size},
+            ):
                 return
             items, total = result if result is not None else ([], 0)
             self._send_json(200, {"items": items, "total": total})
@@ -889,6 +1030,14 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/cloud/load":
             self._handle_cloud_load()
+            return
+
+        if path == "/cloud/retry":
+            self._handle_cloud_retry()
+            return
+
+        if path == "/cloud/cancel":
+            self._handle_cloud_cancel()
             return
 
         if path == "/drafts":
