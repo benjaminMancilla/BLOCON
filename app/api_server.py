@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import time
+from contextlib import contextmanager, nullcontext
 import re
 from datetime import datetime, timezone
 import socket
@@ -118,6 +119,46 @@ class PendingCloudOperation:
 class GraphRequestHandler(BaseHTTPRequestHandler):
     shared: ClassVar[SharedState]
 
+    class PerfLogger:
+        def __init__(self, op_name: str) -> None:
+            self.op_name = op_name
+            self.start = time.perf_counter()
+            self.stages: list[dict] = []
+
+        @contextmanager
+        def stage(self, name: str, **meta: object):
+            start = time.perf_counter()
+            try:
+                yield
+            finally:
+                duration_ms = (time.perf_counter() - start) * 1000
+                entry = {
+                    "stage": name,
+                    "duration_ms": round(duration_ms, 2),
+                }
+                if meta:
+                    entry.update(meta)
+                self.stages.append(entry)
+
+        def log(self, **meta: object) -> None:
+            total_ms = (time.perf_counter() - self.start) * 1000
+            payload = {
+                "op": self.op_name,
+                "total_ms": round(total_ms, 2),
+                "stages": self.stages,
+            }
+            if meta:
+                payload.update(meta)
+            print(f"[perf] {json.dumps(payload, ensure_ascii=False)}", file=sys.stderr)
+            sys.stderr.flush()
+
+    @staticmethod
+    def _json_size(payload: object) -> int:
+        try:
+            return len(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+        except Exception:
+            return 0
+
     def _replay_local(self) -> None:
         """Reconstruye el grafo desde baseline + eventos activos."""
         if not self.shared.es.store:
@@ -184,11 +225,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return None
 
-    def _refresh_cloud_state(self) -> None:
+    def _refresh_cloud_state(self, perf: "GraphRequestHandler.PerfLogger | None" = None) -> None:
         cloud = self.shared.cloud
         local = getattr(cloud, "local", None)
 
-        manifest = cloud.load_manifest() or {}
+        with (perf.stage("load_manifest") if perf else nullcontext()):
+            manifest = cloud.load_manifest() or {}
         comp_entries = manifest.get("component_ids", [])
         want_ids = [entry["id"] if isinstance(entry, dict) else entry for entry in comp_entries]
         want_etags = {
@@ -211,24 +253,28 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         fetched: dict = {}
         if need_fetch:
-            fetched = cloud.fetch_components(
-                need_fetch,
+            with (perf.stage("fetch_components", count=len(need_fetch)) if perf else nullcontext()):
+                fetched = cloud.fetch_components(
+                    need_fetch,
+                    update_local=False,
+                    allow_local_fallback=False,
+                    operation="cloud-load",
+                ) or {}
+
+        with (perf.stage("load_snapshot") if perf else nullcontext()):
+            snap = cloud.load_snapshot(
                 update_local=False,
                 allow_local_fallback=False,
                 operation="cloud-load",
             ) or {}
-
-        snap = cloud.load_snapshot(
-            update_local=False,
-            allow_local_fallback=False,
-            operation="cloud-load",
-        ) or {}
-        events = cloud.load_events(
-            update_local=False,
-            allow_local_fallback=False,
-            operation="cloud-load",
-        )
-        graph = ReliabilityGraph.from_data(snap)
+        with (perf.stage("load_events") if perf else nullcontext()):
+            events = cloud.load_events(
+                update_local=False,
+                allow_local_fallback=False,
+                operation="cloud-load",
+            )
+        with (perf.stage("build_graph_from_snapshot", snapshot_bytes=self._json_size(snap)) if perf else nullcontext()):
+            graph = ReliabilityGraph.from_data(snap)
         if local:
             graph.failures_cache = local.failures_cache
 
@@ -241,7 +287,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             items_to_cache.append(item)
 
         if local and items_to_cache:
-            local.upsert_components_cache(items_to_cache)
+            with (perf.stage("update_components_cache", count=len(items_to_cache)) if perf else nullcontext()):
+                local.upsert_components_cache(items_to_cache)
 
         try:
             cache = local.load_components_cache() if local else {}
@@ -256,19 +303,22 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if local:
-                local.save_snapshot(snap)
+                with (perf.stage("save_snapshot_local", snapshot_bytes=self._json_size(snap)) if perf else nullcontext()):
+                    local.save_snapshot(snap)
         except Exception:
             pass
 
         try:
             if local:
-                local.replace_events(events)
+                with (perf.stage("replace_events_local", events_count=len(events)) if perf else nullcontext()):
+                    local.replace_events(events)
         except Exception:
             pass
 
         try:
             if self.shared.es.store:
-                self.shared.es.store.clear()
+                with (perf.stage("clear_event_store") if perf else nullcontext()):
+                    self.shared.es.store.clear()
         except Exception:
             pass
 
@@ -277,7 +327,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if self.shared.es.store:
-                self.shared.es.store.base_version = len(events)
+                with (perf.stage("set_base_version", events_count=len(events)) if perf else nullcontext()):
+                    self.shared.es.store.base_version = len(events)
         except Exception:
             pass
 
@@ -326,16 +377,20 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 result.append(dict(item))
         return result
 
-    def _prepare_cloud_save_payload(self) -> tuple[dict, ReliabilityGraph]:
+    def _prepare_cloud_save_payload(
+        self, perf: "GraphRequestHandler.PerfLogger | None" = None
+    ) -> tuple[dict, ReliabilityGraph]:
         graph = self.shared.es.graph
         try:
             graph.project_root = self.shared.base_dir
             graph.failures_cache = self.shared.local.failures_cache
-            self.shared.es.evaluate()
+            with (perf.stage("graph_evaluate") if perf else nullcontext()):
+                self.shared.es.evaluate()
         except Exception:
             pass
 
-        snapshot = graph.to_data()
+        with (perf.stage("graph_to_data") if perf else nullcontext()):
+            snapshot = graph.to_data()
         local_events: list[dict] = []
         if self.shared.es.store:
             try:
@@ -351,22 +406,33 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         }
         return payload, graph
 
-    def _execute_cloud_save_commit(self, payload: dict) -> int:
+    def _execute_cloud_save_commit(
+        self, payload: dict, perf: "GraphRequestHandler.PerfLogger | None" = None
+    ) -> int:
         snapshot = payload.get("snapshot") or {}
+        snapshot_bytes = self._json_size(snapshot)
         raw_events = self._ensure_dict_list(payload.get("local_events"))
         to_append: list[dict] = []
-        with self.shared.cloud.atomic_operation("cloud-save") as op:
-            if raw_events:
-                head = op.head_version()
-                for idx, event_payload in enumerate(raw_events):
-                    payload_copy = dict(event_payload)
-                    payload_copy["version"] = head + idx + 1
-                    to_append.append(payload_copy)
-                op.append_events(to_append)
-            op.save_snapshot(snapshot)
+        with (perf.stage("cloud_atomic_operation", events_count=len(raw_events), snapshot_bytes=snapshot_bytes) if perf else nullcontext()):
+            with self.shared.cloud.atomic_operation("cloud-save") as op:
+                if raw_events:
+                    head = op.head_version()
+                    for idx, event_payload in enumerate(raw_events):
+                        payload_copy = dict(event_payload)
+                        payload_copy["version"] = head + idx + 1
+                        to_append.append(payload_copy)
+                    with (perf.stage("append_events", events_count=len(to_append)) if perf else nullcontext()):
+                        op.append_events(to_append)
+                with (perf.stage("save_snapshot", snapshot_bytes=snapshot_bytes) if perf else nullcontext()):
+                    op.save_snapshot(snapshot)
         return len(to_append)
 
-    def _finalize_cloud_save(self, snapshot: dict, graph: ReliabilityGraph) -> None:
+    def _finalize_cloud_save(
+        self,
+        snapshot: dict,
+        graph: ReliabilityGraph,
+        perf: "GraphRequestHandler.PerfLogger | None" = None,
+    ) -> None:
         cache = self.shared.local.load_components_cache()
         component_ids = sorted(
             [node_id for node_id, node in graph.nodes.items() if node.is_component()]
@@ -384,33 +450,47 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             "version": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "component_ids": comp_entries,
         }
-        self.shared.cloud.save_manifest(manifest)
+        with (perf.stage("save_manifest", component_count=len(component_ids)) if perf else nullcontext()):
+            self.shared.cloud.save_manifest(manifest)
 
         try:
             if self.shared.es.store:
-                self.shared.es.store.clear()
+                with (perf.stage("clear_event_store") if perf else nullcontext()):
+                    self.shared.es.store.clear()
         except Exception:
             pass
 
         try:
-            self.shared.local.draft_delete()
+            with (perf.stage("delete_draft") if perf else nullcontext()):
+                self.shared.local.draft_delete()
         except Exception:
             pass
 
         self.shared.cloud_baseline = snapshot
 
-    def _run_rebuild_from_payload(self, payload: dict) -> None:
+    def _run_rebuild_from_payload(
+        self,
+        payload: dict,
+        perf: "GraphRequestHandler.PerfLogger | None" = None,
+    ) -> None:
         snapshot = payload.get("snapshot") or {}
         events = self._ensure_dict_list(payload.get("events"))
-        self._run_rebuild_commit(snapshot, events)
+        self._run_rebuild_commit(snapshot, events, perf=perf)
 
     def _handle_cloud_load(self) -> None:
+        perf = self.PerfLogger("cloud-load")
+
+        def _refresh() -> None:
+            with perf.stage("refresh_cloud_state"):
+                self._refresh_cloud_state(perf)
+
         if not self._run_cloud_op(
             "cloud-load",
-            self._refresh_cloud_state,
+            _refresh,
             payload={},
         ):
             return
+        perf.log()
         self._send_json(200, {"status": "ok"})
 
     @staticmethod
@@ -455,15 +535,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": str(exc)})
 
     def _handle_event_version_rebuild(self, version: int) -> None:
+        perf = self.PerfLogger("rebuild")
         try:
-            events = self._load_event_objects(
-                operation="rebuild",
-                allow_local_fallback=False,
-            )
+            with perf.stage("load_events"):
+                events = self._load_event_objects(
+                    operation="rebuild",
+                    allow_local_fallback=False,
+                )
             head_prev = len(events)
             events_upto = self._events_upto_version(events, version)
-            graph = GraphES.rebuild(events_upto)
-            snapshot = graph.to_data()
+            with perf.stage("rebuild_graph", events_count=len(events_upto)):
+                graph = GraphES.rebuild(events_upto)
+            with perf.stage("graph_to_data"):
+                snapshot = graph.to_data()
 
             snapshot_event = SnapshotEvent.create(
                 data=snapshot, actor="version-control"
@@ -485,7 +569,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
             if not self._run_cloud_op(
                 "rebuild",
-                lambda: self._run_rebuild_commit(snapshot, to_append),
+                lambda: self._run_rebuild_commit(snapshot, to_append, perf=perf),
                 payload={"snapshot": snapshot, "events": to_append},
             ):
                 return
@@ -495,13 +579,22 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
+            def _refresh() -> None:
+                with perf.stage("refresh_cloud_state"):
+                    self._refresh_cloud_state(perf)
+
             if not self._run_cloud_op(
                 "cloud-load",
-                self._refresh_cloud_state,
+                _refresh,
                 payload={},
             ):
                 return
 
+            perf.log(
+                events_count=len(events),
+                snapshot_bytes=self._json_size(snapshot),
+                append_events=len(to_append),
+            )
             self._send_json(
                 200,
                 {
@@ -513,23 +606,40 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._send_cloud_error("rebuild", exc)
 
-    def _run_rebuild_commit(self, snapshot: dict, to_append: list[dict]) -> None:
-        with self.shared.cloud.atomic_operation("rebuild") as op:
-            op.append_events(to_append)
-            op.save_snapshot(snapshot)
+    def _run_rebuild_commit(
+        self,
+        snapshot: dict,
+        to_append: list[dict],
+        perf: "GraphRequestHandler.PerfLogger | None" = None,
+    ) -> None:
+        snapshot_bytes = self._json_size(snapshot)
+        with (perf.stage("cloud_atomic_operation", events_count=len(to_append), snapshot_bytes=snapshot_bytes) if perf else nullcontext()):
+            with self.shared.cloud.atomic_operation("rebuild") as op:
+                with (perf.stage("append_events", events_count=len(to_append)) if perf else nullcontext()):
+                    op.append_events(to_append)
+                with (perf.stage("save_snapshot", snapshot_bytes=snapshot_bytes) if perf else nullcontext()):
+                    op.save_snapshot(snapshot)
 
     def _handle_cloud_save(self) -> None:
-        payload, graph = self._prepare_cloud_save_payload()
+        perf = self.PerfLogger("cloud-save")
+        with perf.stage("prepare_payload"):
+            payload, graph = self._prepare_cloud_save_payload(perf=perf)
         snapshot = payload.get("snapshot") or {}
         appended = 0
 
         def _commit() -> None:
             nonlocal appended
-            appended = self._execute_cloud_save_commit(payload)
+            appended = self._execute_cloud_save_commit(payload, perf=perf)
 
         if not self._run_cloud_op("cloud-save", _commit, payload=payload):
             return
-        self._finalize_cloud_save(snapshot, graph)
+        with perf.stage("finalize_cloud_save"):
+            self._finalize_cloud_save(snapshot, graph, perf=perf)
+        perf.log(
+            snapshot_bytes=self._json_size(snapshot),
+            local_events=len(payload.get("local_events") or []),
+            events_uploaded=appended,
+        )
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
     def _handle_cloud_retry(self) -> None:

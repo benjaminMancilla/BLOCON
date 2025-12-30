@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -15,6 +16,8 @@ except Exception:
 
 from .settings import SPSettings
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -44,11 +47,23 @@ def _is_retryable_graph_error(exc: Exception) -> bool:
     return False
 
 
+def _log_retry(retry_state) -> None:
+    wait = getattr(getattr(retry_state, "next_action", None), "sleep", 0) or 0
+    exc = retry_state.outcome.exception() if retry_state.outcome else None
+    LOG.warning(
+        "SharePoint retry attempt %s in %.2fs due to %s",
+        retry_state.attempt_number,
+        wait,
+        exc,
+    )
+
+
 def _sharepoint_retry():
     return retry(
         stop=stop_after_attempt(5),
         wait=wait_exponential(multiplier=1, min=1, max=30),
         retry=retry_if_exception(_is_retryable_graph_error),
+        before_sleep=_log_retry,
         reraise=True,
     )
 
