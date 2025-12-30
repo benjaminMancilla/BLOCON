@@ -8,8 +8,6 @@ from ..settings import SPSettings, load_settings
 from ..graph_session import GraphSession, GraphError
 from ..resolver import SPResolver
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
 
 class SharePointSnapshotClient:
     """
@@ -71,12 +69,6 @@ class SharePointSnapshotClient:
         self._resolved_drive_id = did
         return did
 
-    @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=1, max=30),
-        retry=retry_if_exception_type(Exception),
-        reraise=True
-    )
     def save_snapshot(self, snapshot: dict) -> None:
         site_id = self.resolver.site_id()
         drive_id = self._resolve_drive_id()

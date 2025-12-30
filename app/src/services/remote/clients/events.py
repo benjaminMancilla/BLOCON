@@ -319,11 +319,8 @@ class SharePointEventsClient:
             if snapshot_ref and self.field_snapshot_file:
                 fields[self.field_snapshot_file] = snapshot_ref
 
-            try:
-                self._post_event_fields(fields)
-                done += 1
-            except Exception:
-                continue
+            self._post_event_fields(fields)
+            done += 1
 
         return done
 

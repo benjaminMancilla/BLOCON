@@ -312,16 +312,13 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 ignore_dict["version"] = head_prev + 2
                 to_append.append(ignore_dict)
 
-            # ACA SUBIR ATOMICO
             try:
-                self.shared.cloud.append_events(to_append)
-            except Exception:
-                pass
-
-            try:
-                self.shared.cloud.save_snapshot(graph.to_data())
-            except Exception:
-                pass
+                with self.shared.cloud.atomic_operation("rebuild") as op:
+                    op.append_events(to_append)
+                    op.save_snapshot(graph.to_data())
+            except Exception as exc:
+                self._send_json(500, {"error": str(exc)})
+                return
 
             try:
                 self.shared.local.draft_delete()
@@ -352,18 +349,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        snapshot = graph.to_data()
-        cloud.save_snapshot(snapshot)
-
-        appended = 0
         try:
-            if self.shared.es.store:
-                head = len(cloud.load_events())
-                self.shared.es.store.resequence_versions(head)
-                local_events = [ev.to_dict() for ev in self.shared.es.store.active()]
-                appended = cloud.append_events(local_events)
-        except Exception:
+            snapshot = graph.to_data()
             appended = 0
+            with cloud.atomic_operation("cloud-save") as op:
+                if self.shared.es.store:
+                    head = op.head_version()
+                    self.shared.es.store.resequence_versions(head)
+                    local_events = [ev.to_dict() for ev in self.shared.es.store.active()]
+                    appended = op.append_events(local_events)
+                op.save_snapshot(snapshot)
+        except Exception as exc:
+            self._send_json(500, {"error": str(exc)})
+            return
 
         cache = self.shared.local.load_components_cache()
         component_ids = sorted(

@@ -1,5 +1,6 @@
 from __future__ import annotations
-import os, json, time
+import time
+from contextlib import contextmanager
 from typing import Dict, Any, List, Tuple
 
 from .clients import (
@@ -9,9 +10,69 @@ from .clients import (
 )
 
 from ..cache.local_store import LocalWorkspaceStore
+from ...model.eventsourcing.events import SetIgnoreRangeEvent
 
 
 ISO = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+class CloudAtomicOperation:
+    def __init__(self, cloud: "CloudClient", name: str):
+        self.cloud = cloud
+        self.name = name
+        self._sp_events = cloud._sp_events()
+        self._sp_snapshot = cloud._sp_snapshot()
+        if self._sp_events is None or self._sp_snapshot is None:
+            raise RuntimeError("SharePoint clients not configured")
+        self._head_before: int | None = None
+        self._expected_events = 0
+        self._events_payload: list[dict] = []
+        self._snapshot_payload: dict | None = None
+
+    def head_version(self) -> int:
+        return len(self._sp_events.load_events())
+
+    def append_events(self, events: list[dict]) -> int:
+        if not events:
+            return 0
+        self._expected_events = len(events)
+        self._events_payload = [dict(ev) for ev in events]
+        if self._head_before is None:
+            self._head_before = self.head_version()
+        count = self._sp_events.append_events(events)
+        if count != len(events):
+            raise RuntimeError(
+                f"Partial event append ({count}/{len(events)}) during {self.name}"
+            )
+        return count
+
+    def save_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        snapshot = dict(snapshot or {})
+        snapshot["saved_at"] = ISO()
+        self._snapshot_payload = snapshot
+        self._sp_snapshot.save_snapshot(snapshot)
+
+    def commit_local(self) -> None:
+        if self._snapshot_payload is not None:
+            self.cloud.local.save_snapshot(self._snapshot_payload)
+        if self._events_payload:
+            self.cloud.local.append_events(self._events_payload)
+
+    def rollback(self) -> None:
+        if not self._events_payload:
+            return
+        if self._head_before is None:
+            return
+        start_v = self._head_before + 1
+        end_v = self._head_before + self._expected_events
+        if end_v < start_v:
+            return
+        ignore_event = SetIgnoreRangeEvent.create(
+            start_v=start_v, end_v=end_v, actor=f"{self.name}-rollback"
+        )
+        ignore_dict = ignore_event.to_dict()
+        ignore_dict["version"] = end_v + 1
+        self._sp_events.append_events([ignore_dict])
+
 
 class CloudClient:
     def __init__(self, base_dir: str):
@@ -24,6 +85,21 @@ class CloudClient:
         self._sp_events_client = None
         self._sp_snapshot_checked = False
         self._sp_snapshot_client = None
+
+    @contextmanager
+    def atomic_operation(self, name: str):
+        op = CloudAtomicOperation(self, name)
+        try:
+            yield op
+            op.commit_local()
+        except Exception as exc:
+            try:
+                op.rollback()
+            except Exception as rollback_exc:
+                raise RuntimeError(
+                    f"{name} failed and rollback failed: {rollback_exc}"
+                ) from exc
+            raise
 
 
     def _sp_components(self):
