@@ -12,6 +12,7 @@ from .clients import (
 
 from ..cache.local_store import LocalWorkspaceStore
 from ...model.eventsourcing.events import SetIgnoreRangeEvent
+from .errors import normalize_cloud_error
 
 
 ISO = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -202,10 +203,11 @@ class CloudClient:
             try:
                 op.rollback()
             except Exception as rollback_exc:
-                raise RuntimeError(
-                    f"{name} failed and rollback failed: {rollback_exc}"
+                raise normalize_cloud_error(
+                    name,
+                    RuntimeError(f"{name} failed and rollback failed: {rollback_exc}"),
                 ) from exc
-            raise
+            raise normalize_cloud_error(name, exc) from exc
 
 
     def _sp_components(self):
@@ -252,32 +254,77 @@ class CloudClient:
     def load_manifest(self) -> Dict[str, Any]:
         return self.local.load_manifest()
 
-    def load_snapshot(self) -> Dict[str, Any]:
+    def load_snapshot(
+        self,
+        *,
+        update_local: bool = True,
+        allow_local_fallback: bool = True,
+        operation: str = "cloud-load",
+    ) -> Dict[str, Any]:
         sp = self._sp_snapshot()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint snapshot client not configured")
+            )
         if sp is not None:
             try:
                 snap = sp.load_snapshot()
                 # opcional: mantener cache local al día
-                if isinstance(snap, dict):
+                if update_local and isinstance(snap, dict):
                     self.local.save_snapshot(snap)
                 return snap
-            except Exception:
-                pass
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
         return self.local.load_snapshot()
 
-    def fetch_components(self, ids):
+    def fetch_components(
+        self,
+        ids,
+        *,
+        update_local: bool = True,
+        allow_local_fallback: bool = True,
+        operation: str = "search-components",
+    ):
         sp = self._sp_components()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint components client not configured")
+            )
         if sp is not None:
-            data = sp.fetch_components_by_ids(ids)
-            # opcional: cache write-through
-            self.local.upsert_components_cache([{"id": k, **v} for k, v in data.items()])
-            return data
+            try:
+                data = sp.fetch_components_by_ids(ids)
+                # opcional: cache write-through
+                if update_local:
+                    self.local.upsert_components_cache(
+                        [{"id": k, **v} for k, v in data.items()]
+                    )
+                return data
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
         return self.local.fetch_components(ids)
 
-    def search_components(self, query, page=1, page_size=20):
+    def search_components(
+        self,
+        query,
+        page=1,
+        page_size=20,
+        *,
+        allow_local_fallback: bool = True,
+        operation: str = "search-components",
+    ):
         sp = self._sp_components()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint components client not configured")
+            )
         if sp is not None:
-            return sp.search_components(query=query, page=page, page_size=page_size)
+            try:
+                return sp.search_components(query=query, page=page, page_size=page_size)
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
         return self.local.search_components(query=query, page=page, page_size=page_size)
 
 
@@ -301,37 +348,76 @@ class CloudClient:
         manifest["saved_at"] = ISO()
         self.local.save_manifest(manifest)
 
-    def load_events(self) -> list[dict]:
+    def load_events(
+        self,
+        *,
+        update_local: bool = True,
+        allow_local_fallback: bool = True,
+        operation: str = "cloud-load",
+    ) -> list[dict]:
         sp = self._sp_events()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint events client not configured")
+            )
         if sp is not None:
             try:
                 evs = sp.load_events()
                 # opcional: write-through local
-                self.local.replace_events(evs)
+                if update_local:
+                    self.local.replace_events(evs)
                 return evs
-            except Exception:
-                pass
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
         return self.local.load_events()
 
-    def append_events(self, events: list[dict]) -> int:
+    def append_events(
+        self,
+        events: list[dict],
+        *,
+        allow_local_fallback: bool = True,
+        operation: str = "cloud-save",
+    ) -> int:
         if not events:
             return 0
 
         sp = self._sp_events()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint events client not configured")
+            )
         if sp is not None:
             try:
                 n = sp.append_events(events)
                 # mantener local al día
                 self.local.append_events(events)
                 return n
-            except Exception:
-                pass
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
         return self.local.append_events(events)
 
-    def search_events_by_version(self, *, version: int, offset: int = 0, limit: int = 50) -> tuple[list[dict], int]:
+    def search_events_by_version(
+        self,
+        *,
+        version: int,
+        offset: int = 0,
+        limit: int = 50,
+        allow_local_fallback: bool = True,
+        operation: str = "event-history",
+    ) -> tuple[list[dict], int]:
         sp = self._sp_events()
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint events client not configured")
+            )
         if sp is not None:
-            return sp.search_events_by_version(version, offset=offset, limit=limit)
+            try:
+                return sp.search_events_by_version(version, offset=offset, limit=limit)
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
 
         events = self.local.load_events()
         filtered = []
@@ -351,12 +437,22 @@ class CloudClient:
         kinds: list[str] | None = None,
         offset: int = 0,
         limit: int = 50,
+        allow_local_fallback: bool = True,
+        operation: str = "event-history",
     ) -> tuple[list[dict], int]:
         sp = self._sp_events()
-        if sp is not None:
-            return sp.search_events_by_kind(
-                kind_prefix=kind_prefix, kinds=kinds, offset=offset, limit=limit
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint events client not configured")
             )
+        if sp is not None:
+            try:
+                return sp.search_events_by_kind(
+                    kind_prefix=kind_prefix, kinds=kinds, offset=offset, limit=limit
+                )
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
 
         prefix = (kind_prefix or "").strip().lower()
         kinds_set = {str(kind).strip().lower() for kind in (kinds or []) if kind}
@@ -374,13 +470,27 @@ class CloudClient:
         return filtered[offset : offset + limit], total
 
     def search_events_by_timestamp(
-        self, *, timestamp_prefix: str, offset: int = 0, limit: int = 50
+        self,
+        *,
+        timestamp_prefix: str,
+        offset: int = 0,
+        limit: int = 50,
+        allow_local_fallback: bool = True,
+        operation: str = "event-history",
     ) -> tuple[list[dict], int]:
         sp = self._sp_events()
-        if sp is not None:
-            return sp.search_events_by_timestamp(
-                timestamp_prefix, offset=offset, limit=limit
+        if sp is None and not allow_local_fallback:
+            raise normalize_cloud_error(
+                operation, RuntimeError("SharePoint events client not configured")
             )
+        if sp is not None:
+            try:
+                return sp.search_events_by_timestamp(
+                    timestamp_prefix, offset=offset, limit=limit
+                )
+            except Exception as exc:
+                if not allow_local_fallback:
+                    raise normalize_cloud_error(operation, exc) from exc
 
         prefix = (timestamp_prefix or "").strip()
         if not prefix:

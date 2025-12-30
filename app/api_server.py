@@ -27,6 +27,7 @@ from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
 from src.services.remote.cloud import CloudClient
+from src.services.remote.errors import normalize_cloud_error
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -176,12 +177,6 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return None
 
     def _refresh_cloud_state(self) -> None:
-        try:
-            if self.shared.es.store:
-                self.shared.es.store.clear()
-        except Exception:
-            pass
-
         cloud = self.shared.cloud
         local = getattr(cloud, "local", None)
 
@@ -206,23 +201,39 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             ):
                 need_fetch.append(component_id)
 
+        fetched: dict = {}
         if need_fetch:
-            fetched = cloud.fetch_components(need_fetch) or {}
-            items_to_cache = []
-            for component_id, meta in fetched.items():
-                item = dict(meta or {})
-                name = item.get("kks_name") or item.get("title") or component_id
-                item.setdefault("title", name)
-                item.setdefault("id", component_id)
-                items_to_cache.append(item)
+            fetched = cloud.fetch_components(
+                need_fetch,
+                update_local=False,
+                allow_local_fallback=False,
+                operation="cloud-load",
+            ) or {}
 
-            if local and items_to_cache:
-                local.upsert_components_cache(items_to_cache)
-
-        snap = cloud.load_snapshot() or {}
+        snap = cloud.load_snapshot(
+            update_local=False,
+            allow_local_fallback=False,
+            operation="cloud-load",
+        ) or {}
+        events = cloud.load_events(
+            update_local=False,
+            allow_local_fallback=False,
+            operation="cloud-load",
+        )
         graph = ReliabilityGraph.from_data(snap)
         if local:
             graph.failures_cache = local.failures_cache
+
+        items_to_cache = []
+        for component_id, meta in fetched.items():
+            item = dict(meta or {})
+            name = item.get("kks_name") or item.get("title") or component_id
+            item.setdefault("title", name)
+            item.setdefault("id", component_id)
+            items_to_cache.append(item)
+
+        if local and items_to_cache:
+            local.upsert_components_cache(items_to_cache)
 
         try:
             cache = local.load_components_cache() if local else {}
@@ -234,8 +245,6 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        self.shared.es.graph = graph
-        self.shared.cloud_baseline = graph.to_data()
 
         try:
             if local:
@@ -244,14 +253,54 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             pass
 
         try:
-            head = len(cloud.load_events())
-            if self.shared.es.store:
-                self.shared.es.store.base_version = head
+            if local:
+                local.replace_events(events)
         except Exception:
             pass
 
+        try:
+            if self.shared.es.store:
+                self.shared.es.store.clear()
+        except Exception:
+            pass
+
+        self.shared.es.graph = graph
+        self.shared.cloud_baseline = graph.to_data()
+
+        try:
+            if self.shared.es.store:
+                self.shared.es.store.base_version = len(events)
+        except Exception:
+            pass
+
+    def _send_cloud_error(self, operation: str, exc: Exception) -> None:
+        error = normalize_cloud_error(operation, exc)
+        status = error.http_status or (503 if error.retryable else 400)
+        self._send_json(
+            status,
+            {
+                "status": "error",
+                "error": {
+                    "kind": "cloud",
+                    "operation": error.operation,
+                    "retryable": error.retryable,
+                    "message": error.message,
+                    "details": error.details,
+                },
+            },
+        )
+
+    def _run_cloud_op(self, operation: str, fn) -> bool:
+        try:
+            fn()
+            return True
+        except Exception as exc:
+            self._send_cloud_error(operation, exc)
+            return False
+
     def _handle_cloud_load(self) -> None:
-        self._refresh_cloud_state()
+        if not self._run_cloud_op("cloud-load", self._refresh_cloud_state):
+            return
         self._send_json(200, {"status": "ok"})
 
     @staticmethod
@@ -267,8 +316,16 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 events_upto.append(event)
         return events_upto
 
-    def _load_event_objects(self) -> list[object]:
-        raw = self.shared.cloud.load_events()
+    def _load_event_objects(
+        self,
+        *,
+        operation: str = "event-history",
+        allow_local_fallback: bool = True,
+    ) -> list[object]:
+        raw = self.shared.cloud.load_events(
+            allow_local_fallback=allow_local_fallback,
+            operation=operation,
+        )
         events: list[object] = []
         for entry in raw:
             try:
@@ -289,7 +346,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_event_version_rebuild(self, version: int) -> None:
         try:
-            events = self._load_event_objects()
+            events = self._load_event_objects(
+                operation="rebuild",
+                allow_local_fallback=False,
+            )
             head_prev = len(events)
             events_upto = self._events_upto_version(events, version)
             graph = GraphES.rebuild(events_upto)
@@ -312,12 +372,10 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 ignore_dict["version"] = head_prev + 2
                 to_append.append(ignore_dict)
 
-            try:
-                with self.shared.cloud.atomic_operation("rebuild") as op:
-                    op.append_events(to_append)
-                    op.save_snapshot(graph.to_data())
-            except Exception as exc:
-                self._send_json(500, {"error": str(exc)})
+            if not self._run_cloud_op(
+                "rebuild",
+                lambda: self._run_rebuild_commit(graph.to_data(), to_append),
+            ):
                 return
 
             try:
@@ -325,7 +383,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except Exception:
                 pass
 
-            self._refresh_cloud_state()
+            if not self._run_cloud_op("cloud-load", self._refresh_cloud_state):
+                return
 
             self._send_json(
                 200,
@@ -336,7 +395,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 },
             )
         except Exception as exc:
-            self._send_json(500, {"error": str(exc)})
+            self._send_cloud_error("rebuild", exc)
+
+    def _run_rebuild_commit(self, snapshot: dict, to_append: list[dict]) -> None:
+        with self.shared.cloud.atomic_operation("rebuild") as op:
+            op.append_events(to_append)
+            op.save_snapshot(snapshot)
 
     def _handle_cloud_save(self) -> None:
         cloud = self.shared.cloud
@@ -349,18 +413,26 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        try:
-            snapshot = graph.to_data()
-            appended = 0
-            with cloud.atomic_operation("cloud-save") as op:
+        snapshot = graph.to_data()
+        appended = 0
+        local_events: list[dict] = []
+
+        def _commit() -> None:
+            nonlocal appended, local_events
+            local_events = []
+            with self.shared.cloud.atomic_operation("cloud-save") as op:
                 if self.shared.es.store:
                     head = op.head_version()
-                    self.shared.es.store.resequence_versions(head)
-                    local_events = [ev.to_dict() for ev in self.shared.es.store.active()]
-                    appended = op.append_events(local_events)
+                    local_events = []
+                    for idx, ev in enumerate(self.shared.es.store.active()):
+                        payload = ev.to_dict()
+                        payload["version"] = head + idx + 1
+                        local_events.append(payload)
+                    op.append_events(local_events)
                 op.save_snapshot(snapshot)
-        except Exception as exc:
-            self._send_json(500, {"error": str(exc)})
+            appended = len(local_events)
+
+        if not self._run_cloud_op("cloud-save", _commit):
             return
 
         cache = self.shared.local.load_components_cache()
@@ -746,9 +818,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 page_size = int((params.get("page_size") or ["20"])[0])
             except ValueError:
                 page_size = 20
-            items, total = self.shared.cloud.search_components(
-                query, page=page, page_size=page_size
-            )
+            result: tuple[list, int] | None = None
+
+            def _search() -> None:
+                nonlocal result
+                result = self.shared.cloud.search_components(
+                    query,
+                    page=page,
+                    page_size=page_size,
+                    allow_local_fallback=False,
+                    operation="search-components",
+                )
+
+            if not self._run_cloud_op("search-components", _search):
+                return
+            items, total = result if result is not None else ([], 0)
             self._send_json(200, {"items": items, "total": total})
             return
 
