@@ -1,5 +1,6 @@
 import { GraphData } from "../core/graph";
 import type { OrganizationPayload } from "../features/diagram/types/organization";
+import { fetchWithCloudErrorHandling } from "./apiClient";
 import { enqueueGraphRequest } from "./graphRequestQueue";
 
 const backendEndpoint = import.meta.env.VITE_BACKEND_ENDPOINT as string | undefined;
@@ -51,23 +52,39 @@ export async function deleteNode(nodeId: string): Promise<void> {
 
 export async function saveCloudGraph(): Promise<void> {
   return enqueueGraphRequest(async () => {
-    const response = await fetch(`${BACKEND_ENDPOINT}/cloud/save`, {
-      method: "POST",
-    });
-    if (!response.ok) {
-      throw new Error(`Backend responded with ${response.status}`);
-    }
+    await fetchWithCloudErrorHandling(
+      `${BACKEND_ENDPOINT}/cloud/save`,
+      {
+        method: "POST",
+      },
+    );
   });
 }
 
 export async function loadCloudGraph(): Promise<void> {
   return enqueueGraphRequest(async () => {
-    const response = await fetch(`${BACKEND_ENDPOINT}/cloud/load`, {
+    await fetchWithCloudErrorHandling(
+      `${BACKEND_ENDPOINT}/cloud/load`,
+      {
+        method: "POST",
+      },
+    );
+  });
+}
+
+export async function retryCloudOperation(): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    await fetchWithCloudErrorHandling(`${BACKEND_ENDPOINT}/cloud/retry`, {
       method: "POST",
     });
-    if (!response.ok) {
-      throw new Error(`Backend responded with ${response.status}`);
-    }
+  });
+}
+
+export async function cancelCloudOperation(): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    await fetchWithCloudErrorHandling(`${BACKEND_ENDPOINT}/cloud/cancel`, {
+      method: "POST",
+    });
   });
 }
 

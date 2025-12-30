@@ -10,6 +10,7 @@ export type DiagramViewStateController = {
   collapsedGateIdSet: Set<string>;
   collapseGate: (gateId: string) => void;
   expandGate: (gateId: string) => void;
+  refresh: () => Promise<void>;
 };
 
 const filterExistingGateIds = (graph: GraphData, ids: string[]): string[] => {
@@ -39,27 +40,39 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
   const hasUserInteractionRef = useRef(false);
   const hasPendingSaveRef = useRef(false);
 
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchDiagramView();
+      hasHydratedRef.current = true;
+      setCollapsedGateIds(normalizeCollapsedIds(data.collapsedGateIds ?? []));
+    } catch (error) {
+      setCollapsedGateIds([]);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
-    fetchDiagramView()
-      .then((data: DiagramViewState) => {
+    const load = async () => {
+      try {
+        const data = await fetchDiagramView();
         if (!active) {
           return;
         }
         hasHydratedRef.current = true;
         setCollapsedGateIds(normalizeCollapsedIds(data.collapsedGateIds ?? []));
-      })
-      .catch(() => {
+      } catch (error) {
         if (!active) {
           return;
         }
         setCollapsedGateIds([]);
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setIsLoaded(true);
         }
-      });
+      }
+    };
+
+    void load();
 
     return () => {
       active = false;
@@ -119,5 +132,6 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
     collapsedGateIdSet,
     collapseGate,
     expandGate,
+    refresh,
   };
 };

@@ -3,6 +3,7 @@ import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { CloudConfirmDialog } from "./features/diagram/components/CloudConfirmDialog";
+import { CloudErrorModal } from "./features/diagram/components/CloudErrorModal";
 import { CloudToast } from "./features/diagram/components/CloudToast";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
@@ -15,6 +16,7 @@ import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useDiagramView } from "./features/diagram/hooks/useDiagramView";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
+import { useCloudErrorRecovery } from "./features/diagram/hooks/useCloudErrorRecovery";
 import { useDrafts } from "./features/diagram/hooks/useDrafts";
 import { useEventDetails } from "./features/diagram/hooks/useEventDetails";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
@@ -31,6 +33,7 @@ import type {
   OrganizationPayload,
   OrganizationUiState,
 } from "./features/diagram/types/organization";
+import { isRetryableCloudError } from "./services/apiClient";
 import { insertOrganization, loadCloudGraph } from "./services/graphService";
 import { rebuildGraphAtVersion } from "./services/versionViewerService";
 
@@ -438,18 +441,28 @@ function App() {
     drafts,
     isLoading: draftsLoading,
     actionInFlight: draftActionInFlight,
+    refreshDrafts,
     createDraft,
     saveDraft,
     loadDraft,
     renameDraft,
     deleteDraft,
   } = useDrafts();
+  const cloudErrorRecovery = useCloudErrorRecovery({
+    onRetrySuccess: () => {
+      setGraphReloadToken((current) => current + 1);
+      void diagramView.refresh();
+      void refreshDrafts();
+    },
+  });
 
   const deleteMode = useDeleteMode({
     isBlocked:
       isAddMode ||
       isOrganizationMode ||
       cloudActionInFlight !== null ||
+      cloudErrorRecovery.isModalOpen ||
+      cloudErrorRecovery.actionLoading !== null ||
       isViewerMode,
     onDeleteSuccess: (selection) => {
       const isGate =
@@ -528,10 +541,17 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [rebuildToast?.token]);
 
-  const isCloudBusy = cloudActionInFlight !== null;
-  const isDraftBusy = draftActionInFlight !== null || isCloudBusy;
+  const isCloudBusy =
+    cloudActionInFlight !== null ||
+    cloudErrorRecovery.actionLoading !== null;
+  const isCloudRecoveryActive =
+    cloudErrorRecovery.isModalOpen ||
+    cloudErrorRecovery.actionLoading !== null;
+  const isDraftBusy =
+    draftActionInFlight !== null || isCloudBusy || isCloudRecoveryActive;
   const isVersionHistoryDisabled =
     isCloudBusy ||
+    isCloudRecoveryActive ||
     isAddMode ||
     deleteMode.isDeleteMode ||
     isSelectionMode ||
@@ -539,19 +559,34 @@ function App() {
   const cloudSaveState = {
     isBusy: cloudActionInFlight === "save",
     label: cloudActionInFlight === "save" ? "Guardando..." : "Guardar",
-    disabled: isAddMode || isCloudBusy || isViewerMode || deleteMode.isDeleteMode,
+    disabled:
+      isAddMode ||
+      isCloudBusy ||
+      isCloudRecoveryActive ||
+      isViewerMode ||
+      deleteMode.isDeleteMode,
   };
   const cloudLoadState = {
     isBusy: cloudActionInFlight === "load",
     label: cloudActionInFlight === "load" ? "Cargando..." : "Cargar",
-    disabled: isAddMode || isCloudBusy || isViewerMode || deleteMode.isDeleteMode,
+    disabled:
+      isAddMode ||
+      isCloudBusy ||
+      isCloudRecoveryActive ||
+      isViewerMode ||
+      deleteMode.isDeleteMode,
   };
   const isDeleteDisabled =
-    isAddMode || isOrganizationMode || isCloudBusy || isViewerMode;
+    isAddMode ||
+    isOrganizationMode ||
+    isCloudBusy ||
+    isCloudRecoveryActive ||
+    isViewerMode;
 
   useUndoRedo({
     isBlocked:
       isCloudBusy ||
+      isCloudRecoveryActive ||
       deleteMode.isDeleteMode ||
       isSelectionMode ||
       isOrganizationMode ||
@@ -709,6 +744,9 @@ function App() {
         type: "success",
       });
     } catch (error) {
+      if (isRetryableCloudError(error)) {
+        return;
+      }
       setRebuildToast({
         token: Date.now(),
         message: "No se pudo completar el rebuild.",
@@ -731,9 +769,13 @@ function App() {
     ? versionViewer.errorMessage
     : errorMessage;
   const activeViewState = isViewerMode ? versionViewer.viewState : diagramView;
-  const isSelectionModeActive = !isViewerMode && isSelectionMode;
-  const isOrganizationModeActive = !isViewerMode && isOrganizationMode;
-  const isDeleteModeActive = !isViewerMode && deleteMode.isDeleteMode;
+  const isInteractionBlocked = isCloudRecoveryActive;
+  const isSelectionModeActive =
+    !isViewerMode && isSelectionMode && !isInteractionBlocked;
+  const isOrganizationModeActive =
+    !isViewerMode && isOrganizationMode && !isInteractionBlocked;
+  const isDeleteModeActive =
+    !isViewerMode && deleteMode.isDeleteMode && !isInteractionBlocked;
 
   return (
     <div className="app">
@@ -742,6 +784,7 @@ function App() {
         isBlocked={
           isAddMode ||
           deleteMode.isDeleteMode ||
+          isCloudRecoveryActive ||
           versionHistoryPanel.isOpen ||
           isViewerMode
         }
@@ -749,6 +792,7 @@ function App() {
           isSelectionMode ||
           isOrganizationMode ||
           isCloudBusy ||
+          isCloudRecoveryActive ||
           deleteMode.isDeleteMode ||
           versionHistoryPanel.isOpen ||
           isViewerMode
@@ -788,6 +832,7 @@ function App() {
               deleteMode.isDeleteMode ||
               isOrganizationMode ||
               isCloudBusy ||
+              isCloudRecoveryActive ||
               isSelectionMode ||
               versionHistoryPanel.isOpen
             }
@@ -881,6 +926,14 @@ function App() {
           onRebuild={handleRebuildRequest}
         />
       </div>
+      <CloudErrorModal
+        open={cloudErrorRecovery.isModalOpen}
+        error={cloudErrorRecovery.cloudError}
+        loading={cloudErrorRecovery.actionLoading}
+        actionError={cloudErrorRecovery.actionError}
+        onCancel={cloudErrorRecovery.cancel}
+        onRetry={cloudErrorRecovery.retry}
+      />
       {cloudDialogAction ? (
         <CloudConfirmDialog
           action={cloudDialogAction}

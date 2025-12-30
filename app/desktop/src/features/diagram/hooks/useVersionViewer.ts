@@ -38,6 +38,7 @@ export const useVersionViewer = () => {
       collapsedGateIdSet: new Set(collapsedGateIds),
       collapseGate,
       expandGate,
+      refresh: async () => undefined,
     }),
     [collapsedGateIds, collapseGate, expandGate],
   );

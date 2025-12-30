@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { isRetryableCloudError } from "../../../services/apiClient";
 import { loadCloudGraph, saveCloudGraph } from "../../../services/graphService";
 import type { CloudAction, CloudToast } from "../types/cloud";
 
@@ -48,6 +49,9 @@ export const useCloudActions = ({ onLoadSuccess }: UseCloudActionsOptions) => {
         });
       }
     } catch (error) {
+      if (isRetryableCloudError(error)) {
+        return;
+      }
       setCloudToast({
         message:
           action === "save"

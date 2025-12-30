@@ -1,4 +1,5 @@
 import { GraphData } from "../core/graph";
+import { fetchWithCloudErrorHandling } from "./apiClient";
 import { BACKEND_ENDPOINT } from "./graphService";
 import { enqueueGraphRequest } from "./graphRequestQueue";
 
@@ -18,14 +19,11 @@ export async function fetchGraphAtVersion(
 
 export async function rebuildGraphAtVersion(version: number): Promise<void> {
   return enqueueGraphRequest(async () => {
-    const response = await fetch(
+    await fetchWithCloudErrorHandling(
       `${BACKEND_ENDPOINT}/event-history/version/${version}/rebuild`,
       {
         method: "POST",
       },
     );
-    if (!response.ok) {
-      throw new Error(`Backend responded with ${response.status}`);
-    }
   });
 }
