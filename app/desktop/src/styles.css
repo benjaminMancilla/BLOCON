@@ -1515,9 +1515,11 @@ body {
 
 .add-component-panel__footer {
   margin-top: 8px;
+  margin-bottom: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-bottom: 16px;
 }
 
 .add-component-panel__organization {
