@@ -11,8 +11,10 @@ from datetime import datetime, timezone
 import socket
 import msvcrt
 import tempfile
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
+from typing import ClassVar
 
 from src.model.graph.graph import ReliabilityGraph
 from src.model.eventsourcing.events import (
@@ -94,29 +96,33 @@ def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     return GraphES(graph=graph, store=store, actor="anonymous")
 
 
-class GraphRequestHandler(BaseHTTPRequestHandler):
+@dataclass
+class SharedState:
+    """Estado compartido entre todas las instancias HTTP"""
     es: GraphES
     local: LocalWorkspaceStore
     cloud: CloudClient
     base_dir: str
     cloud_baseline: dict | None = None
 
+
+class GraphRequestHandler(BaseHTTPRequestHandler):
+    shared: ClassVar[SharedState]
+
     def _replay_local(self) -> None:
         """Reconstruye el grafo desde baseline + eventos activos."""
-        if not self.es.store:
+        if not self.shared.es.store:
             print("ERROR NO STORE IN REPLAY LOCAL")
             return
 
         active_events = []
         try:
-            active_events = self.es.store.active()
+            active_events = self.shared.es.store.active()
         except Exception:
             active_events = []
 
         events = active_events
-        baseline = GraphRequestHandler.cloud_baseline
-        print("BASE DEL REPLAY")
-        print(len(baseline["nodes"]))
+        baseline = self.shared.cloud_baseline
         if baseline is not None:
             ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             snapshot_event = SnapshotEvent(
@@ -125,9 +131,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             events = [snapshot_event] + active_events
 
         try:
-            self.es.graph = self.es.rebuild(events)
-            print("GRAFO DESPUES DE REPLAY LOCAL")
-            print(self.es.graph.count_components())
+            self.shared.es.graph = self.shared.es.rebuild(events)
         except Exception:
             pass
 
@@ -173,12 +177,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _refresh_cloud_state(self) -> None:
         try:
-            if self.es.store:
-                self.es.store.clear()
+            if self.shared.es.store:
+                self.shared.es.store.clear()
         except Exception:
             pass
 
-        cloud = self.cloud
+        cloud = self.shared.cloud
         local = getattr(cloud, "local", None)
 
         manifest = cloud.load_manifest() or {}
@@ -216,8 +220,6 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 local.upsert_components_cache(items_to_cache)
 
         snap = cloud.load_snapshot() or {}
-        print("SNAP DE CLOUD LOAD")
-        print(len(snap["nodes"]))
         graph = ReliabilityGraph.from_data(snap)
         if local:
             graph.failures_cache = local.failures_cache
@@ -232,14 +234,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        print("GRAFO ANTES DEL REFRESH")
-        print(self.es.graph.count_components())
-        self.es.graph = graph
-        print("GRAFO LUEGO DEL REFRESH")
-        print(self.es.graph.count_components())
-        GraphRequestHandler.cloud_baseline = graph.to_data()
-        print("BASE LUEGO DEL REFRESH")
-        print(len(GraphRequestHandler.cloud_baseline["nodes"]))
+        self.shared.es.graph = graph
+        self.shared.cloud_baseline = graph.to_data()
 
         try:
             if local:
@@ -249,8 +245,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         try:
             head = len(cloud.load_events())
-            if self.es.store:
-                self.es.store.base_version = head
+            if self.shared.es.store:
+                self.shared.es.store.base_version = head
         except Exception:
             pass
 
@@ -272,7 +268,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         return events_upto
 
     def _load_event_objects(self) -> list[object]:
-        raw = self.cloud.load_events()
+        raw = self.shared.cloud.load_events()
         events: list[object] = []
         for entry in raw:
             try:
@@ -318,23 +314,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
             # ACA SUBIR ATOMICO
             try:
-                self.cloud.append_events(to_append)
+                self.shared.cloud.append_events(to_append)
             except Exception:
                 pass
 
             try:
-                self.cloud.save_snapshot(graph.to_data())
+                self.shared.cloud.save_snapshot(graph.to_data())
             except Exception:
                 pass
 
             try:
-                self.local.draft_delete()
+                self.shared.local.draft_delete()
             except Exception:
                 pass
 
             self._refresh_cloud_state()
-            print("GRAFO DESPUES DEL REBUILD")
-            print(self.es.graph.count_components())
 
             self._send_json(
                 200,
@@ -348,13 +342,13 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": str(exc)})
 
     def _handle_cloud_save(self) -> None:
-        cloud = self.cloud
-        graph = self.es.graph
+        cloud = self.shared.cloud
+        graph = self.shared.es.graph
 
         try:
-            graph.project_root = self.base_dir
-            graph.failures_cache = self.local.failures_cache
-            self.es.evaluate()
+            graph.project_root = self.shared.base_dir
+            graph.failures_cache = self.shared.local.failures_cache
+            self.shared.es.evaluate()
         except Exception:
             pass
 
@@ -363,15 +357,15 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         appended = 0
         try:
-            if self.es.store:
+            if self.shared.es.store:
                 head = len(cloud.load_events())
-                self.es.store.resequence_versions(head)
-                local_events = [ev.to_dict() for ev in self.es.store.active()]
+                self.shared.es.store.resequence_versions(head)
+                local_events = [ev.to_dict() for ev in self.shared.es.store.active()]
                 appended = cloud.append_events(local_events)
         except Exception:
             appended = 0
 
-        cache = self.local.load_components_cache()
+        cache = self.shared.local.load_components_cache()
         component_ids = sorted(
             [node_id for node_id, node in graph.nodes.items() if node.is_component()]
         )
@@ -391,17 +385,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         cloud.save_manifest(manifest)
 
         try:
-            if self.es.store:
-                self.es.store.clear()
+            if self.shared.es.store:
+                self.shared.es.store.clear()
         except Exception:
             pass
 
         try:
-            self.local.draft_delete()
+            self.shared.local.draft_delete()
         except Exception:
             pass
 
-        GraphRequestHandler.cloud_baseline = snapshot
+        self.shared.cloud_baseline = snapshot
         self._send_json(200, {"status": "ok", "events_uploaded": appended})
 
     def _handle_event_history(self, params: dict[str, list[str]]) -> None:
@@ -419,7 +413,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if limit <= 0:
             limit = 50
 
-        events = self.cloud.load_events()
+        events = self.shared.cloud.load_events()
         total = len(events)
         page = events[offset : offset + limit]
 
@@ -468,7 +462,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self._send_json(400, {"error": "invalid version"})
                 return
-            events, total = self.cloud.search_events_by_version(
+            events, total = self.shared.cloud.search_events_by_version(
                 version=version, offset=offset, limit=limit
             )
         elif timestamp_value:
@@ -476,7 +470,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if not timestamp or not re.match(r"^\d{4}-\d{2}(-\d{2})?$", timestamp):
                 self._send_json(400, {"error": "invalid timestamp"})
                 return
-            events, total = self.cloud.search_events_by_timestamp(
+            events, total = self.shared.cloud.search_events_by_timestamp(
                 timestamp_prefix=timestamp, offset=offset, limit=limit
             )
         else:
@@ -491,7 +485,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if not prefix and not kinds:
                 self._send_json(400, {"error": "invalid kind search"})
                 return
-            events, total = self.cloud.search_events_by_kind(
+            events, total = self.shared.cloud.search_events_by_kind(
                 kind_prefix=prefix, kinds=kinds, offset=offset, limit=limit
             )
 
@@ -507,33 +501,38 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
     def _cloud_head_version(self) -> int:
         try:
-            return len(self.cloud.load_events())
+            return len(self.shared.cloud.load_events())
         except Exception:
             return 0
 
     def _collect_draft_state(self) -> tuple[dict, list, int]:
         base_version = self._cloud_head_version()
-        if not self.es.store:
-            self.es.set_store(EventStore(self.local))
+        if not self.shared.es.store:
+            self.shared.es.set_store(EventStore(self.shared.local))
         try:
-            if self.es.store:
-                self.es.store.resequence_versions(base_version)
+            if self.shared.es.store:
+                self.shared.es.store.resequence_versions(base_version)
         except Exception:
             pass
 
-        snapshot = self.es.graph.to_data()
+        snapshot = self.shared.es.graph.to_data()
         events: list = []
         try:
-            events = [ev.to_dict() for ev in (self.es.store.active() if self.es.store else [])]
+            events = [
+                ev.to_dict()
+                for ev in (
+                    self.shared.es.store.active() if self.shared.es.store else []
+                )
+            ]
         except Exception:
             events = []
         return snapshot, events, base_version
 
     def _apply_loaded_draft(self, snapshot: dict, events: list, meta: dict) -> None:
-        self.es.graph = ReliabilityGraph.from_data(snapshot or {})
-        GraphRequestHandler.cloud_baseline = self.es.graph.to_data()
-        if not self.es.store:
-            self.es.set_store(EventStore(self.local))
+        self.shared.es.graph = ReliabilityGraph.from_data(snapshot or {})
+        self.shared.cloud_baseline = self.shared.es.graph.to_data()
+        if not self.shared.es.store:
+            self.shared.es.set_store(EventStore(self.shared.local))
 
         evs = []
         try:
@@ -546,21 +545,21 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             evs = []
 
         try:
-            if self.es.store:
-                self.es.store.replace(evs)
+            if self.shared.es.store:
+                self.shared.es.store.replace(evs)
         except Exception:
             try:
-                if self.es.store:
-                    self.es.store.clear()
+                if self.shared.es.store:
+                    self.shared.es.store.clear()
                     for ev in evs:
-                        self.es.store.append(ev)
+                        self.shared.es.store.append(ev)
             except Exception:
                 pass
 
         try:
             bv = meta.get("base_version", None) if isinstance(meta, dict) else None
-            if bv is not None and self.es.store:
-                self.es.store.base_version = int(bv)
+            if bv is not None and self.shared.es.store:
+                self.shared.es.store.base_version = int(bv)
         except Exception:
             pass
 
@@ -659,7 +658,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         try:
             print(f"[INSERT] Calling add_component_organization for {component_id}", file=sys.stderr)
             sys.stderr.flush()
-            self.es.add_component_organization(
+            self.shared.es.add_component_organization(
                 new_comp_id=component_id,
                 calculation_type=calculation_type,
                 target_id=target_id,
@@ -719,9 +718,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/graph":
-            print("GRAFO DEL GET")
-            print(self.es.graph.count_components())
-            self._send_json(200, serialize_graph(self.es.graph))
+            self._send_json(200, serialize_graph(self.shared.es.graph))
             return
 
         if path.startswith("/graph/"):
@@ -729,7 +726,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if not node_id:
                 self._send_json(404, {"error": "missing node id"})
                 return
-            node_data = serialize_node(self.es.graph, node_id)
+            node_data = serialize_node(self.shared.es.graph, node_id)
             if node_data is None:
                 self._send_json(404, {"error": f"node '{node_id}' not found"})
                 return
@@ -737,7 +734,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
         
         if path == "/diagram-view":
-            self._send_json(200, self.local.load_diagram_view())
+            self._send_json(200, self.shared.local.load_diagram_view())
             return
         
         if path == "/remote/components/search":
@@ -751,12 +748,14 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 page_size = int((params.get("page_size") or ["20"])[0])
             except ValueError:
                 page_size = 20
-            items, total = self.cloud.search_components(query, page=page, page_size=page_size)
+            items, total = self.shared.cloud.search_components(
+                query, page=page, page_size=page_size
+            )
             self._send_json(200, {"items": items, "total": total})
             return
 
         if path == "/drafts":
-            drafts = self.local.drafts_list()
+            drafts = self.shared.local.drafts_list()
             self._send_json(200, {"drafts": drafts})
             return
 
@@ -767,7 +766,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
 
         if path == "/graph/undo":
-            if self.es.store and self.es.store.undo():
+            if self.shared.es.store and self.shared.es.store.undo():
                 self._replay_local()
                 self._send_json(200, {"status": "ok"})
                 return
@@ -775,7 +774,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/graph/redo":
-            if self.es.store and self.es.store.redo():
+            if self.shared.es.store and self.shared.es.store.redo():
                 self._replay_local()
                 self._send_json(200, {"status": "ok"})
                 return
@@ -816,7 +815,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if isinstance(payload, dict):
                 name = payload.get("name")
             snapshot, events, base_version = self._collect_draft_state()
-            result = self.local.drafts_create(
+            result = self.shared.local.drafts_create(
                 snapshot=snapshot,
                 events=events,
                 base_version=base_version,
@@ -831,7 +830,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(404, {"error": "missing draft id"})
                 return
             cloud_head = self._cloud_head_version()
-            result = self.local.drafts_load(draft_id=draft_id, cloud_head=cloud_head)
+            result = self.shared.local.drafts_load(draft_id=draft_id, cloud_head=cloud_head)
             status = result.get("status")
             if status == "ok":
                 meta = (result.get("draft") or {}).get("meta") or {}
@@ -859,8 +858,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if "insert" in payload:
                 self._handle_organization_insert(payload)
                 return
-            self.local.save_diagram_view(payload)
-            self._send_json(200, self.local.load_diagram_view())
+            self.shared.local.save_diagram_view(payload)
+            self._send_json(200, self.shared.local.load_diagram_view())
             return
 
         if path.startswith("/drafts/"):
@@ -874,7 +873,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 name = payload.get("name")
             snapshot, events, base_version = self._collect_draft_state()
             try:
-                result = self.local.drafts_save(
+                result = self.shared.local.drafts_save(
                     draft_id=draft_id,
                     snapshot=snapshot,
                     events=events,
@@ -907,7 +906,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "invalid name"})
                 return
             try:
-                result = self.local.drafts_rename(draft_id=draft_id, name=name)
+                result = self.shared.local.drafts_rename(draft_id=draft_id, name=name)
             except ValueError as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
@@ -925,11 +924,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if not node_id:
                 self._send_json(404, {"error": "missing node id"})
                 return
-            if node_id not in self.es.graph.nodes:
+            if node_id not in self.shared.es.graph.nodes:
                 self._send_json(404, {"error": f"node '{node_id}' not found"})
                 return
             try:
-                self.es.remove_node(node_id)
+                self.shared.es.remove_node(node_id)
             except Exception as exc:
                 self._send_json(400, {"error": str(exc)})
                 return
@@ -941,7 +940,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             if not draft_id:
                 self._send_json(404, {"error": "missing draft id"})
                 return
-            deleted = self.local.drafts_delete(draft_id=draft_id)
+            deleted = self.shared.local.drafts_delete(draft_id=draft_id)
             self._send_json(200, {"status": "ok", "deleted": deleted})
             return
 
@@ -973,11 +972,13 @@ def main() -> None:
     except Exception as e:
         print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
     
-    GraphRequestHandler.es = es
-    GraphRequestHandler.local = local
-    GraphRequestHandler.cloud = cloud
-    GraphRequestHandler.base_dir = base_dir
-    GraphRequestHandler.cloud_baseline = es.graph.to_data()
+    GraphRequestHandler.shared = SharedState(
+        es=es,
+        local=local,
+        cloud=cloud,
+        base_dir=base_dir,
+        cloud_baseline=es.graph.to_data(),
+    )
 
     server = None
     try:
