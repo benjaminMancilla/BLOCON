@@ -91,6 +91,12 @@ def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     local = local or LocalWorkspaceStore()
     store = EventStore(local)
     snapshot = local.load_snapshot()
+    try:
+        base_version = len(local.load_events())
+        store.base_version = base_version
+        store.resequence_versions(base_version)
+    except Exception:
+        pass
     if snapshot:
         graph = ReliabilityGraph.from_data(snapshot)
     else:
@@ -332,6 +338,13 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+        try:
+            if self.shared.es.store:
+                with (perf.stage("resequence_local_store", base_version=len(events)) if perf else nullcontext()):
+                    self.shared.es.store.resequence_versions(len(events))
+        except Exception:
+            pass
+
     def _send_cloud_error(self, operation: str, exc: Exception) -> None:
         error = normalize_cloud_error(operation, exc)
         status = error.http_status or (503 if error.retryable else 400)
@@ -394,10 +407,25 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         local_events: list[dict] = []
         if self.shared.es.store:
             try:
-                local_events = [
-                    ev.to_dict()
-                    for ev in self.shared.es.store.active()
-                ]
+                head = self._cloud_head_version()
+                self.shared.es.store.resequence_versions(head)
+                active = self.shared.es.store.active()
+                versions = [getattr(ev, "version", None) for ev in active]
+                if any(v is None for v in versions):
+                    raise ValueError("local event version is None after resequence")
+                first_version = next((v for v in versions if isinstance(v, int)), None)
+                last_version = next((v for v in reversed(versions) if isinstance(v, int)), None)
+                print(
+                    "[cloud-save] resequence local events",
+                    f"head_remote={head}",
+                    f"count_local={len(active)}",
+                    f"first_version={first_version}",
+                    f"last_version={last_version}",
+                    file=sys.stderr,
+                )
+                local_events = [ev.to_dict() for ev in active]
+            except ValueError:
+                raise
             except Exception:
                 local_events = []
         payload = {
@@ -623,7 +651,20 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
     def _handle_cloud_save(self) -> None:
         perf = self.PerfLogger("cloud-save")
         with perf.stage("prepare_payload"):
-            payload, graph = self._prepare_cloud_save_payload(perf=perf)
+            try:
+                payload, graph = self._prepare_cloud_save_payload(perf=perf)
+            except ValueError as exc:
+                self._send_json(
+                    500,
+                    {
+                        "status": "error",
+                        "error": {
+                            "kind": "internal",
+                            "message": str(exc),
+                        },
+                    },
+                )
+                return
         snapshot = payload.get("snapshot") or {}
         appended = 0
 
@@ -662,6 +703,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
 
         if operation == "cloud-save":
+            raw_events = self._ensure_dict_list(payload.get("local_events"))
+            if any(ev.get("version") is None for ev in raw_events):
+                self._send_json(
+                    500,
+                    {
+                        "status": "error",
+                        "error": {
+                            "kind": "internal",
+                            "message": "local event version is None in pending payload",
+                        },
+                    },
+                )
+                return
             appended = 0
 
             def _commit() -> None:
@@ -861,6 +915,28 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         except Exception:
             evs = []
 
+        bv = None
+        try:
+            bv = meta.get("base_version", None) if isinstance(meta, dict) else None
+        except Exception:
+            bv = None
+        if bv is None:
+            try:
+                bv = self._cloud_head_version()
+            except Exception:
+                bv = 0
+
+        try:
+            base_version = int(bv)
+        except Exception:
+            base_version = 0
+
+        for idx, ev in enumerate(evs):
+            try:
+                ev.version = base_version + idx + 1
+            except Exception:
+                pass
+
         try:
             if self.shared.es.store:
                 self.shared.es.store.replace(evs)
@@ -874,9 +950,9 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 pass
 
         try:
-            bv = meta.get("base_version", None) if isinstance(meta, dict) else None
-            if bv is not None and self.shared.es.store:
-                self.shared.es.store.base_version = int(bv)
+            if self.shared.es.store:
+                self.shared.es.store.base_version = base_version
+                self.shared.es.store.resequence_versions(base_version)
         except Exception:
             pass
 

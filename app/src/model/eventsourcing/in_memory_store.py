@@ -24,9 +24,13 @@ class InMemoryEventStore:
             self.events = self.events[: self.head + 1]
 
         # auto-asignación de versión si corresponde
-        if getattr(ev, "version", None) is None and self.base_version is not None:
+        if getattr(ev, "version", None) is None:
+            if self.base_version is None:
+                self.base_version = self._infer_base_version()
+                if any(getattr(item, "version", None) is None for item in self.active()):
+                    self.resequence_versions(self.base_version)
             # base_version + 1, base_version + 2, ...
-            ev.version = int(self.base_version) + (self.head + 1) + 1
+            ev.version = int(self.base_version or 0) + (self.head + 1) + 1
 
         self.events.append(ev)
         self.head = len(self.events) - 1
@@ -37,7 +41,6 @@ class InMemoryEventStore:
     def clear(self) -> None:
         self.events.clear()
         self.head = -1
-        self.base_version = None
 
     def replace(self, events: List[Event]) -> None:
         self.events = list(events or [])
@@ -89,3 +92,16 @@ class InMemoryEventStore:
         if self.head < 0:
             return []
         return self.events[: self.head + 1]
+    
+    def _infer_base_version(self) -> int:
+        active = self.active()
+        if not active:
+            return 0
+        versions = [getattr(ev, "version", None) for ev in active]
+        if all(isinstance(v, int) for v in versions):
+            min_v = min(versions)
+            max_v = max(versions)
+            if max_v - min_v + 1 == len(versions):
+                return min_v - 1
+            return max_v - len(versions)
+        return 0
