@@ -122,7 +122,14 @@ def test_append_auto_assigns_version_when_base_version_set_and_event_has_none():
     # fórmula: base + (head+1)+1, donde head era 1 antes del append => 10+(2)+1=13
     assert e3.version == 13
 
-
+def test_append_assigns_version_when_base_version_missing():
+    s = InMemoryEventStore()
+    e1 = RemoveNodeEvent.create("A")
+    assert e1.version is None
+    s.append(e1)
+    assert e1.version == 1
+    assert s.base_version == 0
+    
 def test_replace_sets_head_to_end():
     s = InMemoryEventStore()
     s.append(RemoveNodeEvent.create("A"))

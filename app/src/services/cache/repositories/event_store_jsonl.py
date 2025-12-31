@@ -1,4 +1,5 @@
 from __future__ import annotations
+import sys
 from typing import List, Optional
 
 from .event_log import EventLogRepo
@@ -15,10 +16,13 @@ class JsonlEventStore(EventStorePort):
     NO conoce LocalWorkspaceStore: recibe un repo (o sea, DI puro).
     """
 
-    def __init__(self, log: EventLogRepo):
+    def __init__(self, log: EventLogRepo, base_version: Optional[int] = None):
         self._log = log
         initial = self._log.load_all()
-        self._mem = InMemoryEventStore(initial=initial)
+        self._mem = InMemoryEventStore(
+            initial=initial,
+            base_version=base_version
+        )
 
     # --- atributos del puerto ---
     @property
@@ -42,6 +46,18 @@ class JsonlEventStore(EventStorePort):
         had_redo_tail = self._mem.head < (len(self._mem.events) - 1)
 
         self._mem.append(ev)
+        if getattr(ev, "version", None) is None:
+            raise ValueError("EventStore.append: event version is None after append")
+        try:
+            print(
+                "[event-store] append",
+                f"kind={getattr(ev, 'kind', None)}",
+                f"version={getattr(ev, 'version', None)}",
+                f"base_version={self._mem.base_version}",
+                file=sys.stderr,
+            )
+        except Exception:
+            pass
 
         # Persistencia:
         if had_redo_tail:
@@ -57,6 +73,8 @@ class JsonlEventStore(EventStorePort):
 
     def replace(self, events: List[Event]) -> None:
         self._mem.replace(events)
+        if any(getattr(ev, "version", None) is None for ev in self._mem.active()):
+            raise ValueError("EventStore.replace: event version is None for active events")
         self._log.replace_all(self._mem.active())
 
     def clear(self) -> None:
@@ -82,4 +100,3 @@ class JsonlEventStore(EventStorePort):
 
     def redo(self) -> bool:
         return self._mem.redo()
-

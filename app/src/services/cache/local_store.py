@@ -83,9 +83,11 @@ class LocalWorkspaceStore:
         return self.events.load_all()
 
     def append_events(self, events: List[dict]) -> int:
+        self._validate_event_versions(events, context="append_events")
         return self.events.append_many(events or [])
 
     def replace_events(self, events: List[dict]) -> None:
+        self._validate_event_versions(events, context="replace_events")
         self.events.replace_all(events or [])
 
         # dentro de LocalWorkspaceStore
@@ -93,6 +95,19 @@ class LocalWorkspaceStore:
         d = os.path.join(self.data_dir, "eventsourcing")
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, filename)
+    
+    def _validate_event_versions(self, events: List[dict], context: str) -> None:
+        invalid_indices = [
+            idx
+            for idx, ev in enumerate(events or [])
+            if isinstance(ev, dict) and ev.get("version") is None
+        ]
+        if invalid_indices:
+            sample = ", ".join(str(idx) for idx in invalid_indices[:5])
+            raise ValueError(
+                f"LocalWorkspaceStore.{context}: event version is None "
+                f"(indices: {sample})"
+            )
 
 
     # --- components cache ---

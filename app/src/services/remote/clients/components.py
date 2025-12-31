@@ -263,7 +263,6 @@ class SharePointComponentsClient:
             )
 
         hits = extract_search_hits(search_resp)
-        print(hits)
         item_ids: List[str] = []
         for hit in hits:
             hit_site_id, hit_list_id, hit_item_id = get_sp_ids_from_hit(hit)

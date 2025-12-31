@@ -17,9 +17,10 @@ class EventStore(JsonlEventStore):
         self,
         local: LocalWorkspaceStore,
         *,
+        base_version: int,
         filename: str = "events.local.jsonl",
         path_override: Optional[str] = None,
     ):
         path = path_override or local.eventsourcing_events_path(filename=filename)
         log = EventLogRepo(path=path)
-        super().__init__(log)
+        super().__init__(log, base_version=base_version)
