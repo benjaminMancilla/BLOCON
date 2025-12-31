@@ -20,9 +20,12 @@ class BaseEvent:
     actor: str
     version: int | None = field(default=None, init=False)
 
+    _extra_fields: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["kind"] = self.kind
+        d.update(self._extra_fields)
         return d
 
 @dataclass
@@ -134,9 +137,17 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
     k = d.get("kind")
     common = {"ts": d["ts"], "actor": d.get("actor","anonymous")}
     ver = d.get("version")
+
+    known_base_fields = {"kind", "ts", "actor", "version"}
+    
     if k == "snapshot":
+        known_fields = known_base_fields | {"data"}
         ev = SnapshotEvent(kind="snapshot", **common, data=d["data"])
     elif k == "add_component_relative":
+        known_fields = known_base_fields | {
+            "target_id", "new_comp_id", "relation", "dist", "k", 
+            "unit_type", "position_index", "position_reference_id", "children_order"
+        }
         ev = AddComponentRelativeEvent(kind="add_component_relative", **common,
                                        target_id=d["target_id"], new_comp_id=d["new_comp_id"],
                                        relation=d["relation"], dist=d["dist"], k=d.get("k"),
@@ -145,28 +156,38 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
                                        position_reference_id=d.get("position_reference_id"),
                                        children_order=d.get("children_order"))
     elif k == "remove_node":
+        known_fields = known_base_fields | {"node_id"}
         ev = RemoveNodeEvent(kind="remove_node", **common, node_id=d["node_id"])
     elif k == "add_root_component":
+        known_fields = known_base_fields | {"new_comp_id", "dist", "unit_type"}
         ev = AddRootComponentEvent(kind="add_root_component", **common,
                                    new_comp_id=d["new_comp_id"], dist=d["dist"],
                                    unit_type=d.get("unit_type"))
     elif k == "set_head":
+        known_fields = known_base_fields | {"upto"}
         ev = SetHeadEvent(kind="set_head", **common, upto=d["upto"])
     elif k == "edit_component":
+        known_fields = known_base_fields | {"old_id", "new_id", "dist"}
         ev = EditComponentEvent(kind="edit_component", **common,
                                 old_id=d["old_id"], new_id=d["new_id"], dist=d["dist"])
     elif k == "edit_gate":
+        known_fields = known_base_fields | {"node_id", "params"}
         ev = EditGateEvent(kind="edit_gate", **common, node_id=d["node_id"], params=d.get("params", {}))
     elif k == "set_ignore_range":
+        known_fields = known_base_fields | {"start_v", "end_v"}
         ev = SetIgnoreRangeEvent(
             kind="set_ignore_range", **common,
             start_v=int(d["start_v"]), end_v=int(d["end_v"])
         )
     else:
         raise ValueError(f"Unknown event kind: {k}")
-    # asigna version si existe en el dict
+    
     try:
         ev.version = int(ver) if ver is not None else None
     except Exception:
         ev.version = None
+
+    extra_fields = {key: value for key, value in d.items() if key not in known_fields}
+    ev._extra_fields = extra_fields
+    
     return ev

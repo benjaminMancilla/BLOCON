@@ -13,23 +13,24 @@ class InMemoryEventStore:
     NO hace persistencia.
     """
 
-    def __init__(self, initial: Optional[List[Event]] = None):
+    def __init__(
+        self, 
+        initial: Optional[List[Event]] = None,
+        base_version: Optional[int] = None
+    ):
         self.events: List[Event] = list(initial or [])
-        self.base_version: Optional[int] = None
+        self.base_version: Optional[int] = base_version
         self.head: int = len(self.events) - 1
 
     def append(self, ev: Event) -> None:
-        # si hay "redo tail", se descarta al append (comportamiento típico)
         if self.head < len(self.events) - 1:
             self.events = self.events[: self.head + 1]
 
-        # auto-asignación de versión si corresponde
         if getattr(ev, "version", None) is None:
             if self.base_version is None:
                 self.base_version = self._infer_base_version()
                 if any(getattr(item, "version", None) is None for item in self.active()):
                     self.resequence_versions(self.base_version)
-            # base_version + 1, base_version + 2, ...
             ev.version = int(self.base_version or 0) + (self.head + 1) + 1
 
         self.events.append(ev)

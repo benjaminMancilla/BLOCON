@@ -87,20 +87,32 @@ def is_port_available(host: str, port: int) -> bool:
     except OSError:
         return False
 
+def _get_cloud_base_version(local: LocalWorkspaceStore) -> int:
+    """Obtiene la head version desde SharePoint, con fallback a cache local."""
+    try:
+        cloud = CloudClient(base_dir=os.getcwd())
+        sp_events = cloud._sp_events()
+        if sp_events:
+            return sp_events.get_max_version()
+    except Exception as exc:
+        print(f"[warning] Could not get cloud base_version: {exc}", file=sys.stderr)
+    
+    try:
+        return len(local.load_events())
+    except Exception:
+        return 0
+
 def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     local = local or LocalWorkspaceStore()
-    store = EventStore(local)
+    base_version = _get_cloud_base_version(local)
+    store = EventStore(local, base_version=base_version)
     snapshot = local.load_snapshot()
-    try:
-        base_version = len(local.load_events())
-        store.base_version = base_version
-        store.resequence_versions(base_version)
-    except Exception:
-        pass
+    
     if snapshot:
         graph = ReliabilityGraph.from_data(snapshot)
     else:
         graph = ReliabilityGraph(auto_normalize=True)
+    
     return GraphES(graph=graph, store=store, actor="anonymous")
 
 
@@ -237,6 +249,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         with (perf.stage("load_manifest") if perf else nullcontext()):
             manifest = cloud.load_manifest() or {}
+        
         comp_entries = manifest.get("component_ids", [])
         want_ids = [entry["id"] if isinstance(entry, dict) else entry for entry in comp_entries]
         want_etags = {
@@ -273,14 +286,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 allow_local_fallback=False,
                 operation="cloud-load",
             ) or {}
+        
         with (perf.stage("load_events") if perf else nullcontext()):
             events = cloud.load_events(
                 update_local=False,
                 allow_local_fallback=False,
                 operation="cloud-load",
             )
+        
         with (perf.stage("build_graph_from_snapshot", snapshot_bytes=self._json_size(snap)) if perf else nullcontext()):
             graph = ReliabilityGraph.from_data(snap)
+        
         if local:
             graph.failures_cache = local.failures_cache
 
@@ -305,7 +321,6 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                         node.unit_type = unit_type
         except Exception:
             pass
-
 
         try:
             if local:
@@ -333,17 +348,19 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
 
         try:
             if self.shared.es.store:
-                with (perf.stage("set_base_version", events_count=len(events)) if perf else nullcontext()):
+                with (perf.stage("update_base_version") if perf else nullcontext()):
+                    sp_events = self.shared.cloud._sp_events()
+                    if sp_events:
+                        max_version = sp_events.get_max_version()
+                        self.shared.es.store.base_version = max_version
+                    else:
+                        self.shared.es.store.base_version = len(events)
+        except Exception:
+            try:
+                if self.shared.es.store:
                     self.shared.es.store.base_version = len(events)
-        except Exception:
-            pass
-
-        try:
-            if self.shared.es.store:
-                with (perf.stage("resequence_local_store", base_version=len(events)) if perf else nullcontext()):
-                    self.shared.es.store.resequence_versions(len(events))
-        except Exception:
-            pass
+            except Exception:
+                pass
 
     def _send_cloud_error(self, operation: str, exc: Exception) -> None:
         error = normalize_cloud_error(operation, exc)
@@ -449,10 +466,8 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                         payload_copy = dict(event_payload)
                         payload_copy["version"] = head + idx + 1
                         to_append.append(payload_copy)
-                    with (perf.stage("append_events", events_count=len(to_append)) if perf else nullcontext()):
-                        op.append_events(to_append)
-                with (perf.stage("save_snapshot", snapshot_bytes=snapshot_bytes) if perf else nullcontext()):
-                    op.save_snapshot(snapshot)
+                    op.append_events(to_append)
+                op.save_snapshot(snapshot)
         return len(to_append)
 
     def _finalize_cloud_save(
@@ -556,7 +571,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         try:
             events = self._load_event_objects()
             events_upto = self._events_upto_version(events, version)
-            graph = GraphES.rebuild(events_upto)
+            graph = self.shared.es.rebuild(events_upto)
             self._send_json(200, serialize_graph(graph))
         except Exception as exc:
             print(str(exc))
@@ -573,7 +588,7 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             head_prev = len(events)
             events_upto = self._events_upto_version(events, version)
             with perf.stage("rebuild_graph", events_count=len(events_upto)):
-                graph = GraphES.rebuild(events_upto)
+                graph = self.shared.es.rebuild(events_upto)
             with perf.stage("graph_to_data"):
                 snapshot = graph.to_data()
 

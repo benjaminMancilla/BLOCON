@@ -33,20 +33,42 @@ class CloudAtomicOperation:
         self._events_committed = False
 
     def head_version(self) -> int:
-        return len(self._sp_events.load_events())
+        """Retorna la versión máxima en SharePoint."""
+        return self._sp_events.get_max_version()
 
     def append_events(self, events: list[dict]) -> int:
         if not events:
             return 0
-        self._expected_events = len(events)
-        self._events_payload = [dict(ev) for ev in events]
         if self._head_before is None:
             self._head_before = self.head_version()
+        self._expected_events = len(events)
+        self._events_payload = [dict(ev) for ev in events]
         return len(events)
 
     def save_snapshot(self, snapshot: Dict[str, Any]) -> None:
         snapshot = dict(snapshot or {})
         self._snapshot_payload = snapshot
+
+    def _validate_consistency_with_retry(
+        self, 
+        max_attempts: int = 4,
+        base_delay: float = 2.2
+    ) -> None:
+        """Valida consistencia con reintentos para permitir propagación."""
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self._validate_consistency()
+                return
+            except RuntimeError as exc:
+                if attempt == max_attempts:
+                    raise
+
+                delay = base_delay * (2 ** (attempt - 1))
+                LOG.info(
+                    "Consistency validation attempt %s/%s failed, retrying in %.2fs",
+                    attempt, max_attempts, delay
+                )
+                time.sleep(delay)
 
     def commit(self) -> None:
         """Escribe eventos y snapshot a SharePoint de forma coordinada."""
@@ -58,7 +80,6 @@ class CloudAtomicOperation:
         if self._head_before is None:
             self._head_before = self.head_version()
         
-        # Metadata de coordinación
         coordination = {
             "id": f"{self.name}-{ISO()}-{self._head_before}",
             "timestamp": ISO(),
@@ -68,11 +89,9 @@ class CloudAtomicOperation:
         }
         self._coordination_id = coordination["id"]
         
-        # Agregar coordination a eventos
         for event in self._events_payload:
             event["coordination"] = dict(coordination)
         
-        # Agregar coordination a snapshot
         snapshot = dict(self._snapshot_payload or {})
         snapshot["saved_at"] = ISO()
         snapshot["coordination"] = {
@@ -81,24 +100,23 @@ class CloudAtomicOperation:
         }
         self._snapshot_payload = snapshot
         
-        # Escribir eventos primero
         count = self._sp_events.append_events(self._events_payload)
         if count != len(self._events_payload):
             raise RuntimeError(
                 f"Partial event append ({count}/{len(self._events_payload)}) during {self.name}"
             )
         self._events_committed = True
-        
-        # Escribir snapshot después
         self._sp_snapshot.save_snapshot(snapshot)
-        
-        # Validar consistencia
+
+        # Delay para esperar SP a propagar
+        time.sleep(0.5)
+
         try:
-            self._validate_consistency()
+            self._validate_consistency_with_retry()
         except Exception as exc:
             LOG.warning("Consistency check failed for %s: %s", self.name, exc)
             self._repair_with_retry()
-            self._validate_consistency()
+            self._validate_consistency_with_retry()
         
         self._committed = True
 
@@ -114,20 +132,18 @@ class CloudAtomicOperation:
         
         snapshot_coord = snapshot.get("coordination") or {}
         if snapshot_coord.get("id") != self._coordination_id:
-            raise RuntimeError(
-                f"{self.name} snapshot coordination mismatch"
-            )
+            raise RuntimeError(f"{self.name} snapshot coordination mismatch")
         
         if int(snapshot_coord.get("expected_events") or 0) != int(self._expected_events):
-            raise RuntimeError(
-                f"{self.name} snapshot expected_events mismatch"
-            )
+            raise RuntimeError(f"{self.name} snapshot expected_events mismatch")
         
         if self._expected_events <= 0:
             return
         
-        # Validar eventos
-        events = self._sp_events.load_events()
+        head = self._sp_events.get_max_version()
+        from_version = max(1, head - self._expected_events)
+        events = self._sp_events.load_events(from_version=from_version)
+        
         if len(events) < self._expected_events:
             raise RuntimeError(f"{self.name} events missing after commit")
         
@@ -136,13 +152,14 @@ class CloudAtomicOperation:
             (ev.get("coordination") or {}).get("id")
             for ev in tail
         }
+        
         if coord_ids != {self._coordination_id}:
             raise RuntimeError(f"{self.name} events coordination mismatch")
 
     def _repair_with_retry(
         self,
         max_attempts: int = 3,
-        base_delay: float = 0.2
+        base_delay: float = 1.2
     ) -> None:
         """Intenta reparar snapshot si falló la validación."""
         if not self._coordination_id:

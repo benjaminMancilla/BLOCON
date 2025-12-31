@@ -45,6 +45,7 @@ class CloudClient:
             op.commit()
             op.commit_local()
         except Exception as exc:
+            print(f"[atomic] Exception caught: {exc}")
             try:
                 op.rollback()
             except Exception as rollback_exc:

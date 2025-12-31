@@ -16,10 +16,13 @@ class JsonlEventStore(EventStorePort):
     NO conoce LocalWorkspaceStore: recibe un repo (o sea, DI puro).
     """
 
-    def __init__(self, log: EventLogRepo):
+    def __init__(self, log: EventLogRepo, base_version: Optional[int] = None):
         self._log = log
         initial = self._log.load_all()
-        self._mem = InMemoryEventStore(initial=initial)
+        self._mem = InMemoryEventStore(
+            initial=initial,
+            base_version=base_version
+        )
 
     # --- atributos del puerto ---
     @property

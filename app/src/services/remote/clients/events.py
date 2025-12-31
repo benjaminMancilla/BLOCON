@@ -260,6 +260,35 @@ class SharePointEventsClient:
     
     # ---------------- public API ----------------
 
+    def get_max_version(self) -> int:
+        if not self.field_version:
+            return 0
+
+        try:
+            site_id = self._resolve_site_id()
+            list_id = self._resolve_events_list_id()
+            params = {
+                "$orderby": f"fields/{self.field_version} desc",
+                "$top": "1",
+                "$expand": "fields",
+            }
+            path = f"sites/{site_id}/lists/{list_id}/items"
+            data = self.session.request_json("GET", path, params=params)
+            items = data.get("value", []) if isinstance(data, dict) else []
+            if not items:
+                return 0
+            fields = (items[0] or {}).get("fields") or {}
+            value = fields.get(self.field_version)
+            if value is None:
+                return 0
+            try:
+                int_version = int(value)
+                return int_version
+            except Exception:
+                return 0
+        except Exception:
+            return 0
+
     def append_events(self, events: list[dict]) -> int:
         if not events:
             return 0
@@ -283,18 +312,16 @@ class SharePointEventsClient:
                             ev.get("version"),
                             ev.get("ts"),
                         )
-                        payload_for_list = {}  # snapshot queda “referenciado”
-                        payload_text = ""
+                        payload_for_list = {k: v for k, v in ev.items() if k != "data"}
+                        payload_text = json.dumps(payload_for_list, ensure_ascii=False)
                     except Exception:
                         snapshot_ref = None
 
                 if snapshot_ref is None:
-                    # fallback inline (misma política que tu clase actual)
                     try:
                         payload_text = json.dumps(payload_for_list, ensure_ascii=False)
                     except Exception:
                         payload_text = ""
-                # else: payload_text ya es ""
 
             else:
                 try:
@@ -330,7 +357,8 @@ class SharePointEventsClient:
         if payload_raw:
             try:
                 payload_dict = json.loads(payload_raw)
-            except Exception:
+            except Exception as e:
+                print(f"[_build_event_dict] Failed to parse payload JSON: {e}")
                 payload_dict = {}
 
         ev = dict(payload_dict or {})
