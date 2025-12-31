@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Coordinador de operaciones del grafo."""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+
+if TYPE_CHECKING:
+    from ..shared import SharedState
+
+from src.model.graph.graph import ReliabilityGraph
+from src.model.eventsourcing.events import SnapshotEvent
+from src.services.api.graph_snapshot import serialize_graph, serialize_node
+
+
+class GraphCoordinator:
+    """
+    Coordinador para operaciones del grafo.
+    
+    Maneja:
+    - Reconstrucción del grafo desde eventos
+    - Serialización del grafo y nodos
+    - Operaciones CRUD en el grafo
+    - Undo/Redo
+    """
+    
+    def __init__(self, shared: SharedState):
+        """
+        Inicializa el coordinador de grafo.
+        
+        Args:
+            shared: Estado compartido del servidor
+        """
+        self.shared = shared
+    
+    # ========== Reconstrucción del grafo ==========
+    
+    def replay_local(self) -> None:
+        """
+        Reconstruye el grafo desde baseline + eventos activos.
+        
+        Usa el baseline almacenado en cloud_baseline como punto de partida
+        y aplica todos los eventos activos del store local.
+        """
+        if not self.shared.es.store:
+            print("ERROR: No store available in replay_local")
+            return
+        
+        active_events = []
+        try:
+            active_events = self.shared.es.store.active()
+        except Exception:
+            active_events = []
+        
+        events = active_events
+        baseline = self.shared.cloud_baseline
+        
+        if baseline is not None:
+            # Crear evento snapshot artificial desde baseline
+            ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            snapshot_event = SnapshotEvent(
+                kind="snapshot", actor="api", ts=ts, data=baseline
+            )
+            events = [snapshot_event] + active_events
+        
+        try:
+            self.shared.es.graph = self.shared.es.rebuild(events)
+        except Exception:
+            pass
+    
+    def rebuild_from_events(self, events: list) -> ReliabilityGraph:
+        """
+        Reconstruye un grafo desde una lista de eventos.
+        
+        Args:
+            events: Lista de eventos a aplicar
+            
+        Returns:
+            Grafo reconstruido
+        """
+        return self.shared.es.rebuild(events)
+    
+    # ========== Serialización ==========
+    
+    def serialize_full_graph(self) -> dict:
+        """
+        Serializa el grafo completo a diccionario.
+        
+        Returns:
+            Diccionario con toda la información del grafo
+        """
+        return serialize_graph(self.shared.es.graph)
+    
+    def serialize_node(self, node_id: str) -> dict | None:
+        """
+        Serializa un nodo específico a diccionario.
+        
+        Args:
+            node_id: ID del nodo a serializar
+            
+        Returns:
+            Diccionario con información del nodo, o None si no existe
+        """
+        return serialize_node(self.shared.es.graph, node_id)
+    
+    # ========== Operaciones del grafo ==========
+    
+    def add_component_organization(
+        self,
+        new_comp_id: str,
+        calculation_type: str,
+        target_id: str | None = None,
+        host_type: str | None = None,
+        relation_type: str | None = None,
+        position_index: int | None = None,
+        position_reference_id: str | None = None,
+        children_order: list[str] | None = None,
+        k: int | None = None,
+        unit_type: str | None = None,
+    ) -> None:
+        """
+        Agrega un componente al grafo usando la interfaz de organización.
+        
+        Args:
+            new_comp_id: ID del nuevo componente
+            calculation_type: Tipo de cálculo (series, parallel, koon, component)
+            target_id: ID del nodo host (opcional si es root)
+            host_type: Tipo de host (gate, component)
+            relation_type: Tipo de relación (series, parallel, koon)
+            position_index: Índice de posición en lista de hijos
+            position_reference_id: ID de referencia para posicionamiento
+            children_order: Orden explícito de hijos
+            k: Valor k para gates koon
+            unit_type: Tipo de unidad del componente
+        """
+        self.shared.es.add_component_organization(
+            new_comp_id=new_comp_id,
+            calculation_type=calculation_type,
+            target_id=target_id,
+            host_type=host_type,
+            relation_type=relation_type,
+            position_index=position_index,
+            position_reference_id=position_reference_id,
+            children_order=children_order,
+            k=k,
+            unit_type=unit_type,
+        )
+    
+    def remove_node(self, node_id: str) -> None:
+        """
+        Elimina un nodo del grafo.
+        
+        Args:
+            node_id: ID del nodo a eliminar
+            
+        Raises:
+            Exception: Si el nodo no existe o no puede eliminarse
+        """
+        if node_id not in self.shared.es.graph.nodes:
+            raise ValueError(f"Node '{node_id}' not found")
+        self.shared.es.remove_node(node_id)
+    
+    # ========== Undo/Redo ==========
+    
+    def undo(self) -> bool:
+        """
+        Deshace la última operación.
+        
+        Returns:
+            True si se deshizo algo, False si no había nada que deshacer
+        """
+        if self.shared.es.store and self.shared.es.store.undo():
+            self.replay_local()
+            return True
+        return False
+    
+    def redo(self) -> bool:
+        """
+        Rehace la última operación deshecha.
+        
+        Returns:
+            True si se rehizo algo, False si no había nada que rehacer
+        """
+        if self.shared.es.store and self.shared.es.store.redo():
+            self.replay_local()
+            return True
+        return False
