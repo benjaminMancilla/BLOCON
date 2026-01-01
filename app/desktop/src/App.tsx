@@ -1,10 +1,10 @@
+// Components
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { CloudConfirmDialog } from "./features/diagram/components/CloudConfirmDialog";
 import { CloudErrorModal } from "./features/diagram/components/CloudErrorModal";
-import { CloudToast } from "./features/diagram/components/CloudToast";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
@@ -12,6 +12,9 @@ import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPan
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
+import { ToastContainer } from "./features/diagram/components/ToastContainer";
+
+// Hooks
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
 import { useDiagramView } from "./features/diagram/hooks/useDiagramView";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
@@ -23,21 +26,28 @@ import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
 import { useVersionViewer } from "./features/diagram/hooks/useVersionViewer";
 import { useVersionHistoryPanel } from "./features/diagram/hooks/useVersionHistoryPanel";
 import { useComponentSearch } from "./features/diagram/components/addComponent/hooks/useComponentSearch";
-import type {
-  DiagramNodeSelection,
-  SelectionStatus,
-} from "./features/diagram/types/selection";
-import type { GateType } from "./features/diagram/types/gates";
-import type { AddComponentFormState } from "./features/diagram/types/addComponent";
-import type {
-  OrganizationPayload,
-  OrganizationUiState,
-} from "./features/diagram/types/organization";
-import { isRetryableCloudError } from "./services/apiClient";
+import { useAddComponent } from "./features/diagram/hooks/useAddComponent";
+import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
+import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
+import {
+  useToasts,
+  useDraftToasts,
+  useDeleteToasts,
+  useInsertToast,
+} from "./features/diagram/hooks/useToasts";
+
+// Services
 import { insertOrganization, loadCloudGraph } from "./services/graphService";
 import { rebuildGraphAtVersion } from "./services/versionViewerService";
+import { isRetryableCloudError } from "./services/apiClient";
 
-type AddComponentStep = "selection" | "gateType" | "organization";
+// Types
+import type { OrganizationUiState } from "./features/diagram/types/organization";
+import type { GateType } from "./features/diagram/types/gates";
+
+const ENTER_DEBOUNCE_MS = 650;
+const MIN_QUERY_LEN = 2;
+
 type InsertHighlight = {
   token: number;
   componentId: string;
@@ -46,58 +56,13 @@ type InsertHighlight = {
   gateType: GateType | null;
 };
 
-const ENTER_DEBOUNCE_MS = 650;
-const MIN_QUERY_LEN = 2;
-
-const DEFAULT_FORM_STATE: AddComponentFormState = {
-  componentId: null,
-  calculationType: "exponential",
-};
-
 function App() {
-  const [isAddMode, setIsAddMode] = useState(false);
-  const [addComponentStep, setAddComponentStep] =
-    useState<AddComponentStep>("selection");
-  const [selectionStatus, setSelectionStatus] =
-    useState<SelectionStatus>("idle");
-  const [draftSelection, setDraftSelection] =
-    useState<DiagramNodeSelection | null>(null);
-  const [confirmedSelection, setConfirmedSelection] =
-    useState<DiagramNodeSelection | null>(null);
-  const [selectedGateType, setSelectedGateType] =
-    useState<GateType | null>(null);
-  const [isOrganizationActive, setIsOrganizationActive] = useState(false);
-  const [hoveredSelectionId, setHoveredSelectionId] = useState<string | null>(
-    null,
-  );
-  const [formState, setFormState] = useState<AddComponentFormState>({
-    componentId: null,
-    calculationType: "exponential",
-  });
+  // CORE STATE
+  const [graphReloadToken, setGraphReloadToken] = useState(0);
   const [organizationUiState, setOrganizationUiState] =
     useState<OrganizationUiState | null>(null);
-  const [organizationPayload, setOrganizationPayload] =
-    useState<OrganizationPayload | null>(null);
-  const [graphReloadToken, setGraphReloadToken] = useState(0);
-  const [formResetToken, setFormResetToken] = useState(0);
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
-  const [insertToastToken, setInsertToastToken] = useState<number | null>(null);
-  const [deleteToast, setDeleteToast] = useState<{
-    token: number;
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
-  const [draftToast, setDraftToast] = useState<{
-    token: number;
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
-  const [rebuildToast, setRebuildToast] = useState<{
-    token: number;
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
   const [rebuildDialog, setRebuildDialog] = useState<{
     version: number;
     step: 1 | 2;
@@ -105,614 +70,248 @@ function App() {
   const [isRebuildLoading, setIsRebuildLoading] = useState(false);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
+
+  // FEATURE HOOKS
+  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
+  const diagramView = useDiagramView(graph);
   const versionHistoryPanel = useVersionHistoryPanel();
   const eventDetails = useEventDetails();
   const versionViewer = useVersionViewer();
-  const isViewerMode = versionViewer.isActive;
-  const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
-  const diagramView = useDiagramView(graph);
+
   const existingNodeIds = useMemo(
     () => new Set(graph.nodes.map((node) => node.id)),
-    [graph.nodes],
+    [graph.nodes]
   );
+
   const pinnedExistingIds = useMemo(() => {
     if (!recentlyInsertedComponentId) return undefined;
     return new Set([recentlyInsertedComponentId]);
   }, [recentlyInsertedComponentId]);
+
+  // Toast system
+  const toasts = useToasts();
+  const draftToasts = useDraftToasts();
+  const deleteToasts = useDeleteToasts();
+  const insertToast = useInsertToast();
+
+  // Add Component with state machine
+  const addComponent = useAddComponent({
+    onInsertSuccess: (componentId) => {
+      setGraphReloadToken((c) => c + 1);
+      setRecentlyInsertedComponentId(componentId);
+      insertToast.showInsertSuccess();
+    },
+  });
+
   const componentSearch = useComponentSearch({
     minQueryLength: MIN_QUERY_LEN,
     debounceMs: ENTER_DEBOUNCE_MS,
     existingIds: existingNodeIds,
     alwaysVisibleIds: pinnedExistingIds,
   });
+
+  // Organization payload builder
+  const organizationPayload = useOrganizationPayload({
+    isActive: addComponent.flags.isOrganizing,
+    organizationUiState,
+    confirmedSelection: addComponent.target,
+    selectedGateType: addComponent.gateType,
+    formState: addComponent.formState,
+  });
+
+  // Cloud actions
+  const cloudActions = useCloudActions({
+    onLoadSuccess: () => setGraphReloadToken((c) => c + 1),
+  });
+
+  // Drafts
+  const drafts = useDrafts();
+
+  // Cloud error recovery
+  const cloudErrorRecovery = useCloudErrorRecovery({
+    onRetrySuccess: () => {
+      setGraphReloadToken((c) => c + 1);
+      void diagramView.refresh();
+      void drafts.refreshDrafts();
+    },
+  });
+
+  // Delete mode
+  const deleteMode = useDeleteMode({
+    isBlocked: false, // Manejado por el sistema de restricciones
+    onDeleteSuccess: (selection) => {
+      setGraphReloadToken((c) => c + 1);
+      const isGate =
+        selection.type === "gate" || selection.type === "collapsedGate";
+      if (isGate) {
+        deleteToasts.showGateDeleteSuccess();
+      } else {
+        deleteToasts.showNodeDeleteSuccess();
+      }
+    },
+    onDeleteError: (selection) => {
+      const isGate =
+        selection.type === "gate" || selection.type === "collapsedGate";
+      if (isGate) {
+        deleteToasts.showGateDeleteError();
+      } else {
+        deleteToasts.showNodeDeleteError();
+      }
+    },
+  });
+
+  // RESTRICTIONS SYSTEM
+  const restrictions = useRestrictions({
+    isAddMode: addComponent.flags.isActive,
+    isDeleteMode: deleteMode.isDeleteMode,
+    isViewerMode: versionViewer.isActive,
+    isOrganizationMode: addComponent.flags.isOrganizing,
+    isSelectionMode: addComponent.flags.isSelectingTarget,
+    isCloudBusy: cloudActions.cloudActionInFlight !== null,
+    isDraftBusy: drafts.actionInFlight !== null,
+    isRebuildInProgress: isRebuildLoading,
+    isCloudRecoveryActive:
+      cloudErrorRecovery.isModalOpen ||
+      cloudErrorRecovery.actionLoading !== null,
+    isVersionHistoryOpen: versionHistoryPanel.isOpen,
+    isEventDetailsOpen: eventDetails.isOpen,
+  });
+
+  // UNDO/REDO
+  useUndoRedo({
+    isBlocked: !restrictions.canUndoRedo,
+    onCompleted: () => setGraphReloadToken((c) => c + 1),
+  });
+
+  // INSERT VALIDATION & EXECUTION
   const insertValidators = useMemo(
     () => [
       {
         id: "unique-component",
-        validate: (payload: OrganizationPayload) => {
+        validate: (payload: any) => {
           const componentId = payload.insert.componentId;
           if (!componentId) return false;
           return !existingNodeIds.has(componentId);
         },
       },
     ],
-    [existingNodeIds],
+    [existingNodeIds]
   );
+
   const runInsertValidations = useCallback(
-    (payload: OrganizationPayload) =>
+    (payload: any) =>
       insertValidators.every((validator) => validator.validate(payload)),
-    [insertValidators],
+    [insertValidators]
   );
-  const isGateSelection = useCallback(
-    (selection: DiagramNodeSelection | null) => selection?.type === "gate",
-    [],
-  );
-  const isComponentSelection = useCallback(
-    (selection: DiagramNodeSelection | null) =>
-      selection?.type === "component" || selection?.type === "collapsedGate",
-    [],
-  );
-
-  const hasComponentSelected = Boolean(formState.componentId);
-  const isSelectionMode =
-    isAddMode &&
-    addComponentStep === "selection" &&
-    selectionStatus === "selecting" &&
-    hasComponentSelected;
-  const isOrganizationStage =
-    isAddMode && addComponentStep === "organization";
-  const isOrganizationMode =
-    isOrganizationStage && isOrganizationActive && hasComponentSelected;
-
-  useEffect(() => {
-    if (!isAddMode) {
-      setAddComponentStep("selection");
-      setSelectionStatus("idle");
-      setDraftSelection(null);
-      setConfirmedSelection(null);
-      setSelectedGateType(null);
-      setIsOrganizationActive(false);
-      setHoveredSelectionId(null);
-      setFormState({
-        ...DEFAULT_FORM_STATE,
-      });
-      setOrganizationUiState(null);
-      setOrganizationPayload(null);
-    }
-  }, [isAddMode]);
-
-  useEffect(() => {
-    if (addComponentStep !== "organization") {
-      setIsOrganizationActive(false);
-      setOrganizationUiState(null);
-      setOrganizationPayload(null);
-    }
-  }, [addComponentStep]);
-
-  const handleSelectionStart = useCallback(() => {
-    setAddComponentStep("selection");
-    setSelectionStatus("selecting");
-    setDraftSelection(null);
-    setConfirmedSelection(null);
-    setHoveredSelectionId(null);
-    setSelectedGateType(null);
-    setIsOrganizationActive(false);
-    setOrganizationUiState(null);
-    setOrganizationPayload(null);
-  }, []);
-
-  const resetSelectionState = useCallback(() => {
-    setAddComponentStep("selection");
-    setSelectionStatus("idle");
-    setDraftSelection(null);
-    setConfirmedSelection(null);
-    setSelectedGateType(null);
-    setIsOrganizationActive(false);
-    setHoveredSelectionId(null);
-    setOrganizationUiState(null);
-    setOrganizationPayload(null);
-  }, []);
-
-  const resetAddComponentFlow = useCallback(() => {
-    resetSelectionState();
-    setFormState({
-      ...DEFAULT_FORM_STATE,
-    });
-  }, [resetSelectionState]);
-
-  const handleSelectionCancel = useCallback(() => {
-    resetSelectionState();
-  }, [resetSelectionState]);
-
-  const handleSelectionConfirm = useCallback(
-    (selection: DiagramNodeSelection) => {
-      if (!formState.componentId) return;
-      setDraftSelection(selection);
-      setConfirmedSelection(selection);
-      setSelectionStatus("selected");
-      setHoveredSelectionId(null);
-      setSelectedGateType(null);
-      setOrganizationUiState(null);
-      setOrganizationPayload(null);
-      if (isGateSelection(selection)) {
-        setAddComponentStep("organization");
-        setIsOrganizationActive(true);
-      } else {
-        setIsOrganizationActive(false);
-        setAddComponentStep("gateType");
-      }
-    },
-    [formState.componentId, isGateSelection],
-  );
-
-  const handleSelectionReset = useCallback(() => {
-    resetAddComponentFlow();
-  }, [resetAddComponentFlow]);
-
-  const handleNodePreselect = useCallback(
-    (selection: DiagramNodeSelection) => {
-      if (!isSelectionMode) return;
-      setDraftSelection(selection);
-    },
-    [isSelectionMode],
-  );
-
-  const handleNodeConfirm = useCallback(
-    (selection: DiagramNodeSelection) => {
-      if (!isSelectionMode) return;
-      setDraftSelection(selection);
-      handleSelectionConfirm(selection);
-    },
-    [handleSelectionConfirm, isSelectionMode],
-  );
-
-  const handleNodeHover = useCallback(
-    (nodeId: string | null) => {
-      if (!isSelectionMode) return;
-      setHoveredSelectionId(nodeId);
-    },
-    [isSelectionMode],
-  );
-
-  const handleSelectionModeEnter = useCallback(() => {
-    setHoveredSelectionId(null);
-  }, []);
-
-  const handleSelectionModeExit = useCallback(() => {
-    setHoveredSelectionId(null);
-  }, []);
-
-  const handleGateTypeChange = useCallback(
-    (gateType: GateType | null) => {
-      setSelectedGateType(gateType);
-      if (gateType && isComponentSelection(confirmedSelection)) {
-        setAddComponentStep("organization");
-        setIsOrganizationActive(true);
-      }
-    },
-    [confirmedSelection, isComponentSelection],
-  );
-
-  const handleSelectionUpdate = useCallback(
-    (selection: DiagramNodeSelection) => {
-      if (!formState.componentId) return;
-      setDraftSelection((prev) =>
-        prev?.id === selection.id ? selection : prev,
-      );
-      setConfirmedSelection((prev) =>
-        prev?.id === selection.id ? selection : prev,
-      );
-      if (confirmedSelection?.id !== selection.id) return;
-
-      const nextStep = isGateSelection(selection)
-        ? "organization"
-        : selectedGateType
-          ? "organization"
-          : "gateType";
-      setAddComponentStep(nextStep);
-      setIsOrganizationActive(nextStep === "organization");
-      setOrganizationUiState(null);
-      setOrganizationPayload(null);
-    },
-    [confirmedSelection?.id, formState.componentId, isGateSelection, selectedGateType],
-  );
-
-  const handleOrganizationStart = useCallback(() => {
-    setIsOrganizationActive(true);
-  }, []);
-
-  const handleOrganizationCancel = useCallback(() => {
-    setIsOrganizationActive(false);
-    setOrganizationUiState(null);
-    setOrganizationPayload(null);
-  }, []);
-
-  const selectionMeta = useMemo(
-    () => ({
-      preselectedId: draftSelection?.id ?? null,
-      selectedId: confirmedSelection?.id ?? null,
-      hoveredId: hoveredSelectionId,
-    }),
-    [confirmedSelection?.id, draftSelection?.id, hoveredSelectionId],
-  );
-
-  useEffect(() => {
-    if (!isOrganizationMode || !organizationUiState) {
-      setOrganizationPayload(null);
-      return;
-    }
-
-    const placeholderIndex = organizationUiState.order.indexOf(
-      organizationUiState.placeholderId,
-    );
-    const positionIndex =
-      placeholderIndex >= 0 ? placeholderIndex + 1 : null;
-    const target =
-      confirmedSelection?.id
-        ? {
-            hostId: confirmedSelection.id,
-            hostType: isGateSelection(confirmedSelection) ? "gate" as const : "component" as const,
-            relationType: isGateSelection(confirmedSelection)
-              ? organizationUiState.gateSubtype
-              : selectedGateType,
-          }
-        : null;
-
-    const insert = {
-      ...formState,
-      ...(target?.relationType === "koon" ? { k: 1 } : {}),
-      target,
-      position: {
-        index: positionIndex,
-        referenceId: null,
-      },
-    };
-
-    const orderChanged =
-      organizationUiState.order.length !==
-        organizationUiState.initialOrder.length ||
-      organizationUiState.order.some(
-        (value, index) => value !== organizationUiState.initialOrder[index],
-      );
-    const reorder = orderChanged
-      ? organizationUiState.order
-          .map((id, index) => ({
-            position: index + 1,
-            id:
-              id === organizationUiState.placeholderId
-                ? formState.componentId
-                : id,
-          }))
-          .filter((entry): entry is { position: number; id: string } => entry.id !== null)
-      : null;
-
-    setOrganizationPayload({
-      insert,
-      reorder,
-    });
-  }, [
-    confirmedSelection,
-    formState,
-    isOrganizationMode,
-    isGateSelection,
-    organizationUiState,
-    selectedGateType,
-  ]);
-
-  useEffect(() => {
-    if (!organizationPayload) return;
-  }, [organizationPayload]);
 
   const handleInsert = useCallback(async () => {
-    if (!organizationPayload?.insert.componentId) return;
-    if (!runInsertValidations(organizationPayload)) return;
-    const insertTarget = organizationPayload.insert.target;
+    if (!organizationPayload.payload || !organizationPayload.isValid) return;
+    if (!runInsertValidations(organizationPayload.payload)) return;
+
+    const payload = organizationPayload.payload;
+    const insertTarget = payload.insert.target;
     const insertMeta = {
-      componentId: organizationPayload.insert.componentId,
-      targetGateId: insertTarget?.hostType === "gate" ? insertTarget.hostId : null,
+      componentId: payload.insert.componentId!,
+      targetGateId:
+        insertTarget?.hostType === "gate" ? insertTarget.hostId : null,
       hostComponentId:
         insertTarget?.hostType === "component" ? insertTarget.hostId : null,
       gateType: insertTarget?.relationType ?? null,
     };
-    await insertOrganization(organizationPayload);
-    setGraphReloadToken((current) => current + 1);
-    resetAddComponentFlow();
-    setFormResetToken((current) => current + 1);
-    setRecentlyInsertedComponentId(organizationPayload.insert.componentId);
-    setInsertHighlight((current) => ({
-      ...insertMeta,
-      token: (current?.token ?? 0) + 1,
-    }));
-    setInsertToastToken((current) => (current ?? 0) + 1);
-  }, [organizationPayload, resetAddComponentFlow, runInsertValidations]);
 
-  const {
-    cloudDialogAction,
-    cloudActionInFlight,
-    cloudToast,
-    requestSave,
-    requestLoad,
-    confirmAction,
-    cancelAction,
-  } = useCloudActions({
-    onLoadSuccess: () => setGraphReloadToken((current) => current + 1),
-  });
-  const {
-    drafts,
-    isLoading: draftsLoading,
-    actionInFlight: draftActionInFlight,
-    refreshDrafts,
-    createDraft,
-    saveDraft,
-    loadDraft,
-    renameDraft,
-    deleteDraft,
-  } = useDrafts();
-  const cloudErrorRecovery = useCloudErrorRecovery({
-    onRetrySuccess: () => {
-      setGraphReloadToken((current) => current + 1);
-      void diagramView.refresh();
-      void refreshDrafts();
-    },
-  });
-
-  const deleteMode = useDeleteMode({
-    isBlocked:
-      isAddMode ||
-      isOrganizationMode ||
-      cloudActionInFlight !== null ||
-      cloudErrorRecovery.isModalOpen ||
-      cloudErrorRecovery.actionLoading !== null ||
-      isViewerMode,
-    onDeleteSuccess: (selection) => {
-      const isGate =
-        selection.type === "gate" || selection.type === "collapsedGate";
-      setGraphReloadToken((current) => current + 1);
-      setDeleteToast((current) => ({
+    try {
+      await insertOrganization(payload);
+      await addComponent.confirmInsert(payload);
+      
+      // Set insert highlight
+      setInsertHighlight((current) => ({
+        ...insertMeta,
         token: (current?.token ?? 0) + 1,
-        message: isGate ? "Gate eliminada" : "Nodo eliminado",
-        type: "success",
       }));
-    },
-    onDeleteError: (selection) => {
-      const isGate =
-        selection.type === "gate" || selection.type === "collapsedGate";
-      setDeleteToast((current) => ({
-        token: (current?.token ?? 0) + 1,
-        message: isGate
-          ? "No se pudo eliminar la gate"
-          : "No se pudo eliminar el nodo",
-        type: "error",
-      }));
-    },
-  });
-
-  useEffect(() => {
-    if (!deleteMode.isDeleteMode) return;
-    if (isAddMode) {
-      setIsAddMode(false);
-    }
-  }, [deleteMode.isDeleteMode, isAddMode]);
-
-  useEffect(() => {
-    if (!isViewerMode) return;
-    if (isAddMode) {
-      setIsAddMode(false);
-    }
-    if (deleteMode.isDeleteMode) {
-      deleteMode.onSelectionCancel();
+      
+      // Reset organization state
+      setOrganizationUiState(null);
+    } catch (error) {
+      console.error("Insert failed:", error);
+      toasts.error("No se pudo insertar el componente", "insert");
     }
   }, [
-    deleteMode.isDeleteMode,
-    deleteMode.onSelectionCancel,
-    isAddMode,
-    isViewerMode,
+    organizationPayload.payload,
+    organizationPayload.isValid,
+    runInsertValidations,
+    addComponent,
+    toasts,
   ]);
 
-  useEffect(() => {
-    if (insertToastToken === null) return;
-    const timeout = window.setTimeout(() => {
-      setInsertToastToken(null);
-    }, 2600);
-    return () => window.clearTimeout(timeout);
-  }, [insertToastToken]);
-
-  useEffect(() => {
-    if (!deleteToast) return;
-    const timeout = window.setTimeout(() => {
-      setDeleteToast(null);
-    }, 2600);
-    return () => window.clearTimeout(timeout);
-  }, [deleteToast]);
-
-  useEffect(() => {
-    if (!draftToast) return;
-    const timeout = window.setTimeout(() => {
-      setDraftToast(null);
-    }, 2600);
-    return () => window.clearTimeout(timeout);
-  }, [draftToast?.token]);
-
-  useEffect(() => {
-    if (!rebuildToast) return;
-    const timeout = window.setTimeout(() => {
-      setRebuildToast(null);
-    }, 2600);
-    return () => window.clearTimeout(timeout);
-  }, [rebuildToast?.token]);
-
-  const isCloudBusy =
-    cloudActionInFlight !== null ||
-    cloudErrorRecovery.actionLoading !== null;
-  const isCloudRecoveryActive =
-    cloudErrorRecovery.isModalOpen ||
-    cloudErrorRecovery.actionLoading !== null;
-  const isDraftBusy =
-    draftActionInFlight !== null || isCloudBusy || isCloudRecoveryActive;
-  const isVersionHistoryDisabled =
-    isCloudBusy ||
-    isCloudRecoveryActive ||
-    isAddMode ||
-    deleteMode.isDeleteMode ||
-    isSelectionMode ||
-    isOrganizationMode;
-  const cloudSaveState = {
-    isBusy: cloudActionInFlight === "save",
-    label: cloudActionInFlight === "save" ? "Guardando..." : "Guardar",
-    disabled:
-      isAddMode ||
-      isCloudBusy ||
-      isCloudRecoveryActive ||
-      isViewerMode ||
-      deleteMode.isDeleteMode,
-  };
-  const cloudLoadState = {
-    isBusy: cloudActionInFlight === "load",
-    label: cloudActionInFlight === "load" ? "Cargando..." : "Cargar",
-    disabled:
-      isAddMode ||
-      isCloudBusy ||
-      isCloudRecoveryActive ||
-      isViewerMode ||
-      deleteMode.isDeleteMode,
-  };
-  const isDeleteDisabled =
-    isAddMode ||
-    isOrganizationMode ||
-    isCloudBusy ||
-    isCloudRecoveryActive ||
-    isViewerMode;
-
-  useUndoRedo({
-    isBlocked:
-      isCloudBusy ||
-      isCloudRecoveryActive ||
-      deleteMode.isDeleteMode ||
-      isSelectionMode ||
-      isOrganizationMode ||
-      isAddMode ||
-      isViewerMode ||
-      isRebuildLoading ||
-      rebuildDialog !== null,
-    onCompleted: () => setGraphReloadToken((current) => current + 1),
-  });
-
+  // DRAFT HANDLERS
   const handleDraftCreate = useCallback(
     async (name?: string) => {
       try {
-        await createDraft(name);
-        setDraftToast({
-          token: Date.now(),
-          message: "Borrador guardado correctamente.",
-          type: "success",
-        });
-      } catch (error) {
-        setDraftToast({
-          token: Date.now(),
-          message: "No se pudo guardar el borrador.",
-          type: "error",
-        });
+        await drafts.createDraft(name);
+        draftToasts.showCreateSuccess();
+      } catch {
+        draftToasts.showCreateError();
       }
     },
-    [createDraft],
+    [drafts, draftToasts]
   );
 
   const handleDraftSave = useCallback(
     async (draftId: string) => {
       try {
-        await saveDraft(draftId);
-        setDraftToast({
-          token: Date.now(),
-          message: "Borrador actualizado.",
-          type: "success",
-        });
-      } catch (error) {
-        setDraftToast({
-          token: Date.now(),
-          message: "No se pudo actualizar el borrador.",
-          type: "error",
-        });
+        await drafts.saveDraft(draftId);
+        draftToasts.showSaveSuccess();
+      } catch {
+        draftToasts.showSaveError();
       }
     },
-    [saveDraft],
-  );
-
-  const handleDraftRename = useCallback(
-    async (draftId: string, name: string) => {
-      try {
-        await renameDraft(draftId, name);
-        setDraftToast({
-          token: Date.now(),
-          message: "Nombre del borrador actualizado.",
-          type: "success",
-        });
-      } catch (error) {
-        setDraftToast({
-          token: Date.now(),
-          message: "No se pudo renombrar el borrador.",
-          type: "error",
-        });
-      }
-    },
-    [renameDraft],
-  );
-
-  const handleDraftDelete = useCallback(
-    async (draftId: string) => {
-      try {
-        await deleteDraft(draftId);
-        setDraftToast({
-          token: Date.now(),
-          message: "Borrador eliminado.",
-          type: "success",
-        });
-      } catch (error) {
-        setDraftToast({
-          token: Date.now(),
-          message: "No se pudo eliminar el borrador.",
-          type: "error",
-        });
-      }
-    },
-    [deleteDraft],
+    [drafts, draftToasts]
   );
 
   const handleDraftLoad = useCallback(
     async (draftId: string) => {
       try {
-        const result = await loadDraft(draftId);
+        const result = await drafts.loadDraft(draftId);
         if (result.status === "ok") {
-          setGraphReloadToken((current) => current + 1);
-          setDraftToast({
-            token: Date.now(),
-            message: "Borrador cargado en el lienzo.",
-            type: "success",
-          });
+          setGraphReloadToken((c) => c + 1);
+          draftToasts.showLoadSuccess();
         } else if (result.status === "conflict") {
-          setDraftToast({
-            token: Date.now(),
-            message:
-              "El borrador estaba desactualizado y se eliminó automáticamente.",
-            type: "error",
-          });
+          draftToasts.showLoadConflict();
         } else {
-          setDraftToast({
-            token: Date.now(),
-            message: "No se encontró el borrador solicitado.",
-            type: "error",
-          });
+          draftToasts.showLoadNotFound();
         }
-      } catch (error) {
-        setDraftToast({
-          token: Date.now(),
-          message: "No se pudo cargar el borrador.",
-          type: "error",
-        });
+      } catch {
+        draftToasts.showLoadError();
       }
     },
-    [loadDraft],
+    [drafts, draftToasts]
   );
 
+  const handleDraftRename = useCallback(
+    async (draftId: string, name: string) => {
+      try {
+        await drafts.renameDraft(draftId, name);
+        draftToasts.showRenameSuccess();
+      } catch {
+        draftToasts.showRenameError();
+      }
+    },
+    [drafts, draftToasts]
+  );
+
+  const handleDraftDelete = useCallback(
+    async (draftId: string) => {
+      try {
+        await drafts.deleteDraft(draftId);
+        draftToasts.showDeleteSuccess();
+      } catch {
+        draftToasts.showDeleteError();
+      }
+    },
+    [drafts, draftToasts]
+  );
+
+  // REBUILD HANDLERS
   const handleRebuildRequest = useCallback((version: number) => {
     setRebuildDialog({ version, step: 1 });
   }, []);
@@ -726,7 +325,7 @@ function App() {
     if (!rebuildDialog) return;
     if (rebuildDialog.step === 1) {
       setRebuildDialog((current) =>
-        current ? { ...current, step: 2 } : current,
+        current ? { ...current, step: 2 } : current
       );
       return;
     }
@@ -734,114 +333,132 @@ function App() {
     try {
       await rebuildGraphAtVersion(rebuildDialog.version);
       await loadCloudGraph();
-      setGraphReloadToken((current) => current + 1);
+      setGraphReloadToken((c) => c + 1);
       versionViewer.exitViewer();
       versionHistoryPanel.close();
       eventDetails.close();
-      setRebuildToast({
-        token: Date.now(),
-        message: `Rebuild completado en v${rebuildDialog.version}.`,
-        type: "success",
-      });
+      toasts.success(
+        `Rebuild completado en v${rebuildDialog.version}.`,
+        "rebuild"
+      );
     } catch (error) {
       if (isRetryableCloudError(error)) {
         return;
       }
-      setRebuildToast({
-        token: Date.now(),
-        message: "No se pudo completar el rebuild.",
-        type: "error",
-      });
+      toasts.error("No se pudo completar el rebuild.", "rebuild");
     } finally {
       setIsRebuildLoading(false);
       setRebuildDialog(null);
     }
-  }, [
-    eventDetails,
-    rebuildDialog,
-    versionHistoryPanel,
-    versionViewer,
-  ]);
+  }, [rebuildDialog, versionViewer, versionHistoryPanel, eventDetails, toasts]);
 
-  const activeGraph = isViewerMode ? versionViewer.graph : graph;
-  const activeStatus = isViewerMode ? versionViewer.status : status;
-  const activeErrorMessage = isViewerMode
+  // AUTO-DISMISS EFFECTS
+  
+  // Auto-clear insert highlight after animation
+  useEffect(() => {
+    if (!insertHighlight) return;
+    const timeout = window.setTimeout(() => {
+      setInsertHighlight(null);
+    }, 2600);
+    return () => window.clearTimeout(timeout);
+  }, [insertHighlight?.token]);
+
+  // CROSS-MODE INTERACTIONS
+  
+  // Si entramos en delete mode, salir de add mode
+  useEffect(() => {
+    if (!deleteMode.isDeleteMode) return;
+    if (addComponent.flags.isActive) {
+      addComponent.cancel();
+    }
+  }, [deleteMode.isDeleteMode, addComponent]);
+
+  // Si entramos en viewer mode, salir de todos los modos
+  useEffect(() => {
+    if (!versionViewer.isActive) return;
+    if (addComponent.flags.isActive) {
+      addComponent.cancel();
+    }
+    if (deleteMode.isDeleteMode) {
+      deleteMode.onSelectionCancel();
+    }
+  }, [versionViewer.isActive, addComponent, deleteMode]);
+
+  // DERIVED STATE FOR RENDER
+  const activeGraph = versionViewer.isActive ? versionViewer.graph : graph;
+  const activeStatus = versionViewer.isActive ? versionViewer.status : status;
+  const activeErrorMessage = versionViewer.isActive
     ? versionViewer.errorMessage
     : errorMessage;
-  const activeViewState = isViewerMode ? versionViewer.viewState : diagramView;
-  const isInteractionBlocked = isCloudRecoveryActive;
-  const isSelectionModeActive =
-    !isViewerMode && isSelectionMode && !isInteractionBlocked;
-  const isOrganizationModeActive =
-    !isViewerMode && isOrganizationMode && !isInteractionBlocked;
-  const isDeleteModeActive =
-    !isViewerMode && deleteMode.isDeleteMode && !isInteractionBlocked;
+  const activeViewState = versionViewer.isActive
+    ? versionViewer.viewState
+    : diagramView;
 
+  // Determine current step for AddComponentPanel
+  const addComponentStep = 
+    addComponent.state.type === "searchingComponent" ||
+    addComponent.state.type === "componentSelected" ||
+    addComponent.state.type === "selectingTarget"
+      ? "selection"
+      : addComponent.state.type === "choosingGate"
+        ? "gateType"
+        : "organization";
+
+  const selectionStatus =
+    addComponent.flags.isSelectingTarget ? "selecting" : "idle";
+
+  // RENDER
   return (
     <div className="app">
       <DiagramTopBar
-        isAddMode={isAddMode}
-        isBlocked={
-          isAddMode ||
-          deleteMode.isDeleteMode ||
-          isCloudRecoveryActive ||
-          versionHistoryPanel.isOpen ||
-          isViewerMode
-        }
-        isAddDisabled={
-          isSelectionMode ||
-          isOrganizationMode ||
-          isCloudBusy ||
-          isCloudRecoveryActive ||
-          deleteMode.isDeleteMode ||
-          versionHistoryPanel.isOpen ||
-          isViewerMode
-        }
-        isDeleteMode={isDeleteModeActive}
-        isDeleteDisabled={isDeleteDisabled || versionHistoryPanel.isOpen}
+        isAddMode={addComponent.flags.isActive}
+        isBlocked={!restrictions.canEnterAddMode && !addComponent.flags.isActive}
+        isAddDisabled={!restrictions.canEnterAddMode}
+        isDeleteMode={deleteMode.isDeleteMode}
+        isDeleteDisabled={!restrictions.canEnterDeleteMode}
         isVersionHistoryOpen={versionHistoryPanel.isOpen}
-        isVersionHistoryDisabled={
-          isVersionHistoryDisabled && !versionHistoryPanel.isOpen
-        }
-        isViewerMode={isViewerMode}
+        isVersionHistoryDisabled={!restrictions.canOpenVersionHistory}
+        isViewerMode={versionViewer.isActive}
         viewerVersion={versionViewer.version}
         skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
         cloudSaveState={{
-          ...cloudSaveState,
-          disabled: cloudSaveState.disabled || versionHistoryPanel.isOpen,
+          isBusy: cloudActions.cloudActionInFlight === "save",
+          label:
+            cloudActions.cloudActionInFlight === "save"
+              ? "Guardando..."
+              : "Guardar",
+          disabled: !restrictions.canSaveToCloud,
         }}
         cloudLoadState={{
-          ...cloudLoadState,
-          disabled: cloudLoadState.disabled || versionHistoryPanel.isOpen,
+          isBusy: cloudActions.cloudActionInFlight === "load",
+          label:
+            cloudActions.cloudActionInFlight === "load"
+              ? "Cargando..."
+              : "Cargar",
+          disabled: !restrictions.canLoadFromCloud,
         }}
-        onToggleAddMode={() => setIsAddMode((current) => !current)}
+        onToggleAddMode={
+          addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+        }
         onToggleDeleteMode={deleteMode.toggleDeleteMode}
         onToggleVersionHistory={versionHistoryPanel.toggle}
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
-        onCloudSave={requestSave}
-        onCloudLoad={requestLoad}
+        onCloudSave={cloudActions.requestSave}
+        onCloudLoad={cloudActions.requestLoad}
         onExitViewer={versionViewer.exitViewer}
         draftsMenu={
-          isViewerMode ? null : (
-          <DraftsMenu
-            drafts={drafts}
-            isLoading={draftsLoading}
-            isBusy={isDraftBusy}
-            disabled={
-              isAddMode ||
-              deleteMode.isDeleteMode ||
-              isOrganizationMode ||
-              isCloudBusy ||
-              isCloudRecoveryActive ||
-              isSelectionMode ||
-              versionHistoryPanel.isOpen
-            }
-            onCreateDraft={handleDraftCreate}
-            onSaveDraft={handleDraftSave}
-            onLoadDraft={handleDraftLoad}
-            onRenameDraft={handleDraftRename}
-            onDeleteDraft={handleDraftDelete}
-          />
+          versionViewer.isActive ? null : (
+            <DraftsMenu
+              drafts={drafts.drafts}
+              isLoading={drafts.isLoading}
+              isBusy={!restrictions.canCreateDraft}
+              disabled={!restrictions.canCreateDraft}
+              onCreateDraft={handleDraftCreate}
+              onSaveDraft={handleDraftSave}
+              onLoadDraft={handleDraftLoad}
+              onRenameDraft={handleDraftRename}
+              onDeleteDraft={handleDraftDelete}
+            />
           )
         }
       />
@@ -855,65 +472,66 @@ function App() {
           onClose={eventDetails.close}
         />
         <DiagramCanvas
-          isSelectionMode={isSelectionModeActive}
-          isOrganizationMode={isOrganizationModeActive}
-          isDeleteMode={isDeleteModeActive}
+          isSelectionMode={addComponent.flags.isSelectingTarget}
+          isOrganizationMode={addComponent.flags.isOrganizing}
+          isDeleteMode={deleteMode.isDeleteMode}
           viewState={activeViewState}
           graph={activeGraph}
           status={activeStatus}
           errorMessage={activeErrorMessage}
-          organizationSelection={confirmedSelection}
-          organizationGateType={selectedGateType}
-          organizationComponentId={formState.componentId}
-          organizationCalculationType={formState.calculationType}
+          organizationSelection={addComponent.target}
+          organizationGateType={addComponent.gateType}
+          organizationComponentId={addComponent.formState.componentId}
+          organizationCalculationType={addComponent.formState.calculationType}
           onOrganizationStateChange={setOrganizationUiState}
-          preselectedNodeId={selectionMeta.preselectedId}
-          selectedNodeId={selectionMeta.selectedId}
-          hoveredNodeId={selectionMeta.hoveredId}
+          preselectedNodeId={addComponent.draftSelection?.id ?? null}
+          selectedNodeId={addComponent.target?.id ?? null}
+          hoveredNodeId={addComponent.hoveredNodeId}
           deletePreselectedNodeId={deleteMode.draftSelection?.id ?? null}
           deleteSelectedNodeId={deleteMode.selectedSelection?.id ?? null}
           deleteHoveredNodeId={deleteMode.hoveredNodeId}
           insertHighlight={insertHighlight}
-          onEnterSelectionMode={handleSelectionModeEnter}
-          onExitSelectionMode={handleSelectionModeExit}
-          onNodeHover={handleNodeHover}
-          onNodePreselect={handleNodePreselect}
-          onNodeConfirm={handleNodeConfirm}
-          onSelectionUpdate={handleSelectionUpdate}
-          onSelectionCancel={handleSelectionCancel}
+          onNodeHover={addComponent.handleNodeHover}
+          onNodePreselect={addComponent.handleNodePreselect}
+          onNodeConfirm={addComponent.handleNodeConfirm}
+          onSelectionUpdate={(selection) => {
+            // El canvas puede actualizar la selección (ej: cuando cambia de gate a collapsed)
+            addComponent.selectTarget(selection);
+          }}
+          onSelectionCancel={addComponent.cancelTarget}
           onDeleteNodeHover={deleteMode.onNodeHover}
           onDeleteNodePreselect={deleteMode.onNodePreselect}
           onDeleteNodeConfirm={deleteMode.onNodeConfirm}
           onDeleteSelectionCancel={deleteMode.onSelectionCancel}
-          onOrganizationCancel={handleOrganizationCancel}
+          onOrganizationCancel={addComponent.cancelOrganization}
         />
         <DeleteActionButton
-          isVisible={isDeleteModeActive}
+          isVisible={deleteMode.isDeleteMode}
           isDisabled={!deleteMode.selectedSelection || deleteMode.isDeleting}
           onClick={deleteMode.requestDelete}
         />
-        {isAddMode ? (
+        {addComponent.flags.isActive ? (
           <DiagramSidePanel>
             <AddComponentPanel
               step={addComponentStep}
               selectionStatus={selectionStatus}
-              draftSelection={draftSelection}
-              confirmedSelection={confirmedSelection}
-              gateType={selectedGateType}
-              isOrganizing={isOrganizationMode}
-              formState={formState}
+              draftSelection={addComponent.draftSelection}
+              confirmedSelection={addComponent.target}
+              gateType={addComponent.gateType}
+              isOrganizing={addComponent.flags.isOrganizing}
+              formState={addComponent.formState}
               existingNodeIds={existingNodeIds}
-              resetToken={formResetToken}
               searchState={componentSearch}
-              onCancelAdd={() => setIsAddMode(false)}
-              onSelectionConfirm={handleSelectionConfirm}
-              onSelectionCancel={handleSelectionCancel}
-              onSelectionStart={handleSelectionStart}
-              onSelectionReset={handleSelectionReset}
-              onGateTypeChange={handleGateTypeChange}
-              onFormStateChange={setFormState}
-              onOrganizationStart={handleOrganizationStart}
-              onOrganizationCancel={handleOrganizationCancel}
+              onCancelAdd={addComponent.cancel}
+              onComponentSelect={addComponent.selectComponent}
+              onSelectionConfirm={addComponent.selectTarget}
+              onSelectionCancel={addComponent.cancelTarget}
+              onSelectionStart={addComponent.startTargetSelection}
+              onGateTypeChange={addComponent.selectGate}
+              onSelectionReset={addComponent.clearComponent}
+              onFormStateChange={addComponent.setFormState}
+              onOrganizationStart={addComponent.startOrganization}
+              onOrganizationCancel={addComponent.cancelOrganization}
               onInsert={handleInsert}
             />
           </DiagramSidePanel>
@@ -926,6 +544,8 @@ function App() {
           onRebuild={handleRebuildRequest}
         />
       </div>
+
+      {/* Cloud Error Modal */}
       <CloudErrorModal
         open={cloudErrorRecovery.isModalOpen}
         error={cloudErrorRecovery.cloudError}
@@ -934,14 +554,18 @@ function App() {
         onCancel={cloudErrorRecovery.cancel}
         onRetry={cloudErrorRecovery.retry}
       />
-      {cloudDialogAction ? (
+
+      {/* Cloud Confirm Dialog */}
+      {cloudActions.cloudDialogAction ? (
         <CloudConfirmDialog
-          action={cloudDialogAction}
-          isLoading={cloudActionInFlight !== null}
-          onConfirm={confirmAction}
-          onCancel={cancelAction}
+          action={cloudActions.cloudDialogAction}
+          isLoading={cloudActions.cloudActionInFlight !== null}
+          onConfirm={cloudActions.confirmAction}
+          onCancel={cloudActions.cancelAction}
         />
       ) : null}
+
+      {/* Delete Confirm Dialog */}
       {deleteMode.confirmSelection ? (
         <DeleteConfirmDialog
           selection={deleteMode.confirmSelection}
@@ -950,47 +574,8 @@ function App() {
           onCancel={deleteMode.cancelDelete}
         />
       ) : null}
-      {cloudToast ? (
-        <CloudToast
-          key={cloudToast.token}
-          message={cloudToast.message}
-          type={cloudToast.type}
-        />
-      ) : null}
-      {draftToast ? (
-        <CloudToast
-          key={draftToast.token}
-          message={draftToast.message}
-          type={draftToast.type}
-          className="diagram-draft-toast"
-        />
-      ) : null}
-      {rebuildToast ? (
-        <CloudToast
-          key={rebuildToast.token}
-          message={rebuildToast.message}
-          type={rebuildToast.type}
-          className="diagram-rebuild-toast"
-        />
-      ) : null}
-      {deleteToast ? (
-        <CloudToast
-          key={deleteToast.token}
-          message={deleteToast.message}
-          type={deleteToast.type}
-          className="diagram-delete-toast"
-        />
-      ) : null}
-      {insertToastToken !== null ? (
-        <div
-          key={insertToastToken}
-          className="diagram-insert-toast"
-          role="status"
-          aria-live="polite"
-        >
-          Componente agregado correctamente
-        </div>
-      ) : null}
+
+      {/* Rebuild Confirm Dialog */}
       {rebuildDialog ? (
         <RebuildConfirmDialog
           version={rebuildDialog.version}
@@ -1000,6 +585,9 @@ function App() {
           onConfirm={handleRebuildConfirm}
         />
       ) : null}
+
+      {/* Toasts - Sistema Unificado */}
+      <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </div>
   );
 }

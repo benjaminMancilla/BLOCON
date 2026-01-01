@@ -25,6 +25,7 @@ type AddComponentPanelProps = {
   resetToken?: number;
   searchState: ComponentSearchResult;
   onCancelAdd: () => void;
+  onComponentSelect: (componentId: string, componentName: string) => void;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
   onSelectionStart: () => void;
@@ -48,6 +49,7 @@ export const AddComponentPanel = ({
   resetToken = 0,
   searchState,
   onCancelAdd,
+  onComponentSelect,
   onSelectionConfirm,
   onSelectionCancel,
   onSelectionStart,
@@ -88,10 +90,9 @@ export const AddComponentPanel = ({
         componentId: item.id,
         calculationType: "exponential",
       });
-      onGateTypeChange(null);
-      onSelectionStart();
+      onComponentSelect(item.id, item.kks_name);
     },
-    [onFormStateChange, onGateTypeChange, onSelectionStart],
+    [onFormStateChange, onComponentSelect],
   );
 
   const handleClearSelection = useCallback(() => {
