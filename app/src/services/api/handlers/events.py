@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from .base import BaseHandler
 from ..coordinators import CloudCoordinator, GraphCoordinator
 from ..shared import PerfLogger
+from src.services.api.graph_snapshot import serialize_graph
 
 
 class EventHistoryHandler(BaseHandler):
@@ -159,7 +160,7 @@ class EventHistoryHandler(BaseHandler):
             events = self.cloud_coordinator._load_event_objects()
             events_upto = self.cloud_coordinator._events_upto_version(events, version)
             graph = self.graph_coordinator.rebuild_from_events(events_upto)
-            graph_data = self.graph_coordinator.serialize_full_graph()
+            graph_data = serialize_graph(graph)
             self._send_json(200, graph_data)
         except Exception as exc:
             self._send_json(500, {"error": str(exc)})
