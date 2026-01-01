@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 
 $RootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$PySrc = Join-Path $RootDir "app\api_server.py"
+$PySrc = Join-Path $RootDir "app\run_server.py"
 $BinDir = Join-Path $RootDir "app\desktop\src-tauri\bin"
 $TempDistDir = Join-Path $RootDir "temp_dist"
 
