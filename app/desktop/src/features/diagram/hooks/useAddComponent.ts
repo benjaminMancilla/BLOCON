@@ -50,13 +50,17 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
 
   // Refs para evitar loops infinitos en useEffect
   const prevStateType = useRef<string>(state.type);
+  const shouldAutoStartSelection = useRef(false);
 
   // TRANSICIÓN AUTOMÁTICA 1: componentSelected → selectingTarget
   useEffect(() => {
     if (state.type === "componentSelected" && prevStateType.current !== "componentSelected") {
       prevStateType.current = state.type;
-      // Automáticamente entrar en modo selección
-      dispatch({ type: "START" });
+      if (shouldAutoStartSelection.current) {
+        // Automáticamente entrar en modo selección
+        dispatch({ type: "START" });
+      }
+      shouldAutoStartSelection.current = false;
     } else {
       prevStateType.current = state.type;
     }
@@ -76,6 +80,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
   }, []);
 
   const selectComponent = useCallback((componentId: string, componentName?: string) => {
+    shouldAutoStartSelection.current = true;
     setFormState({
       componentId,
       calculationType: "exponential",
@@ -107,6 +112,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
 
   const cancelTarget = useCallback(() => {
     // Cancelar el MODO selección (volver a componentSelected)
+    shouldAutoStartSelection.current = false;
     setDraftSelection(null);
     setHoveredNodeId(null);
     dispatch({ type: "CANCEL_TARGET" });
@@ -120,8 +126,8 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
   }, []);
 
   const selectGate = useCallback((gateType: GateType | null) => {
-    if (state.type !== "choosingGate") {
-      console.warn("selectGate called but not in choosingGate state");
+    if (state.type !== "choosingGate" && state.type !== "organizing") {
+      console.warn("selectGate called but not in choosingGate/organizing state");
       return;
     }
     

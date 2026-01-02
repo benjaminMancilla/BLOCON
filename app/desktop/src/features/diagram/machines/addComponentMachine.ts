@@ -105,6 +105,12 @@ export function addComponentReducer(
           component: state.component,
         };
       }
+      if (event.type === "CLEAR_TARGET") {
+        return {
+          type: "selectingTarget",
+          component: state.component,
+        };
+      }
       console.warn("Invalid transition in selectingTarget", { state, event });
       return state;
 
@@ -128,10 +134,30 @@ export function addComponentReducer(
           component: state.component,
         };
       }
+      if (event.type === "CLEAR_TARGET") {
+        return {
+          type: "selectingTarget",
+          component: state.component,
+        };
+      }
       console.warn("Invalid transition in choosingGate", { state, event });
       return state;
 
     case "organizing":
+      if (event.type === "SELECT_GATE") {
+        return {
+          type: "organizing",
+          component: state.component,
+          target: state.target,
+          gateType: event.gateType,
+        };
+      }
+      if (event.type === "CLEAR_TARGET") {
+        return {
+          type: "selectingTarget",
+          component: state.component,
+        };
+      }
       if (event.type === "CONFIRM_INSERT") {
         return {
           type: "inserting",

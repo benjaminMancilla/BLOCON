@@ -953,8 +953,6 @@ body {
 
 
 .diagram-gate-area--insert-highlight {
-  border-color: var(--selection-color);
-  border-color: transparent;
   box-shadow: none;
 }
 
