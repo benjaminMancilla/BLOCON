@@ -108,10 +108,11 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     
     // Version History
     const canOpenVersionHistory =
-      isInCriticalError ? blocked("Error crítico activo") :
-      isInAsyncOperation ? blocked("Operación en progreso") :
-      isInEditMode ? blocked("Modo de edición activo") :
-      false; // Ya está abierto
+      inputs.isCloudBusy ? blocked("Operación en progreso") :
+      inputs.isAddMode ? blocked("Modo agregar activo") :
+      inputs.isDeleteMode ? blocked("Modo borrar activo") :
+      inputs.isRebuildInProgress ? blocked("Rebuild en progreso") :
+      true;
     
     // Undo/Redo
     const canUndoRedo =
@@ -144,8 +145,8 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       canEnterViewerMode: !isInEditMode,
       canSaveToCloud,
       canLoadFromCloud,
-      canOpenVersionHistory: inputs.isVersionHistoryOpen ? true : canOpenVersionHistory,
-      canViewVersion: true, // Solo desde version history
+      canOpenVersionHistory,
+      canViewVersion: true,
       canRebuildAtVersion: !isInAsyncOperation,
       canCreateDraft,
       canLoadDraft,

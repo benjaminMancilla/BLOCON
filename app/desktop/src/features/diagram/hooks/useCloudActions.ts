@@ -5,9 +5,18 @@ import type { CloudAction, CloudToast } from "../types/cloud";
 
 type UseCloudActionsOptions = {
   onLoadSuccess?: () => void;
+  toasts?: {
+    showSaveSuccess: () => void;
+    showSaveError: () => void;
+    showLoadSuccess: () => void;
+    showLoadError: () => void;
+  };
 };
 
-export const useCloudActions = ({ onLoadSuccess }: UseCloudActionsOptions) => {
+export const useCloudActions = ({
+  onLoadSuccess,
+  toasts,
+}: UseCloudActionsOptions) => {
   const [cloudDialogAction, setCloudDialogAction] =
     useState<CloudAction | null>(null);
   const [cloudActionInFlight, setCloudActionInFlight] =
@@ -34,36 +43,52 @@ export const useCloudActions = ({ onLoadSuccess }: UseCloudActionsOptions) => {
     try {
       if (action === "save") {
         await saveCloudGraph();
-        setCloudToast({
-          message: "Guardado en la nube exitoso.",
-          type: "success",
-          token: Date.now(),
-        });
+        if (toasts) {
+          toasts.showSaveSuccess();
+        } else {
+          setCloudToast({
+            message: "Guardado en la nube exitoso.",
+            type: "success",
+            token: Date.now(),
+          });
+        }
       } else {
         await loadCloudGraph();
         onLoadSuccess?.();
-        setCloudToast({
-          message: "Carga completada desde la nube.",
-          type: "success",
-          token: Date.now(),
-        });
+        if (toasts) {
+          toasts.showLoadSuccess();
+        } else {
+          setCloudToast({
+            message: "Carga completada desde la nube.",
+            type: "success",
+            token: Date.now(),
+          });
+        }
       }
     } catch (error) {
       if (isRetryableCloudError(error)) {
         return;
       }
-      setCloudToast({
-        message:
-          action === "save"
-            ? "No se pudo guardar en la nube. Intenta nuevamente."
-            : "No se pudo cargar desde la nube. Intenta nuevamente.",
-        type: "error",
-        token: Date.now(),
-      });
+      if (toasts) {
+        if (action === "save") {
+          toasts.showSaveError();
+        } else {
+          toasts.showLoadError();
+        }
+      } else {
+        setCloudToast({
+          message:
+            action === "save"
+              ? "No se pudo guardar en la nube. Intenta nuevamente."
+              : "No se pudo cargar desde la nube. Intenta nuevamente.",
+          type: "error",
+          token: Date.now(),
+        });
+      }
     } finally {
       setCloudActionInFlight(null);
     }
-  }, [cloudDialogAction, onLoadSuccess]);
+  }, [cloudDialogAction, onLoadSuccess, toasts]);
 
   useEffect(() => {
     if (!cloudToast) return;

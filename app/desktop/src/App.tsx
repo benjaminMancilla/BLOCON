@@ -31,6 +31,7 @@ import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
 import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
 import {
   useToasts,
+  useCloudToasts,
   useDraftToasts,
   useDeleteToasts,
   useInsertToast,
@@ -91,9 +92,10 @@ function App() {
 
   // Toast system
   const toasts = useToasts();
-  const draftToasts = useDraftToasts();
-  const deleteToasts = useDeleteToasts();
-  const insertToast = useInsertToast();
+  const cloudToasts = useCloudToasts(toasts);
+  const draftToasts = useDraftToasts(toasts);
+  const deleteToasts = useDeleteToasts(toasts);
+  const insertToast = useInsertToast(toasts);
 
   // Add Component with state machine
   const addComponent = useAddComponent({
@@ -123,6 +125,7 @@ function App() {
   // Cloud actions
   const cloudActions = useCloudActions({
     onLoadSuccess: () => setGraphReloadToken((c) => c + 1),
+    toasts: cloudToasts,
   });
 
   // Drafts
@@ -457,8 +460,14 @@ function App() {
             <DraftsMenu
               drafts={drafts.drafts}
               isLoading={drafts.isLoading}
-              isBusy={!restrictions.canCreateDraft}
-              disabled={!restrictions.canCreateDraft}
+              isBusy={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateDraft
+              }
+              disabled={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateDraft
+              }
               onCreateDraft={handleDraftCreate}
               onSaveDraft={handleDraftSave}
               onLoadDraft={handleDraftLoad}

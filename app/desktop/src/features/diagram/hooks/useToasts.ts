@@ -1,5 +1,5 @@
 // features/diagram/hooks/useToasts.ts
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
@@ -108,52 +108,84 @@ export function useToasts() {
   };
 }
 
+export type ToastManager = ReturnType<typeof useToasts>;
+
 // Specialized hooks for common use cases
-export function useCloudToasts() {
-  const toasts = useToasts();
-  
-  return {
-    showSaveSuccess: () => toasts.success("Guardado en la nube exitoso.", "cloud"),
-    showSaveError: () => toasts.error("No se pudo guardar en la nube. Intenta nuevamente.", "cloud"),
-    showLoadSuccess: () => toasts.success("Carga completada desde la nube.", "cloud"),
-    showLoadError: () => toasts.error("No se pudo cargar desde la nube. Intenta nuevamente.", "cloud"),
-  };
+export function useCloudToasts(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showSaveSuccess: () =>
+        toasts.success("Guardado en la nube exitoso.", "cloud"),
+      showSaveError: () =>
+        toasts.error(
+          "No se pudo guardar en la nube. Intenta nuevamente.",
+          "cloud"
+        ),
+      showLoadSuccess: () =>
+        toasts.success("Carga completada desde la nube.", "cloud"),
+      showLoadError: () =>
+        toasts.error(
+          "No se pudo cargar desde la nube. Intenta nuevamente.",
+          "cloud"
+        ),
+    }),
+    [toasts]
+  );
 }
 
-export function useDraftToasts() {
-  const toasts = useToasts();
-  
-  return {
-    showCreateSuccess: () => toasts.success("Borrador guardado correctamente.", "draft"),
-    showCreateError: () => toasts.error("No se pudo guardar el borrador.", "draft"),
-    showSaveSuccess: () => toasts.success("Borrador actualizado.", "draft"),
-    showSaveError: () => toasts.error("No se pudo actualizar el borrador.", "draft"),
-    showLoadSuccess: () => toasts.success("Borrador cargado en el lienzo.", "draft"),
-    showLoadError: () => toasts.error("No se pudo cargar el borrador.", "draft"),
-    showLoadConflict: () => toasts.error("El borrador estaba desactualizado y se eliminó automáticamente.", "draft"),
-    showLoadNotFound: () => toasts.error("No se encontró el borrador solicitado.", "draft"),
-    showRenameSuccess: () => toasts.success("Nombre del borrador actualizado.", "draft"),
-    showRenameError: () => toasts.error("No se pudo renombrar el borrador.", "draft"),
-    showDeleteSuccess: () => toasts.success("Borrador eliminado.", "draft"),
-    showDeleteError: () => toasts.error("No se pudo eliminar el borrador.", "draft"),
-  };
+export function useDraftToasts(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showCreateSuccess: () =>
+        toasts.success("Borrador guardado correctamente.", "draft"),
+      showCreateError: () =>
+        toasts.error("No se pudo guardar el borrador.", "draft"),
+      showSaveSuccess: () => toasts.success("Borrador actualizado.", "draft"),
+      showSaveError: () =>
+        toasts.error("No se pudo actualizar el borrador.", "draft"),
+      showLoadSuccess: () =>
+        toasts.success("Borrador cargado en el lienzo.", "draft"),
+      showLoadError: () =>
+        toasts.error("No se pudo cargar el borrador.", "draft"),
+      showLoadConflict: () =>
+        toasts.error(
+          "El borrador estaba desactualizado y se eliminó automáticamente.",
+          "draft"
+        ),
+      showLoadNotFound: () =>
+        toasts.error("No se encontró el borrador solicitado.", "draft"),
+      showRenameSuccess: () =>
+        toasts.success("Nombre del borrador actualizado.", "draft"),
+      showRenameError: () =>
+        toasts.error("No se pudo renombrar el borrador.", "draft"),
+      showDeleteSuccess: () => toasts.success("Borrador eliminado.", "draft"),
+      showDeleteError: () =>
+        toasts.error("No se pudo eliminar el borrador.", "draft"),
+    }),
+    [toasts]
+  );
 }
 
-export function useDeleteToasts() {
-  const toasts = useToasts();
-  
-  return {
-    showNodeDeleteSuccess: () => toasts.success("Nodo eliminado", "delete"),
-    showNodeDeleteError: () => toasts.error("No se pudo eliminar el nodo", "delete"),
-    showGateDeleteSuccess: () => toasts.success("Gate eliminada", "delete"),
-    showGateDeleteError: () => toasts.error("No se pudo eliminar la gate", "delete"),
-  };
+export function useDeleteToasts(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showNodeDeleteSuccess: () => toasts.success("Nodo eliminado", "delete"),
+      showNodeDeleteError: () =>
+        toasts.error("No se pudo eliminar el nodo", "delete"),
+      showGateDeleteSuccess: () => toasts.success("Gate eliminada", "delete"),
+      showGateDeleteError: () =>
+        toasts.error("No se pudo eliminar la gate", "delete"),
+    }),
+    [toasts]
+  );
 }
 
-export function useInsertToast() {
-  const toasts = useToasts();
-  
-  return {
-    showInsertSuccess: () => toasts.success("Componente agregado correctamente", "insert"),
-  };
+export function useInsertToast(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showInsertSuccess: () =>
+        toasts.success("Componente agregado correctamente", "insert"),
+    }),
+    [toasts]
+  );
 }
