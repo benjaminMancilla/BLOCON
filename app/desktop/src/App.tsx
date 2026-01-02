@@ -1,5 +1,5 @@
 // Components
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
@@ -63,6 +63,7 @@ function App() {
     useState<OrganizationUiState | null>(null);
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
+  const insertHighlightTokenRef = useRef(0);
   const [rebuildDialog, setRebuildDialog] = useState<{
     version: number;
     step: 1 | 2;
@@ -224,10 +225,11 @@ function App() {
       await addComponent.confirmInsert(payload);
       
       // Set insert highlight
-      setInsertHighlight((current) => ({
+      insertHighlightTokenRef.current += 1;
+      setInsertHighlight({
         ...insertMeta,
-        token: (current?.token ?? 0) + 1,
-      }));
+        token: insertHighlightTokenRef.current,
+      });
       
       // Reset organization state
       setOrganizationUiState(null);
@@ -405,7 +407,11 @@ function App() {
         : "organization";
 
   const selectionStatus =
-    addComponent.flags.isSelectingTarget ? "selecting" : "idle";
+    addComponent.flags.isSelectingTarget
+      ? "selecting"
+      : addComponent.target
+        ? "selected"
+        : "idle";
 
   // RENDER
   return (
@@ -496,6 +502,7 @@ function App() {
           onNodeConfirm={addComponent.handleNodeConfirm}
           onSelectionUpdate={(selection) => {
             // El canvas puede actualizar la selección (ej: cuando cambia de gate a collapsed)
+            if (addComponent.target?.id !== selection.id) return;
             addComponent.selectTarget(selection);
           }}
           onSelectionCancel={addComponent.cancelTarget}
@@ -522,10 +529,12 @@ function App() {
               formState={addComponent.formState}
               existingNodeIds={existingNodeIds}
               searchState={componentSearch}
+              resetToken={addComponent.resetToken}
               onCancelAdd={addComponent.cancel}
               onComponentSelect={addComponent.selectComponent}
               onSelectionConfirm={addComponent.selectTarget}
               onSelectionCancel={addComponent.cancelTarget}
+              onSelectionCleared={addComponent.clearTarget}
               onSelectionStart={addComponent.startTargetSelection}
               onGateTypeChange={addComponent.selectGate}
               onSelectionReset={addComponent.clearComponent}

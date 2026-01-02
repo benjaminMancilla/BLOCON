@@ -21,10 +21,11 @@ export type AddComponentEvent =
   | { type: "SELECT_COMPONENT"; componentId: string; componentName: string }
   | { type: "CLEAR_COMPONENT" }
   | { type: "SELECT_TARGET"; target: DiagramNodeSelection }
-  | { type: "CANCEL_TARGET" }
+  | { type: "CANCEL_TARGET" }  // Cancela el modo selección, vuelve a componentSelected
+  | { type: "CLEAR_TARGET" }   // Limpia la selección actual, mantiene el modo
   | { type: "SELECT_GATE"; gateType: GateType | null }
   | { type: "START_ORGANIZATION" }
-  | { type: "CANCEL_ORGANIZATION" }
+  | { type: "CANCEL_ORGANIZATION" }  // Cancela el modo organización
   | { type: "CONFIRM_INSERT"; payload: any }
   | { type: "CANCEL" }
   | { type: "RESET" };

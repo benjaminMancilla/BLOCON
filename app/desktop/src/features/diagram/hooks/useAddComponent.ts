@@ -1,5 +1,5 @@
 // features/diagram/hooks/useAddComponent.ts
-import { useCallback, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useState, useRef } from "react";
 import type { DiagramNodeSelection } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { AddComponentFormState } from "../types/addComponent";
@@ -24,11 +24,11 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
   });
   const [draftSelection, setDraftSelection] = useState<DiagramNodeSelection | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState(0);
 
-  // Wrapper del reducer para que sea compatible con useReducer de React
+  // Wrapper del reducer
   const reactReducer = useCallback(
     (state: AddComponentState, event: AddComponentEvent): AddComponentState => {
-      // Construir el contexto con los valores actuales
       const context: AddComponentContext = {
         formState,
         draftSelection,
@@ -48,17 +48,40 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
   // Flags derivados
   const flags = deriveFlags(state);
 
+  // Refs para evitar loops infinitos en useEffect
+  const prevStateType = useRef<string>(state.type);
+
+  // TRANSICIÓN AUTOMÁTICA 1: componentSelected → selectingTarget
+  useEffect(() => {
+    if (state.type === "componentSelected" && prevStateType.current !== "componentSelected") {
+      prevStateType.current = state.type;
+      // Automáticamente entrar en modo selección
+      dispatch({ type: "START" });
+    } else {
+      prevStateType.current = state.type;
+    }
+  }, [state.type]);
+
+  // TRANSICIÓN AUTOMÁTICA 2: Cuando llegamos a organizing desde choosingGate, activar modo organización
+  useEffect(() => {
+    if (state.type === "organizing" && prevStateType.current === "choosingGate") {
+      // Automáticamente activar el modo organización
+      setTimeout(() => dispatch({ type: "START_ORGANIZATION" }), 0);
+    }
+  }, [state.type]);
+
   // Actions
   const start = useCallback(() => {
     dispatch({ type: "START" });
   }, []);
 
-  const selectComponent = useCallback((componentId: string, componentName: string) => {
+  const selectComponent = useCallback((componentId: string, componentName?: string) => {
     setFormState({
       componentId,
       calculationType: "exponential",
     });
-    dispatch({ type: "SELECT_COMPONENT", componentId, componentName });
+    dispatch({ type: "SELECT_COMPONENT", componentId, componentName: componentName || componentId });
+    // La transición automática a selectingTarget ocurre vía useEffect
   }, []);
 
   const clearComponent = useCallback(() => {
@@ -69,6 +92,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     setDraftSelection(null);
     setHoveredNodeId(null);
     dispatch({ type: "CLEAR_COMPONENT" });
+    setResetToken((current) => current + 1);
   }, []);
 
   const startTargetSelection = useCallback(() => {
@@ -77,23 +101,48 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
 
   const selectTarget = useCallback((target: DiagramNodeSelection) => {
     dispatch({ type: "SELECT_TARGET", target });
+    // Si selecciona gate, va directo a organizing y el useEffect activa START_ORGANIZATION
+    // Si selecciona component, va a choosingGate y usuario debe elegir tipo de gate
   }, []);
 
   const cancelTarget = useCallback(() => {
+    // Cancelar el MODO selección (volver a componentSelected)
     setDraftSelection(null);
     setHoveredNodeId(null);
     dispatch({ type: "CANCEL_TARGET" });
   }, []);
 
-  const selectGate = useCallback((gateType: GateType | null) => {
-    dispatch({ type: "SELECT_GATE", gateType });
+  const clearTarget = useCallback(() => {
+    // Solo limpiar la selección actual, mantener modo activo
+    setDraftSelection(null);
+    setHoveredNodeId(null);
+    dispatch({ type: "CLEAR_TARGET" });
   }, []);
+
+  const selectGate = useCallback((gateType: GateType | null) => {
+    if (state.type !== "choosingGate") {
+      console.warn("selectGate called but not in choosingGate state");
+      return;
+    }
+    
+    if (!gateType) {
+      console.warn("selectGate called with null gateType");
+      return;
+    }
+
+    // Seleccionar el gate type → esto nos lleva a organizing
+    dispatch({ type: "SELECT_GATE", gateType });
+    // El useEffect detectará el cambio a organizing y despachará START_ORGANIZATION
+  }, [state.type]);
 
   const startOrganization = useCallback(() => {
     dispatch({ type: "START_ORGANIZATION" });
   }, []);
 
   const cancelOrganization = useCallback(() => {
+    // Cancelar el modo organización
+    // Si estaba organizando Y había seleccionado un gateType, vuelve a choosingGate
+    // Si estaba organizando un gate existente, vuelve a selectingTarget
     dispatch({ type: "CANCEL_ORGANIZATION" });
   }, []);
 
@@ -105,6 +154,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     setDraftSelection(null);
     setHoveredNodeId(null);
     dispatch({ type: "CANCEL" });
+    setResetToken((current) => current + 1);
   }, []);
 
   const confirmInsert = useCallback(async (payload: any) => {
@@ -116,8 +166,10 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     });
     setDraftSelection(null);
     setHoveredNodeId(null);
+    setResetToken((current) => current + 1);
   }, [options]);
 
+  // Selection handlers
   const handleNodeHover = useCallback((nodeId: string | null) => {
     if (!flags.isSelectingTarget) return;
     setHoveredNodeId(nodeId);
@@ -172,6 +224,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     formState,
     draftSelection,
     hoveredNodeId,
+    resetToken,
 
     // Derived state
     component: getComponent(),
@@ -185,6 +238,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     startTargetSelection,
     selectTarget,
     cancelTarget,
+    clearTarget,
     selectGate,
     startOrganization,
     cancelOrganization,

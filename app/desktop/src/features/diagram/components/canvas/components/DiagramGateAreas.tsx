@@ -16,6 +16,7 @@ type DiagramGateAreasProps = {
     height: number;
   } | null;
   selectedNodeId: string | null;
+  preselectedNodeId: string | null;
   insertHighlightedGateId: string | null;
   isGateWithinOrganization: (gateId: string) => boolean;
   onHoverGateIdChange: (gateId: string | null) => void;
@@ -28,6 +29,7 @@ export const DiagramGateAreas = ({
   organizationGateId,
   organizationArea,
   selectedNodeId,
+  preselectedNodeId,
   insertHighlightedGateId,
   isGateWithinOrganization,
   onHoverGateIdChange,
@@ -39,10 +41,11 @@ export const DiagramGateAreas = ({
       const colorVars = buildGateColorVars(gateColor) as CSSProperties;
       const isOrganizingGate = isOrganizationMode && organizationGateId === area.id;
       const isSelectedGate = selectedNodeId === area.id && !isOrganizingGate;
+      const isPreselectedGate = preselectedNodeId === area.id && !isSelectedGate && !isOrganizingGate;
       const activeArea =
         isOrganizingGate && organizationArea
           ? organizationArea
-          : isSelectedGate
+          : isSelectedGate || isPreselectedGate
             ? {
                 x: area.x - SELECTED_GATE_PADDING,
                 y: area.y - SELECTED_GATE_PADDING,
@@ -65,6 +68,8 @@ export const DiagramGateAreas = ({
           }${
             isOrganizingGate ? " diagram-gate-area--organization" : ""
           }${isSelectedGate ? " diagram-gate-area--selected" : ""}${
+            isPreselectedGate ? " diagram-gate-area--preselected" : ""
+          }${
             insertHighlightedGateId === area.id
               ? " diagram-gate-area--insert-highlight"
               : ""
