@@ -30,6 +30,7 @@ type DiagramTopBarProps = {
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
   onExitViewer?: () => void;
+  viewsMenu?: ReactNode;
   draftsMenu?: ReactNode;
   isDraftsDisabled?: boolean;
 };
@@ -64,6 +65,7 @@ export const DiagramTopBar = ({
   onCloudSave,
   onCloudLoad,
   onExitViewer,
+  viewsMenu,
   draftsMenu,
 }: DiagramTopBarProps) => {
   return (
@@ -126,6 +128,12 @@ export const DiagramTopBar = ({
             </button>
           </div>
         </div>
+        {viewsMenu ? (
+          <div className="diagram-topbar__section diagram-topbar__section--inline">
+            <p className="diagram-topbar__section-title">Vistas</p>
+            <div className="diagram-topbar__section-buttons">{viewsMenu}</div>
+          </div>
+        ) : null}
         {draftsMenu ? (
           <div className="diagram-topbar__section diagram-topbar__section--inline">
             <p className="diagram-topbar__section-title">Borradores</p>

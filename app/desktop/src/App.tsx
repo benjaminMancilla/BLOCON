@@ -10,6 +10,7 @@ import { DeleteActionButton } from "./features/diagram/components/DeleteActionBu
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPanel";
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
+import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { ToastContainer } from "./features/diagram/components/ToastContainer";
@@ -21,6 +22,7 @@ import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useCloudErrorRecovery } from "./features/diagram/hooks/useCloudErrorRecovery";
 import { useDrafts } from "./features/diagram/hooks/useDrafts";
+import { useViews } from "./features/diagram/hooks/useViews";
 import { useEventDetails } from "./features/diagram/hooks/useEventDetails";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
 import { useVersionViewer } from "./features/diagram/hooks/useVersionViewer";
@@ -33,6 +35,7 @@ import {
   useToasts,
   useCloudToasts,
   useDraftToasts,
+  useViewToasts,
   useDeleteToasts,
   useInsertToast,
 } from "./features/diagram/hooks/useToasts";
@@ -94,6 +97,7 @@ function App() {
   const toasts = useToasts();
   const cloudToasts = useCloudToasts(toasts);
   const draftToasts = useDraftToasts(toasts);
+  const viewToasts = useViewToasts(toasts);
   const deleteToasts = useDeleteToasts(toasts);
   const insertToast = useInsertToast(toasts);
 
@@ -131,12 +135,16 @@ function App() {
   // Drafts
   const drafts = useDrafts();
 
+  // Views
+  const views = useViews();
+
   // Cloud error recovery
   const cloudErrorRecovery = useCloudErrorRecovery({
     onRetrySuccess: () => {
       setGraphReloadToken((c) => c + 1);
       void diagramView.refresh();
       void drafts.refreshDrafts();
+      void views.refreshViews();
     },
   });
 
@@ -173,6 +181,7 @@ function App() {
     isSelectionMode: addComponent.flags.isSelectingTarget,
     isCloudBusy: cloudActions.cloudActionInFlight !== null,
     isDraftBusy: drafts.actionInFlight !== null,
+    isViewBusy: views.actionInFlight !== null,
     isRebuildInProgress: isRebuildLoading,
     isCloudRecoveryActive:
       cloudErrorRecovery.isModalOpen ||
@@ -316,6 +325,72 @@ function App() {
     [drafts, draftToasts]
   );
 
+  // VIEW HANDLERS
+  const handleViewCreate = useCallback(
+    async (name?: string) => {
+      try {
+        await views.createView(name);
+        viewToasts.showCreateSuccess();
+      } catch {
+        viewToasts.showCreateError();
+      }
+    },
+    [views, viewToasts],
+  );
+
+  const handleViewSave = useCallback(
+    async (viewId: string) => {
+      try {
+        await views.saveView(viewId);
+        viewToasts.showSaveSuccess();
+      } catch {
+        viewToasts.showSaveError();
+      }
+    },
+    [views, viewToasts],
+  );
+
+  const handleViewLoad = useCallback(
+    async (viewId: string) => {
+      try {
+        const result = await views.loadView(viewId);
+        if (result.status === "ok") {
+          await diagramView.refresh();
+          viewToasts.showLoadSuccess();
+        } else {
+          viewToasts.showLoadNotFound();
+        }
+      } catch {
+        viewToasts.showLoadError();
+      }
+    },
+    [views, viewToasts, diagramView],
+  );
+
+  const handleViewRename = useCallback(
+    async (viewId: string, name: string) => {
+      try {
+        await views.renameView(viewId, name);
+        viewToasts.showRenameSuccess();
+      } catch {
+        viewToasts.showRenameError();
+      }
+    },
+    [views, viewToasts],
+  );
+
+  const handleViewDelete = useCallback(
+    async (viewId: string) => {
+      try {
+        await views.deleteView(viewId);
+        viewToasts.showDeleteSuccess();
+      } catch {
+        viewToasts.showDeleteError();
+      }
+    },
+    [views, viewToasts],
+  );
+
   // REBUILD HANDLERS
   const handleRebuildRequest = useCallback((version: number) => {
     setRebuildDialog({ version, step: 1 });
@@ -453,6 +528,27 @@ function App() {
         onToggleVersionHistory={versionHistoryPanel.toggle}
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={cloudActions.requestSave}
+        viewsMenu={
+          versionViewer.isActive ? null : (
+            <ViewsMenu
+              views={views.views}
+              isLoading={views.isLoading}
+              isBusy={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateView
+              }
+              disabled={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateView
+              }
+              onCreateView={handleViewCreate}
+              onSaveView={handleViewSave}
+              onLoadView={handleViewLoad}
+              onRenameView={handleViewRename}
+              onDeleteView={handleViewDelete}
+            />
+          )
+        }
         onCloudLoad={cloudActions.requestLoad}
         onExitViewer={versionViewer.exitViewer}
         draftsMenu={

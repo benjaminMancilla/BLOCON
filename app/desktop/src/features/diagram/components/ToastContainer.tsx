@@ -13,6 +13,8 @@ const getCategoryClassName = (category: Toast["category"]) => {
       return `${baseClass} diagram-cloud-toast`;
     case "draft":
       return `${baseClass} diagram-draft-toast`;
+    case "view":
+      return `${baseClass} diagram-draft-toast`;
     case "delete":
       return `${baseClass} diagram-delete-toast`;
     case "insert":

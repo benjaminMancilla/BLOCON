@@ -17,6 +17,7 @@ type RestrictionInputs = {
   // Acciones en progreso
   isCloudBusy: boolean;
   isDraftBusy: boolean;
+  isViewBusy: boolean;
   isRebuildInProgress: boolean;
   
   // Estados de recovery/error
@@ -46,6 +47,11 @@ export type Restrictions = {
   canCreateDraft: boolean;
   canLoadDraft: boolean;
   canSaveDraft: boolean;
+
+  // Views
+  canCreateView: boolean;
+  canLoadView: boolean;
+  canSaveView: boolean;
   
   // Undo/Redo
   canUndoRedo: boolean;
@@ -71,7 +77,8 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     
     // Blocking conditions (ordenadas por prioridad)
     const isInCriticalError = inputs.isCloudRecoveryActive;
-    const isInAsyncOperation = inputs.isCloudBusy || inputs.isDraftBusy || inputs.isRebuildInProgress;
+    const isInAsyncOperation =
+      inputs.isCloudBusy || inputs.isDraftBusy || inputs.isViewBusy || inputs.isRebuildInProgress;
     const isInExclusiveMode = inputs.isViewerMode;
     const isInEditMode = inputs.isAddMode || inputs.isDeleteMode || inputs.isOrganizationMode || inputs.isSelectionMode;
     const hasOpenPanels = inputs.isVersionHistoryOpen || inputs.isEventDetailsOpen;
@@ -133,7 +140,19 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     
     const canLoadDraft = canCreateDraft;
     const canSaveDraft = canCreateDraft;
-    
+
+        // Views
+    const canCreateView =
+      isInCriticalError ? blocked("Error crítico activo") :
+      inputs.isViewBusy ? blocked("Operación de vista en progreso") :
+      isInExclusiveMode ? blocked("Modo visor activo") :
+      isInEditMode ? blocked("Modo de edición activo") :
+      hasOpenPanels ? blocked("Panel abierto") :
+      true;
+
+    const canLoadView = canCreateView;
+    const canSaveView = canCreateView;
+
     // Canvas interactions
     const canSelectNodes = !isInCriticalError;
     const canDragNodes = inputs.isOrganizationMode && !isInCriticalError;
@@ -151,6 +170,9 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       canCreateDraft,
       canLoadDraft,
       canSaveDraft,
+      canCreateView,
+      canLoadView,
+      canSaveView,
       canUndoRedo,
       canSelectNodes,
       canDragNodes,
