@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Optional, Literal, Any
+from typing import Dict, List, Optional, Literal, Any, Callable
 from .node import (
     Node,
     ComponentNode,
@@ -210,7 +210,9 @@ class ReliabilityGraph:
         unit_type: Optional[str] = None,
         position_index: Optional[int] = None,
         position_reference_id: Optional[str] = None,
-    ) -> None:
+        gate_guid: Optional[str] = None,
+        gate_guid_factory: Optional[Callable[[str], str]] = None,
+    ) -> Optional[str]:
         """
         Add a component relative to an existing node with specified relation.
         
@@ -225,6 +227,8 @@ class ReliabilityGraph:
         Raises:
             ValueError: If new_comp_id exists or relation is invalid
             KeyError: If target_id doesn't exist
+        Returns:
+            ID of a newly created gate if one was created, otherwise None.
         """
         if new_comp_id in self.nodes:
             raise ValueError(f"new_comp_id '{new_comp_id}' already exists")
@@ -251,17 +255,20 @@ class ReliabilityGraph:
         
         # KOON-specific handling
         if relation == "koon":
-            if self._handle_koon_insertion(
+            handled, koon_gate_id = self._handle_koon_insertion(
                 target_id,
                 new_comp_id,
                 target_parent,
                 k,
                 position_index=position_index,
                 position_reference_id=position_reference_id,
-            ):
+                gate_guid=gate_guid,
+                gate_guid_factory=gate_guid_factory,
+            )
+            if handled:
                 if self.auto_normalize:
                     self.normalize()
-                return
+                return koon_gate_id
 
         # Case 0: Target itself is the desired gate (any depth)
         if self._is_gate(target_id, want_gate):
@@ -273,11 +280,18 @@ class ReliabilityGraph:
             )
             if self.auto_normalize:
                 self.normalize()
-            return
+            return None
         
         # Case 1: Parent is already the desired gate type
         if target_parent is not None and self._is_gate(target_parent, want_gate):
-            gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
+            gate_id = self._interpose_gate(
+                target_id,
+                target_parent,
+                want_gate,
+                k,
+                gate_guid=gate_guid,
+                gate_guid_factory=gate_guid_factory,
+            )
             self._insert_child_with_position(
                 gate_id,
                 new_comp_id,
@@ -287,7 +301,7 @@ class ReliabilityGraph:
             )
             if self.auto_normalize:
                 self.normalize()
-            return
+            return gate_id
         
         # Case 2: Target itself is the desired gate and is root
         if target_parent is None and self._is_gate(target_id, want_gate):
@@ -299,10 +313,17 @@ class ReliabilityGraph:
             )
             if self.auto_normalize:
                 self.normalize()
-            return
+            return None
         
         # Case 3: Need to interpose a new gate
-        gate_id = self._interpose_gate(target_id, target_parent, want_gate, k)
+        gate_id = self._interpose_gate(
+            target_id,
+            target_parent,
+            want_gate,
+            k,
+            gate_guid=gate_guid,
+            gate_guid_factory=gate_guid_factory,
+        )
         self._insert_child_with_position(
             gate_id,
             new_comp_id,
@@ -313,6 +334,7 @@ class ReliabilityGraph:
 
         if self.auto_normalize:
             self.normalize()
+        return gate_id
 
     def add_component_to_gate(
         self,
@@ -712,7 +734,9 @@ class ReliabilityGraph:
         target_id: str,
         target_parent: Optional[str],
         gate_type: GateType,
-        k: Optional[int] = None
+        k: Optional[int] = None,
+        gate_guid: Optional[str] = None,
+        gate_guid_factory: Optional[Callable[[str], str]] = None,
     ) -> str:
         """
         Create a new gate between target_parent and target.
@@ -728,14 +752,19 @@ class ReliabilityGraph:
         }.get(gate_type, "G_auto")
         
         gate_id = self._alloc_gate_id(prefix)
+        if gate_guid is None and gate_guid_factory is not None:
+            gate_guid = gate_guid_factory(gate_id)
         
         # Create gate node
+        gate_kwargs: Dict[str, Any] = {}
+        if gate_guid is not None:
+            gate_kwargs["guid"] = gate_guid
         if gate_type == "KOON":
             if k is None:
                 raise ValueError("KOON insertion requires k")
-            gate_node = create_gate_node(gate_type, gate_id, k=k)
+            gate_node = create_gate_node(gate_type, gate_id, k=k, **gate_kwargs)
         else:
-            gate_node = create_gate_node(gate_type, gate_id)
+            gate_node = create_gate_node(gate_type, gate_id, **gate_kwargs)
         
         self.add_node(gate_node)
         
@@ -763,12 +792,15 @@ class ReliabilityGraph:
         k: Optional[int],
         position_index: Optional[int] = None,
         position_reference_id: Optional[str] = None,
-    ) -> bool:
+        gate_guid: Optional[str] = None,
+        gate_guid_factory: Optional[Callable[[str], str]] = None,
+    ) -> tuple[bool, Optional[str]]:
         """
         Handle special cases for KOON insertion.
         
         Returns:
-            True if insertion was handled, False if standard logic should apply
+            Tuple (handled, gate_id) where gate_id is the created KOON gate ID
+            if a new gate was created, otherwise None.
         """
         # Case 1: Target itself is a KOON gate
         if self._is_gate(target_id, "KOON"):
@@ -778,14 +810,21 @@ class ReliabilityGraph:
                 position_index=position_index,
                 position_reference_id=position_reference_id,
             )
-            return True
+            return True, None
         
         # Case 2: Target is a component inside a KOON gate
         if target_parent is not None and self._is_gate(target_parent, "KOON"):
             target_node = self.nodes[target_id]
             if target_node.is_component():
                 # Create nested KOON around target
-                gate_id = self._interpose_gate(target_id, target_parent, "KOON", k)
+                gate_id = self._interpose_gate(
+                    target_id,
+                    target_parent,
+                    "KOON",
+                    k,
+                    gate_guid=gate_guid,
+                    gate_guid_factory=gate_guid_factory,
+                )
                 self._insert_child_with_position(
                     gate_id,
                     new_comp_id,
@@ -793,9 +832,9 @@ class ReliabilityGraph:
                     position_index=position_index,
                     position_reference_id=position_reference_id,
                 )
-                return True
+                return True, gate_id
         
-        return False
+        return False, None
 
     def _alloc_gate_id(self, prefix: str = "G_auto") -> str:
         """

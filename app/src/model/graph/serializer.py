@@ -69,6 +69,8 @@ class GraphSerializer:
                     "name": nd.get("name"),
                     "label": nd.get("label"),
                 }
+                if nd.get("guid"):
+                    gate_kwargs["guid"] = nd.get("guid")
                 if subtype == "KOON":
                     gate_kwargs["k"] = nd.get("k") or 1
                 node = create_gate_node(subtype, nd["id"], **gate_kwargs)

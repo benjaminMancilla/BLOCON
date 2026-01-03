@@ -1,8 +1,9 @@
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional, Literal, Any
 from .dist import Dist, has_enough_records
+from .guid import new_gate_guid
 
 GateSubtype = Literal["AND", "OR", "KOON"]
 
@@ -83,6 +84,7 @@ class GateNode(Node):
     subtype: GateSubtype
     name: Optional[str] = None
     label: Optional[str] = None
+    guid: str = field(default_factory=new_gate_guid)
 
     def __post_init__(self) -> None:
         if self.name is None:
@@ -105,6 +107,7 @@ class GateNode(Node):
             "subtype": self.subtype,
             "name": self.name,
             "label": self.label,
+            "guid": self.guid,
         })
         return data
 
