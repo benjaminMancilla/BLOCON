@@ -26,6 +26,7 @@ from .handlers import (
     DraftHandler,
     ComponentSearchHandler,
     ViewsHandler,
+    EvaluationHandler,
 )
 
 HOST = "127.0.0.1"
@@ -308,7 +309,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler = self._get_handler(CloudHandler)
             handler.handle_cloud_cancel()
             return
-        
+
+        if path == "/evaluate":
+            handler = self._get_handler(EvaluationHandler)
+            handler.handle_evaluate()
+            return
+                
         # Draft routes
         if path == "/drafts":
             handler = self._get_handler(DraftHandler)

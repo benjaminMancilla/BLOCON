@@ -12,6 +12,7 @@ CLOUD_ERROR_MESSAGES = {
     "rebuild": "No se pudo reconstruir el historial en la nube.",
     "search-components": "No se pudo buscar componentes en la nube.",
     "event-history": "No se pudo obtener el historial de eventos de la nube.",
+    "evaluate": "No se pudo evaluar la confiabilidad.",
 }
 
 
