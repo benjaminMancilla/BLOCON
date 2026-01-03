@@ -5,6 +5,8 @@ import { DiagramGateNode } from "../../DiagramGateNode";
 import type { DiagramLayoutNode } from "../../../hooks/useDiagramLayout";
 import { useNodeStates } from "../hooks/useNodeStates";
 import { DiagramOrganizationPlaceholderNode } from "./DiagramOrganizationPlaceholderNode";
+import type { NodeContextMenuTarget } from "../../../hooks/useNodeContextMenu";
+import type { QuickClickPayload } from "../../nodes/hooks/useQuickClick";
 
 type SelectionHandlers = {
   onNodeHover: (nodeId: string) => void;
@@ -31,9 +33,11 @@ type DiagramNodesProps = {
   insertHighlightedGateId: string | null;
   draggingNodeId: string | null;
   visibleGateIds: Set<string>;
+  canOpenNodeContextMenu: boolean;
   onHoverGateIdChange: (gateId: string | null) => void;
   onExpandGate: (gateId: string) => void;
   onDragStart: (event: PointerEvent<HTMLDivElement>, nodeId: string) => void;
+  onNodeContextMenu: (target: NodeContextMenuTarget, position: { x: number; y: number }) => void;
   selectionHandlers: SelectionHandlers;
 };
 
@@ -59,9 +63,11 @@ const DiagramNodeItem = ({
   insertHighlightedGateId,
   draggingNodeId,
   visibleGateIds,
+  canOpenNodeContextMenu,
   onHoverGateIdChange,
   onExpandGate,
   onDragStart,
+  onNodeContextMenu,
   selectionHandlers,
 }: DiagramNodeItemProps) => {
   const {
@@ -100,6 +106,17 @@ const DiagramNodeItem = ({
   const handleConfirm = () => selectionHandlers.onNodeConfirm(node.id);
   const handleDragStart = (event: PointerEvent<HTMLDivElement>) =>
     onDragStart(event, node.id);
+  const handleQuickClick = (payload: QuickClickPayload) => {
+    if (!canOpenNodeContextMenu) return;
+    const isCollapsedGate = node.type === "component" && node.isCollapsed;
+    const target: NodeContextMenuTarget = {
+      nodeId: node.id,
+      nodeType: isCollapsedGate ? "gate" : node.type,
+      gateSubtype: isCollapsedGate || node.type === "gate" ? node.subtype ?? null : null,
+      name: null,
+    };
+    onNodeContextMenu(target, payload.position);
+  };
 
   if (isPlaceholder) {
     return (
@@ -135,6 +152,8 @@ const DiagramNodeItem = ({
           isDraggable={isDraggable}
           isDragging={isOrganizationDragging}
           isOrganizationDraggable={isOrganizationDraggable}
+          isInteractive={canOpenNodeContextMenu}
+          isQuickClickEnabled={canOpenNodeContextMenu}
           allowExpand={
             !isOrganizationMode && !isLocked && !(organizationGateId === node.id)
           }
@@ -143,6 +162,7 @@ const DiagramNodeItem = ({
           onSelectHoverEnd={handleSelectHoverEnd}
           onPreselect={handlePreselect}
           onConfirm={handleConfirm}
+          onQuickClick={handleQuickClick}
         />
       );
     }
@@ -162,11 +182,14 @@ const DiagramNodeItem = ({
         isDraggable={isDraggable}
         isDragging={isOrganizationDragging}
         isOrganizationDraggable={isOrganizationDraggable}
+        isInteractive={canOpenNodeContextMenu}
+        isQuickClickEnabled={canOpenNodeContextMenu}
         onDragStart={handleDragStart}
         onSelectHover={handleSelectHover}
         onSelectHoverEnd={handleSelectHoverEnd}
         onPreselect={handlePreselect}
         onConfirm={handleConfirm}
+        onQuickClick={handleQuickClick}
       />
     );
   }
@@ -188,11 +211,14 @@ const DiagramNodeItem = ({
       isDraggable={isDraggable}
       isDragging={isOrganizationDragging}
       isOrganizationDraggable={isOrganizationDraggable}
+      isInteractive={canOpenNodeContextMenu}
+      isQuickClickEnabled={canOpenNodeContextMenu}
       onDragStart={handleDragStart}
       onSelectHover={handleSelectHover}
       onSelectHoverEnd={handleSelectHoverEnd}
       onPreselect={handlePreselect}
       onConfirm={handleConfirm}
+      onQuickClick={handleQuickClick}
     />
   );
 };

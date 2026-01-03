@@ -485,6 +485,7 @@ function App() {
           onDeleteNodeConfirm={deleteMode.onNodeConfirm}
           onDeleteSelectionCancel={deleteMode.onSelectionCancel}
           onOrganizationCancel={addComponent.cancelOrganization}
+          canOpenNodeContextMenu={restrictions.canOpenNodeContextMenu}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}

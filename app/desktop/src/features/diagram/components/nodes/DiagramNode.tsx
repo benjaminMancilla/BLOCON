@@ -1,4 +1,4 @@
-import type { CSSProperties, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, PointerEvent, ReactNode, MouseEvent } from "react";
 import type { DiagramLayoutNode } from "../../hooks/useDiagramLayout";
 import type { DiagramNodeClassNameFlags } from "./utils/nodeClassNames";
 import { buildNodeClassNames } from "./utils/nodeClassNames";
@@ -9,6 +9,7 @@ export type DiagramNodeHandlers = {
   onClick?: (event: PointerEvent<HTMLDivElement>) => void;
   onDoubleClick?: (event: PointerEvent<HTMLDivElement>) => void;
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
+  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void;
 };
 
 type DiagramNodeProps = {
@@ -44,6 +45,7 @@ export const DiagramNode = ({
       onClick={handlers.onClick}
       onDoubleClick={handlers.onDoubleClick}
       onPointerDown={handlers.onPointerDown}
+      onContextMenu={handlers.onContextMenu}
     >
       {children}
     </div>

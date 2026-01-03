@@ -66,6 +66,7 @@ export type Restrictions = {
   canSelectNodes: boolean;
   canDragNodes: boolean;
   canCollapseGates: boolean;
+  canOpenNodeContextMenu: boolean;
   
   // Reasons (para debugging y UX)
   blockingReasons: string[];
@@ -179,6 +180,13 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     const canSelectNodes = !isInCriticalError;
     const canDragNodes = inputs.isOrganizationMode && !isInCriticalError;
     const canCollapseGates = !inputs.isOrganizationMode && !isInCriticalError;
+    const canOpenNodeContextMenu =
+      isInCriticalError ? blocked("Error crítico activo") :
+      isInAsyncOperation ? blocked("Operación en progreso") :
+      isInExclusiveMode ? blocked("Modo visor activo") :
+      isInEditMode ? blocked("Modo de edición activo") :
+      hasOpenPanels ? blocked("Panel abierto") :
+      true;
     
     return {
       canEnterAddMode,
@@ -201,6 +209,7 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       canSelectNodes,
       canDragNodes,
       canCollapseGates,
+      canOpenNodeContextMenu,
       blockingReasons: reasons,
     };
   }, [inputs]);

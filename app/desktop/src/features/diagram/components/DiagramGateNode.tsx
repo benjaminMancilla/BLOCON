@@ -4,6 +4,7 @@ import { DiagramNode } from "./nodes/DiagramNode";
 import { useDiagramNodeInteractions } from "./nodes/hooks/useDiagramNodeInteractions";
 import { DiagramGateContent } from "./nodes/variants/DiagramGateContent";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
+import type { QuickClickPayload } from "./nodes/hooks/useQuickClick";
 
 type DiagramGateNodeProps = {
   node: DiagramLayoutNode;
@@ -21,11 +22,14 @@ type DiagramGateNodeProps = {
   isDragging?: boolean;
   isOrganizationDraggable?: boolean;
   isDragGhost?: boolean;
+  isInteractive?: boolean;
+  isQuickClickEnabled?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
+  onQuickClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramGateNode = ({
@@ -44,11 +48,14 @@ export const DiagramGateNode = ({
   isDragging = false,
   isOrganizationDraggable = false,
   isDragGhost = false,
+  isInteractive = false,
+  isQuickClickEnabled = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
   onDragStart,
+  onQuickClick,
 }: DiagramGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -61,9 +68,11 @@ export const DiagramGateNode = ({
     : undefined;
 
   const handlers = useDiagramNodeInteractions({
+    nodeId: node.id,
     hoverId: node.id,
     isSelectionMode,
     isDraggable,
+    isQuickClickEnabled,
     onHoverStart: handleHoverStart,
     onHoverEnd,
     onSelectHover,
@@ -71,6 +80,7 @@ export const DiagramGateNode = ({
     onPreselect,
     onConfirm,
     onDragStart,
+    onQuickClick,
   });
 
   return (
@@ -90,6 +100,7 @@ export const DiagramGateNode = ({
         isDragging,
         isOrganizationDraggable,
         isDragGhost,
+        isInteractive,
       }}
       style={{
         zIndex: 1000,
