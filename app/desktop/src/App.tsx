@@ -47,6 +47,7 @@ import type { GateType } from "./features/diagram/types/gates";
 import { useDraftHandlers } from "./features/diagram/hooks/useDraftHandlers";
 import { useViewHandlers } from "./features/diagram/hooks/useViewHandlers";
 import { useRebuildFlow } from "./features/diagram/hooks/useRebuildFlow";
+import { useEvaluateFlow } from "./features/diagram/hooks/useEvaluateFlow";
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
@@ -137,6 +138,13 @@ function App() {
     toasts: cloudToasts,
   });
 
+ // Evaluate flow
+ const evaluateFlow = useEvaluateFlow({
+   toasts,
+   onGraphReload: reloadGraph,
+   onViewRefresh: async () => await diagramView.refresh(),
+ });
+
   // Draft handlers
   const draftHandlers = useDraftHandlers({
     toasts,
@@ -193,6 +201,7 @@ function App() {
     isOrganizationMode: addComponent.flags.isOrganizing,
     isSelectionMode: addComponent.flags.isSelectingTarget,
     isCloudBusy: cloudActions.cloudActionInFlight !== null,
+    isEvaluationBusy: evaluateFlow.isLoading,
     isDraftBusy: draftHandlers.actionInFlight !== null,
     isViewBusy: viewHandlers.actionInFlight !== null,
     isRebuildInProgress: rebuildFlow.isLoading,
@@ -359,6 +368,12 @@ function App() {
               : "Cargar",
           disabled: !restrictions.canLoadFromCloud,
         }}
+        evaluateState={{
+          isBusy: evaluateFlow.isLoading,
+          disabled: !restrictions.canEvaluate,
+          label: evaluateFlow.isLoading ? "Evaluando..." : "Evaluar",
+        }}
+        onEvaluate={evaluateFlow.evaluate}
         onToggleAddMode={
           addComponent.flags.isActive ? addComponent.cancel : addComponent.start
         }

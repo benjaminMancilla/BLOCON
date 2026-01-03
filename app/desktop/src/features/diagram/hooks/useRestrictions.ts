@@ -16,6 +16,7 @@ type RestrictionInputs = {
   
   // Acciones en progreso
   isCloudBusy: boolean;
+  isEvaluationBusy: boolean;
   isDraftBusy: boolean;
   isViewBusy: boolean;
   isRebuildInProgress: boolean;
@@ -37,6 +38,9 @@ export type Restrictions = {
   // Cloud actions
   canSaveToCloud: boolean;
   canLoadFromCloud: boolean;
+
+  // Evaluation
+  canEvaluate: boolean;
   
   // Version history
   canOpenVersionHistory: boolean;
@@ -78,7 +82,11 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     // Blocking conditions (ordenadas por prioridad)
     const isInCriticalError = inputs.isCloudRecoveryActive;
     const isInAsyncOperation =
-      inputs.isCloudBusy || inputs.isDraftBusy || inputs.isViewBusy || inputs.isRebuildInProgress;
+      inputs.isCloudBusy ||
+      inputs.isEvaluationBusy ||
+      inputs.isDraftBusy ||
+      inputs.isViewBusy ||
+      inputs.isRebuildInProgress;
     const isInExclusiveMode = inputs.isViewerMode;
     const isInEditMode = inputs.isAddMode || inputs.isDeleteMode || inputs.isOrganizationMode || inputs.isSelectionMode;
     const hasOpenPanels = inputs.isVersionHistoryOpen || inputs.isEventDetailsOpen;
@@ -112,7 +120,16 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     
     // Cloud Load (same as save)
     const canLoadFromCloud = canSaveToCloud;
-    
+
+    // Evaluation
+    const canEvaluate =
+      isInCriticalError ? blocked("Error crítico activo") :
+      isInAsyncOperation ? blocked("Operación en progreso") :
+      isInExclusiveMode ? blocked("Modo visor activo") :
+      isInEditMode ? blocked("Modo de edición activo") :
+      hasOpenPanels ? blocked("Panel abierto") :
+      true;
+
     // Version History
     const canOpenVersionHistory =
       inputs.isCloudBusy ? blocked("Operación en progreso") :
@@ -164,6 +181,7 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       canEnterViewerMode: !isInEditMode,
       canSaveToCloud,
       canLoadFromCloud,
+      canEvaluate,
       canOpenVersionHistory,
       canViewVersion: true,
       canRebuildAtVersion: !isInAsyncOperation,
