@@ -47,12 +47,16 @@ class AddComponentRelativeEvent(BaseEvent):
     position_index: int | None = None
     position_reference_id: str | None = None
     children_order: list[str] | None = None
+    new_gate_id: str | None = None
+    new_gate_guid: str | None = None
 
     @staticmethod
     def create(target_id: str, new_comp_id: str, relation: str, 
                dist: Dict[str, Any], k: int | None = None, unit_type: str | None = None,
                position_index: int | None = None, position_reference_id: str | None = None,
                children_order: list[str] | None = None,
+               new_gate_id: str | None = None,
+               new_gate_guid: str | None = None,
                actor: str="anonymous") -> "AddComponentRelativeEvent":
         return AddComponentRelativeEvent(kind="add_component_relative", 
                                          ts=now_iso(), actor=actor,
@@ -61,6 +65,8 @@ class AddComponentRelativeEvent(BaseEvent):
                                          position_index=position_index,
                                          position_reference_id=position_reference_id,
                                          children_order=children_order,
+                                         new_gate_id=new_gate_id,
+                                         new_gate_guid=new_gate_guid,
         )
 
 @dataclass
@@ -146,7 +152,8 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
     elif k == "add_component_relative":
         known_fields = known_base_fields | {
             "target_id", "new_comp_id", "relation", "dist", "k", 
-            "unit_type", "position_index", "position_reference_id", "children_order"
+            "unit_type", "position_index", "position_reference_id", "children_order",
+            "new_gate_id", "new_gate_guid"
         }
         ev = AddComponentRelativeEvent(kind="add_component_relative", **common,
                                        target_id=d["target_id"], new_comp_id=d["new_comp_id"],
@@ -154,7 +161,9 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
                                        unit_type=d.get("unit_type"),
                                        position_index=d.get("position_index"),
                                        position_reference_id=d.get("position_reference_id"),
-                                       children_order=d.get("children_order"))
+                                       children_order=d.get("children_order"),
+                                       new_gate_id=d.get("new_gate_id"),
+                                       new_gate_guid=d.get("new_gate_guid"))
     elif k == "remove_node":
         known_fields = known_base_fields | {"node_id"}
         ev = RemoveNodeEvent(kind="remove_node", **common, node_id=d["node_id"])

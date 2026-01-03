@@ -10,7 +10,8 @@ type DiagramElementSelectorProps = {
   draftSelection: DiagramNodeSelection | null;
   confirmedSelection: DiagramNodeSelection | null;
   onSelectionConfirmed?: (selection: DiagramNodeSelection) => void;
-  onSelectionCleared?: () => void;
+  onSelectionCleared?: () => void;  // Limpia la selección actual
+  onSelectionCanceled?: () => void;  // Cancela el MODO selección (NUEVO)
   onSelectionStart?: () => void;
 };
 
@@ -26,17 +27,20 @@ export const DiagramElementSelector = ({
   confirmedSelection,
   onSelectionConfirmed,
   onSelectionCleared,
+  onSelectionCanceled,
   onSelectionStart,
 }: DiagramElementSelectorProps) => {
   const selectionToDisplay =
     status === "selected" ? confirmedSelection : draftSelection;
   const [isSectionOpen, setIsSectionOpen] = useState(true);
+  
   useEffect(() => {
     if (status !== "selecting") return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onSelectionCleared?.();
+        // ESC cancela el MODO completo
+        onSelectionCanceled?.();
       }
     };
 
@@ -44,7 +48,7 @@ export const DiagramElementSelector = ({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onSelectionCleared, status]);
+  }, [onSelectionCanceled, status]);
 
   const handleClearSelection = () => {
     setIsSectionOpen(true);
@@ -112,9 +116,9 @@ export const DiagramElementSelector = ({
                 <button
                   className="add-component-panel__diagram-button add-component-panel__diagram-button--ghost"
                   type="button"
-                  onClick={onSelectionCleared}
+                  onClick={onSelectionCanceled}
                 >
-                  Cancelar
+                  Cancelar selección
                 </button>
                 <button
                   className="add-component-panel__diagram-button"

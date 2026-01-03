@@ -4,7 +4,8 @@ import { fetchWithCloudErrorHandling } from "../apiClient";
 export type RemoteComponent = {
   id: string;
   title?: string;
-  kks_name?: string;
+  kks_name: string;
+  name?: string;
   type?: string;
   SubType?: string;
   insID?: string | number;
@@ -20,24 +21,32 @@ type SearchOptions = {
   signal?: AbortSignal;
 };
 
+const ensureKksName = (item: any): RemoteComponent => ({
+  ...item,
+  kks_name: item.kks_name || item.name || item.title || item.id || "Sin nombre",
+});
+
 const normalizeResponse = (data: unknown): RemoteComponentSearchResponse => {
   if (Array.isArray(data) && data.length === 2 && Array.isArray(data[0])) {
+    const items = (data[0] as any[]).map(ensureKksName);
     return {
-      items: data[0] as RemoteComponent[],
-      total: Number(data[1]) || (data[0] as RemoteComponent[]).length,
+      items,
+      total: Number(data[1]) || items.length,
     };
   }
 
   if (data && typeof data === "object" && "items" in data) {
-    const typed = data as { items?: RemoteComponent[]; total?: number };
+    const typed = data as { items?: any[]; total?: number };
+    const items = (typed.items ?? []).map(ensureKksName);
     return {
-      items: typed.items ?? [],
-      total: typed.total ?? typed.items?.length ?? 0,
+      items,
+      total: typed.total ?? items.length,
     };
   }
 
   if (Array.isArray(data)) {
-    return { items: data as RemoteComponent[], total: data.length };
+    const items = (data as any[]).map(ensureKksName);
+    return { items, total: items.length };
   }
 
   return { items: [], total: 0 };

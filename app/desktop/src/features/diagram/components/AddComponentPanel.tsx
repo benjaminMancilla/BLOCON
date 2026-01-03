@@ -25,8 +25,10 @@ type AddComponentPanelProps = {
   resetToken?: number;
   searchState: ComponentSearchResult;
   onCancelAdd: () => void;
+  onComponentSelect: (componentId: string, componentName: string) => void;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
   onSelectionCancel: () => void;
+  onSelectionCleared: () => void;
   onSelectionStart: () => void;
   onGateTypeChange: (gateType: GateType | null) => void;
   onSelectionReset: () => void;
@@ -48,8 +50,10 @@ export const AddComponentPanel = ({
   resetToken = 0,
   searchState,
   onCancelAdd,
+  onComponentSelect,
   onSelectionConfirm,
   onSelectionCancel,
+  onSelectionCleared,
   onSelectionStart,
   onGateTypeChange,
   onSelectionReset,
@@ -66,8 +70,11 @@ export const AddComponentPanel = ({
   useEffect(() => {
     if (selectionResetRef.current === confirmedSelection?.id) return;
     selectionResetRef.current = confirmedSelection?.id ?? null;
+    if (confirmedSelection?.type === "gate") {
+      return;
+    }
     onGateTypeChange(null);
-  }, [confirmedSelection?.id, onGateTypeChange]);
+  }, [confirmedSelection?.id, confirmedSelection?.type, onGateTypeChange]);
 
   useEffect(() => {
     if (stepResetRef.current === step) return;
@@ -81,6 +88,11 @@ export const AddComponentPanel = ({
     setSelectedComponent(null);
   }, [resetToken]);
 
+  useEffect(() => {
+    if (formState.componentId) return;
+    setSelectedComponent(null);
+  }, [formState.componentId]);
+
   const handleSelectComponent = useCallback(
     (item: RemoteComponent) => {
       setSelectedComponent(item);
@@ -88,10 +100,9 @@ export const AddComponentPanel = ({
         componentId: item.id,
         calculationType: "exponential",
       });
-      onGateTypeChange(null);
-      onSelectionStart();
+      onComponentSelect(item.id, item.kks_name);
     },
-    [onFormStateChange, onGateTypeChange, onSelectionStart],
+    [onFormStateChange, onComponentSelect],
   );
 
   const handleClearSelection = useCallback(() => {
@@ -198,7 +209,8 @@ export const AddComponentPanel = ({
             draftSelection={draftSelection}
             confirmedSelection={confirmedSelection}
             onSelectionConfirmed={onSelectionConfirm}
-            onSelectionCleared={onSelectionCancel}
+            onSelectionCleared={onSelectionCleared}
+            onSelectionCanceled={onSelectionCancel}
             onSelectionStart={onSelectionStart}
           />
 

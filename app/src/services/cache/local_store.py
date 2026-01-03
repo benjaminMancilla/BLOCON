@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any, Dict, List
 
 from .utils import default_user_data_dir
@@ -13,6 +14,7 @@ from .repositories import (
     DraftRepo,
     DraftsRepo,
     DiagramViewRepo,
+    EventLogRepo,
 )
 
 
@@ -61,6 +63,7 @@ class LocalWorkspaceStore:
         self.draft = DraftRepo(data_dir=self.data_dir)
         self.drafts = DraftsRepo(data_dir=self.data_dir)
         self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
+        self._eventsourcing_store: Any | None = None
 
     # --- snapshot ---
     def load_snapshot(self) -> Dict[str, Any]:
@@ -95,6 +98,33 @@ class LocalWorkspaceStore:
         d = os.path.join(self.data_dir, "eventsourcing")
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, filename)
+    
+    def _eventsourcing_log_repo(self) -> EventLogRepo:
+        return EventLogRepo(path=self.eventsourcing_events_path())
+
+    def register_eventsourcing_store(self, store: Any) -> None:
+        self._eventsourcing_store = store
+
+    def clean_local_events(self) -> None:
+        repo = self._eventsourcing_log_repo()
+        removed = 0
+        try:
+            removed = len(repo.load_all())
+        except Exception:
+            removed = 0
+
+        repo.clear()
+
+        if self._eventsourcing_store is not None:
+            try:
+                self._eventsourcing_store.clear()
+            except Exception:
+                pass
+
+        print(
+            f"Cleaned local events on startup ({removed} removed)",
+            file=sys.stderr,
+        )
     
     def _validate_event_versions(self, events: List[dict], context: str) -> None:
         invalid_indices = [

@@ -24,3 +24,4 @@ class EventStore(JsonlEventStore):
         path = path_override or local.eventsourcing_events_path(filename=filename)
         log = EventLogRepo(path=path)
         super().__init__(log, base_version=base_version)
+        local.register_eventsourcing_store(self)

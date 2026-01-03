@@ -362,6 +362,7 @@ export const DiagramCanvas = ({
                 organizationGateId={organization.gateId}
                 organizationArea={organizationArea}
                 selectedNodeId={activeSelectedNodeId}
+                preselectedNodeId={activePreselectedNodeId}
                 insertHighlightedGateId={insertHighlightState.highlightedGateId}
                 isGateWithinOrganization={isGateWithinOrganization}
                 onHoverGateIdChange={setHoveredGateId}

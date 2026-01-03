@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional, List
 from ..graph.graph import ReliabilityGraph
 from ..graph.node import ComponentNode
+from ..graph.guid import deterministic_gate_guid
 from ..graph.dist import Dist
 from .events import (
     Event, SnapshotEvent, AddComponentRelativeEvent, RemoveNodeEvent,
@@ -124,40 +125,70 @@ class GraphES:
             ))
 
     def add_series(self, target_id: str, new_id: str, dist: Dist, unit_type: str | None = None) -> None:
-        self.graph.add_component_relative(target_id, new_id, "series", dist, unit_type=unit_type)
+        gate_id = self.graph.add_component_relative(
+            target_id,
+            new_id,
+            "series",
+            dist,
+            unit_type=unit_type,
+        )
         if self.store:
+            gate_guid = None
+            if gate_id:
+                gate_node = self.graph.nodes.get(gate_id)
+                gate_guid = getattr(gate_node, "guid", None)
             self.store.append(AddComponentRelativeEvent.create(
                 target_id=target_id,
                 new_comp_id=new_id,
                 relation="series",
                 dist={"kind": dist.kind},
                 unit_type=unit_type,
+                new_gate_id=gate_id,
+                new_gate_guid=gate_guid,
                 actor=self.actor
             ))
 
     def add_parallel(self, target_id: str, new_id: str, dist: Dist, unit_type: str | None = None) -> None:
-        self.graph.add_component_relative(target_id, new_id, "parallel", dist, unit_type=unit_type)
+        gate_id = self.graph.add_component_relative(
+            target_id,
+            new_id,
+            "parallel",
+            dist,
+            unit_type=unit_type,
+        )
         if self.store:
+            gate_guid = None
+            if gate_id:
+                gate_node = self.graph.nodes.get(gate_id)
+                gate_guid = getattr(gate_node, "guid", None)
             self.store.append(AddComponentRelativeEvent.create(
                 target_id=target_id,
                 new_comp_id=new_id,
                 relation="parallel",
                 dist={"kind": dist.kind},
                 unit_type=unit_type,
+                new_gate_id=gate_id,
+                new_gate_guid=gate_guid,
                 actor=self.actor
             ))
 
     def add_koon(self, target_id: str, new_id: str, dist: Dist, k: int) -> None:
         if k < 1:
             raise ValueError("k must be >= 1 for KOON gate")
-        self.graph.add_component_relative(target_id, new_id, "koon", dist, k=k)
+        gate_id = self.graph.add_component_relative(target_id, new_id, "koon", dist, k=k)
         if self.store:
+            gate_guid = None
+            if gate_id:
+                gate_node = self.graph.nodes.get(gate_id)
+                gate_guid = getattr(gate_node, "guid", None)
             self.store.append(AddComponentRelativeEvent.create(
                 target_id=target_id,
                 new_comp_id=new_id,
                 relation="koon",
                 dist={"kind": dist.kind},
                 k=k,
+                new_gate_id=gate_id,
+                new_gate_guid=gate_guid,
                 actor=self.actor
             ))
 
@@ -213,8 +244,9 @@ class GraphES:
 
         relation = self._map_relation_type(relation_type, target_id, host_type)
 
+        gate_id: str | None = None
         if host_type == "gate":
-            self.graph.add_component_relative(
+            gate_id = self.graph.add_component_relative(
                 target_id,
                 new_comp_id,
                 relation,
@@ -225,7 +257,7 @@ class GraphES:
                 position_reference_id=effective_position_reference_id,
             )
         elif host_type == "component":
-            self.graph.add_component_relative(
+            gate_id = self.graph.add_component_relative(
                 target_id,
                 new_comp_id,
                 relation,
@@ -247,6 +279,10 @@ class GraphES:
             self.graph.reorder_children(gate_id, children_order)
 
         if self.store:
+            gate_guid = None
+            if gate_id:
+                gate_node = self.graph.nodes.get(gate_id)
+                gate_guid = getattr(gate_node, "guid", None)
             self.store.append(AddComponentRelativeEvent.create(
                 target_id=target_id,
                 new_comp_id=new_comp_id,
@@ -257,6 +293,8 @@ class GraphES:
                 position_index=effective_position_index,
                 position_reference_id=effective_position_reference_id,
                 children_order=children_order,
+                new_gate_id=gate_id,
+                new_gate_guid=gate_guid,
                 actor=self.actor
             ))
 
@@ -296,7 +334,16 @@ class GraphES:
                 if children_order is not None:
                     effective_position_index = None
                     effective_position_reference_id = None
-                g.add_component_relative(
+                gate_guid = getattr(ev, "new_gate_guid", None)
+                gate_guid_factory = None
+                if gate_guid is None:
+                    gate_guid_factory = lambda gate_id: deterministic_gate_guid(
+                        event_kind=ev.kind,
+                        event_version=getattr(ev, "version", None),
+                        gate_id=gate_id,
+                        event_ts=getattr(ev, "ts", None),
+                    )
+                gate_id = g.add_component_relative(
                     ev.target_id,
                     ev.new_comp_id,
                     ev.relation,
@@ -305,6 +352,8 @@ class GraphES:
                     unit_type=getattr(ev, 'unit_type', None),
                     position_index=effective_position_index,
                     position_reference_id=effective_position_reference_id,
+                    gate_guid=gate_guid,
+                    gate_guid_factory=gate_guid_factory,
                 )
                 if children_order is not None:
                     gate_id = None

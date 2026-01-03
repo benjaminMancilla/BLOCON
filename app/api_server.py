@@ -134,6 +134,17 @@ class PendingCloudOperation:
     timestamp: datetime
 
 
+def clean_start(shared: SharedState) -> None:
+    shared.local.clean_local_events()
+    print("Pre-initializing SharePoint clients...", file=sys.stderr)
+    try:
+        shared.cloud._sp_components()  # Forzar inicialización
+        shared.cloud._sp_snapshot()
+        shared.cloud._sp_events()
+        print("SharePoint clients ready", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
+
 class GraphRequestHandler(BaseHTTPRequestHandler):
     shared: ClassVar[SharedState]
 
@@ -1394,15 +1405,6 @@ def main() -> None:
     es = build_graph_es(local)
     base_dir = os.path.abspath(os.path.dirname(__file__))
     cloud = CloudClient(base_dir=base_dir)
-
-    print("Pre-initializing SharePoint clients...", file=sys.stderr)
-    try:
-        cloud._sp_components()  # Forzar inicialización
-        cloud._sp_snapshot()
-        cloud._sp_events()
-        print("SharePoint clients ready", file=sys.stderr)
-    except Exception as e:
-        print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
     
     GraphRequestHandler.shared = SharedState(
         es=es,
@@ -1411,6 +1413,8 @@ def main() -> None:
         base_dir=base_dir,
         cloud_baseline=es.graph.to_data(),
     )
+
+    clean_start(GraphRequestHandler.shared)
 
     server = None
     try:
