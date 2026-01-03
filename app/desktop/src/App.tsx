@@ -558,7 +558,9 @@ function App() {
           isOpen={versionHistoryPanel.isOpen}
           onClose={versionHistoryPanel.close}
           onViewDetails={eventDetails.open}
-          onShowVersion={versionViewer.enterVersion}
+          onShowVersion={(version) =>
+            versionViewer.enterVersion(version, diagramView.getViewSnapshot())
+          }
           onRebuild={handleRebuildRequest}
         />
       </div>
