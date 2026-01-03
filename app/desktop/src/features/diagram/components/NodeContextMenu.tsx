@@ -1,3 +1,4 @@
+import type { RefObject } from "react";
 import { ContextMenu } from "./ContextMenu";
 import type { NodeContextMenuTarget } from "../hooks/useNodeContextMenu";
 
@@ -6,6 +7,7 @@ type NodeContextMenuProps = {
   position: { x: number; y: number } | null;
   target: NodeContextMenuTarget | null;
   onClose: () => void;
+  menuRef?: RefObject<HTMLDivElement>;
 };
 
 const formatNodeTitle = (target: NodeContextMenuTarget) => {
@@ -32,6 +34,7 @@ export const NodeContextMenu = ({
   position,
   target,
   onClose,
+  menuRef,
 }: NodeContextMenuProps) => {
   if (!isOpen || !position || !target) return null;
 
@@ -41,6 +44,8 @@ export const NodeContextMenu = ({
       position={position}
       onClose={onClose}
       className="node-context-menu"
+      containerRef={menuRef}
+      closeOnOutsideClick={false}
     >
       <div className="node-context-menu__header">
         <div className="node-context-menu__title">

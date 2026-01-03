@@ -439,6 +439,7 @@ export const DiagramCanvas = ({
         position={nodeContextMenu.position}
         target={nodeContextMenu.target}
         onClose={nodeContextMenu.close}
+        menuRef={nodeContextMenu.menuRef}
       />
     </section>
   );

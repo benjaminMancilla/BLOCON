@@ -1,11 +1,13 @@
 import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 
 type ContextMenuProps = {
   isOpen: boolean;
   position: { x: number; y: number } | null;
   onClose: () => void;
   className?: string;
+  containerRef?: RefObject<HTMLDivElement>;
+  closeOnOutsideClick?: boolean;
   children: ReactNode;
 };
 
@@ -14,14 +16,18 @@ export const ContextMenu = ({
   position,
   onClose,
   className,
+  containerRef,
+  closeOnOutsideClick = true,
   children,
 }: ContextMenuProps) => {
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const fallbackRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = containerRef ?? fallbackRef;
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      if (!closeOnOutsideClick) return;
       if (!menuRef.current) return;
       if (!menuRef.current.contains(event.target as Node)) {
         onClose();
@@ -40,7 +46,7 @@ export const ContextMenu = ({
       window.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [closeOnOutsideClick, isOpen, menuRef, onClose]);
 
   if (!isOpen || !position) return null;
 
