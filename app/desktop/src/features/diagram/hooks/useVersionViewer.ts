@@ -140,3 +140,5 @@ export const useVersionViewer = () => {
     exitViewer,
   };
 };
+
+export type UseVersionViewerResult = ReturnType<typeof useVersionViewer>;

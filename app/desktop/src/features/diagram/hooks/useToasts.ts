@@ -1,4 +1,3 @@
-// features/diagram/hooks/useToasts.ts
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
@@ -224,3 +223,5 @@ export function useInsertToast(toasts: ToastManager) {
     [toasts]
   );
 }
+
+export type UseToastsResult = ReturnType<typeof useToasts>;

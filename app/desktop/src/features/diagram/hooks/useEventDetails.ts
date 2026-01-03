@@ -43,3 +43,5 @@ export const useEventDetails = () => {
     close,
   };
 };
+
+export type UseEventDetailsResult = ReturnType<typeof useEventDetails>;

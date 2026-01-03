@@ -22,3 +22,5 @@ export const useVersionHistoryPanel = () => {
     toggle,
   };
 };
+
+export type UseVersionHistoryPanelResult = ReturnType<typeof useVersionHistoryPanel>;
