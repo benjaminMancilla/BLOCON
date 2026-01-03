@@ -25,6 +25,7 @@ from .handlers import (
     EventHistoryHandler,
     DraftHandler,
     ComponentSearchHandler,
+    ViewsHandler,
 )
 
 HOST = "127.0.0.1"
@@ -237,6 +238,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler = self._get_handler(DraftHandler)
             handler.handle_list_drafts()
             return
+
+        # View routes
+        if path == "/views":
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_list_views()
+            return
         
         # 404
         handler = self._get_handler(GraphHandler)
@@ -315,6 +322,34 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler.handle_load_draft(draft_id)
             return
         
+
+        # View routes
+        if path == "/views":
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_create_view(payload)
+            return
+
+        if path.startswith("/views/") and path.endswith("/load"):
+            view_id = path[len("/views/"):-len("/load")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_load_view(view_id)
+            return
+
+        if path.startswith("/views/") and path.endswith("/save"):
+            view_id = path[len("/views/"):-len("/save")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_save_view(view_id, payload)
+            return
+
+        if path.startswith("/views/") and path.endswith("/rename"):
+            view_id = path[len("/views/"):-len("/rename")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_rename_view(view_id, payload)
+            return
+        
         # 404
         handler = self._get_handler(GraphHandler)
         handler._send_json(404, {"error": "not found"})
@@ -377,6 +412,13 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             draft_id = path[len("/drafts/"):].strip()
             handler = self._get_handler(DraftHandler)
             handler.handle_delete_draft(draft_id)
+            return
+        
+        # View routes
+        if path.startswith("/views/"):
+            view_id = path[len("/views/"):].strip()
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_delete_view(view_id)
             return
         
         # 404
