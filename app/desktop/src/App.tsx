@@ -48,6 +48,7 @@ import { useDraftHandlers } from "./features/diagram/hooks/useDraftHandlers";
 import { useViewHandlers } from "./features/diagram/hooks/useViewHandlers";
 import { useRebuildFlow } from "./features/diagram/hooks/useRebuildFlow";
 import { useEvaluateFlow } from "./features/diagram/hooks/useEvaluateFlow";
+import { useFailuresReloadFlow } from "./features/diagram/hooks/useFailuresReloadFlow";
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
@@ -138,12 +139,18 @@ function App() {
     toasts: cloudToasts,
   });
 
- // Evaluate flow
- const evaluateFlow = useEvaluateFlow({
-   toasts,
-   onGraphReload: reloadGraph,
-   onViewRefresh: async () => await diagramView.refresh(),
- });
+  // Evaluate flow
+  const evaluateFlow = useEvaluateFlow({
+    toasts,
+    onGraphReload: reloadGraph,
+    onViewRefresh: async () => await diagramView.refresh(),
+  });
+
+  const failuresReloadFlow = useFailuresReloadFlow({
+    toasts,
+    onGraphReload: reloadGraph,
+    onViewRefresh: async () => await diagramView.refresh(),
+  });
 
   // Draft handlers
   const draftHandlers = useDraftHandlers({
@@ -202,6 +209,7 @@ function App() {
     isSelectionMode: addComponent.flags.isSelectingTarget,
     isCloudBusy: cloudActions.cloudActionInFlight !== null,
     isEvaluationBusy: evaluateFlow.isLoading,
+    isFailuresReloadBusy: failuresReloadFlow.isLoading,
     isDraftBusy: draftHandlers.actionInFlight !== null,
     isViewBusy: viewHandlers.actionInFlight !== null,
     isRebuildInProgress: rebuildFlow.isLoading,
@@ -373,7 +381,15 @@ function App() {
           disabled: !restrictions.canEvaluate,
           label: evaluateFlow.isLoading ? "Evaluando..." : "Evaluar",
         }}
+        failuresReloadState={{
+          isBusy: failuresReloadFlow.isLoading,
+          disabled: !restrictions.canReloadFailures,
+          label: failuresReloadFlow.isLoading
+            ? "Recargando..."
+            : "Recargar fallas",
+        }}
         onEvaluate={evaluateFlow.evaluate}
+        onReloadFailures={failuresReloadFlow.reload}
         onToggleAddMode={
           addComponent.flags.isActive ? addComponent.cancel : addComponent.start
         }

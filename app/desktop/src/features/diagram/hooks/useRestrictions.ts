@@ -17,6 +17,7 @@ type RestrictionInputs = {
   // Acciones en progreso
   isCloudBusy: boolean;
   isEvaluationBusy: boolean;
+  isFailuresReloadBusy: boolean;
   isDraftBusy: boolean;
   isViewBusy: boolean;
   isRebuildInProgress: boolean;
@@ -41,6 +42,7 @@ export type Restrictions = {
 
   // Evaluation
   canEvaluate: boolean;
+  canReloadFailures: boolean;
   
   // Version history
   canOpenVersionHistory: boolean;
@@ -84,6 +86,7 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     const isInAsyncOperation =
       inputs.isCloudBusy ||
       inputs.isEvaluationBusy ||
+      inputs.isFailuresReloadBusy ||
       inputs.isDraftBusy ||
       inputs.isViewBusy ||
       inputs.isRebuildInProgress;
@@ -129,6 +132,8 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       isInEditMode ? blocked("Modo de edición activo") :
       hasOpenPanels ? blocked("Panel abierto") :
       true;
+
+    const canReloadFailures = canEvaluate;
 
     // Version History
     const canOpenVersionHistory =
@@ -182,6 +187,7 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       canSaveToCloud,
       canLoadFromCloud,
       canEvaluate,
+      canReloadFailures,
       canOpenVersionHistory,
       canViewVersion: true,
       canRebuildAtVersion: !isInAsyncOperation,
