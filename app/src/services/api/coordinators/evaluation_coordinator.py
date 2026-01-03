@@ -25,5 +25,8 @@ class EvaluationCoordinator:
     def ensure_failures(self) -> dict:
         return self._ensure_service().ensure_failures()
 
+    def reload_failures(self) -> dict:
+        return self._ensure_service().reload_failures()
+
     def evaluate_graph(self) -> float:
         return self._ensure_service().evaluate()

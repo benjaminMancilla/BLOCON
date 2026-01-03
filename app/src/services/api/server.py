@@ -27,6 +27,7 @@ from .handlers import (
     ComponentSearchHandler,
     ViewsHandler,
     EvaluationHandler,
+    FailuresHandler,
 )
 
 HOST = "127.0.0.1"
@@ -313,6 +314,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/evaluate":
             handler = self._get_handler(EvaluationHandler)
             handler.handle_evaluate()
+            return
+
+        if path == "/failures/reload":
+            handler = self._get_handler(FailuresHandler)
+            handler.handle_reload_failures()
             return
                 
         # Draft routes

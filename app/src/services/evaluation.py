@@ -39,6 +39,9 @@ class EvaluationService:
 
     def ensure_failures(self) -> dict:
         return self.failures.ensure_min_records(self._component_ids(), None)
+    
+    def reload_failures(self) -> dict:
+        return self.failures.reload_failures(self._component_ids())
 
     def evaluate(self) -> float:
         graph = self.es.graph

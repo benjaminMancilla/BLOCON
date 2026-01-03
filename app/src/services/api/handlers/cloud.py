@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from .base import BaseHandler
 from ..coordinators import CloudCoordinator
+from ..coordinators.evaluation_coordinator import EvaluationCoordinator
 from ..shared import PerfLogger, PendingCloudOperation
 from src.model.graph.graph import ReliabilityGraph
 
@@ -173,6 +174,17 @@ class CloudHandler(BaseHandler):
             
             items, total = result if result is not None else ([], 0)
             self._send_json(200, {"items": items, "total": total})
+            return
+
+        if operation == "failures-reload":
+            coordinator = EvaluationCoordinator(self.shared)
+            if not self._run_cloud_op(
+                "failures-reload",
+                coordinator.reload_failures,
+                payload=payload,
+            ):
+                return
+            self._send_json(200, {"status": "ok"})
             return
 
         self._send_json(400, {"error": "unsupported pending operation"})
