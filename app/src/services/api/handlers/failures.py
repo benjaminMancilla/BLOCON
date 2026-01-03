@@ -30,10 +30,19 @@ class FailuresHandler(BaseHandler):
 
     def handle_reload_failures(self) -> None:
         """POST /failures/reload - Recarga fallas en cache local."""
-        if not self._run_cloud_op("failures-reload", self.coordinator.reload_failures):
+        result: dict | None = None
+
+        def _reload() -> None:
+            nonlocal result
+            result = self.coordinator.reload_failures()
+
+        if not self._run_cloud_op("failures-reload", _reload):
             return
 
-        self._send_json(200, {"status": "ok"})
+        added_count = 0
+        if isinstance(result, dict):
+            added_count = int(result.get("added_count") or 0)
+        self._send_json(200, {"status": "ok", "added_count": added_count})
 
     def _run_cloud_op(self, operation: str, fn, *, payload: dict | None = None) -> bool:
         try:

@@ -29,12 +29,15 @@ export function useFailuresReloadFlow({
 
     setIsLoading(true);
     try {
-      await reloadFailures();
+      const addedCount = await reloadFailures();
 
       onGraphReload?.();
       await onViewRefresh?.();
 
-      toasts.success("Fallas recargadas.", "general");
+      toasts.success(
+        `Fallas recargadas. Nuevas: ${addedCount}.`,
+        "general",
+      );
     } catch (error) {
       if (isRetryableCloudError(error)) {
         return;
