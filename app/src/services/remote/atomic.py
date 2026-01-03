@@ -74,7 +74,7 @@ class CloudAtomicOperation:
         """Escribe eventos y snapshot a SharePoint de forma coordinada."""
         if self._committed:
             return
-        if not self._events_payload or self._snapshot_payload is None:
+        if not self._events_payload and self._snapshot_payload is None:
             raise RuntimeError(f"{self.name} is missing events or snapshot payload")
         
         if self._head_before is None:
