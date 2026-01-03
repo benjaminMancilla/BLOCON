@@ -26,16 +26,18 @@ const buildGateGuidMaps = (graph: GraphData) => {
   return { gateGuidById, gateIdByGuid };
 };
 
-const filterExistingGateGuids = (
+const migrateCollapsedGateGuids = (
   gateGuidById: Map<string, string>,
   gateIdByGuid: Map<string, string>,
   values: string[]
 ): string[] => {
-  const resolved = values
-    .map((value) => gateIdByGuid.get(value) ? value : gateGuidById.get(value))
-    .filter((value): value is string => Boolean(value));
-  const existing = new Set(gateIdByGuid.keys());
-  return resolved.filter((guid) => existing.has(guid));
+  const resolved = values.map((value) => {
+    if (gateIdByGuid.has(value)) {
+      return value;
+    }
+    return gateGuidById.get(value) ?? value;
+  });
+  return normalizeCollapsedIds(resolved);
 };
 
 const normalizeCollapsedIds = (ids: string[]): string[] => {
@@ -66,11 +68,17 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
     try {
       const data = await fetchDiagramView();
       hasHydratedRef.current = true;
-      setCollapsedGateGuids(normalizeCollapsedIds(data.collapsedGateIds ?? []));
+      setCollapsedGateGuids(
+        migrateCollapsedGateGuids(
+          gateGuidById,
+          gateIdByGuid,
+          data.collapsedGateIds ?? []
+        )
+      );
     } catch (error) {
       setCollapsedGateGuids([]);
     }
-  }, []);
+  }, [gateGuidById, gateIdByGuid]);
 
   useEffect(() => {
     let active = true;
@@ -81,7 +89,13 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
           return;
         }
         hasHydratedRef.current = true;
-        setCollapsedGateGuids(normalizeCollapsedIds(data.collapsedGateIds ?? []));
+        setCollapsedGateGuids(
+          migrateCollapsedGateGuids(
+            gateGuidById,
+            gateIdByGuid,
+            data.collapsedGateIds ?? []
+          )
+        );
       } catch (error) {
         if (!active) {
           return;
@@ -99,13 +113,13 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
     return () => {
       active = false;
     };
-  }, []);
+  }, [gateGuidById, gateIdByGuid]);
 
   useEffect(() => {
     if (graph.nodes.length === 0) {
       return;
     }
-    const reconciled = filterExistingGateGuids(
+    const reconciled = migrateCollapsedGateGuids(
       gateGuidById,
       gateIdByGuid,
       collapsedGateGuids
