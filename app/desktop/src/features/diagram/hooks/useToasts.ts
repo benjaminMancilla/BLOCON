@@ -1,9 +1,15 @@
-// features/diagram/hooks/useToasts.ts
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ToastType = "success" | "error" | "info" | "warning";
 
-export type ToastCategory = "cloud" | "draft" | "delete" | "insert" | "rebuild" | "general";
+export type ToastCategory =
+  | "cloud"
+  | "draft"
+  | "view"
+  | "delete"
+  | "insert"
+  | "rebuild"
+  | "general";
 
 export type Toast = {
   id: string;
@@ -166,6 +172,34 @@ export function useDraftToasts(toasts: ToastManager) {
   );
 }
 
+export function useViewToasts(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showCreateSuccess: () =>
+        toasts.success("Vista guardada correctamente.", "view"),
+      showCreateError: () =>
+        toasts.error("No se pudo guardar la vista.", "view"),
+      showSaveSuccess: () => toasts.success("Vista actualizada.", "view"),
+      showSaveError: () =>
+        toasts.error("No se pudo actualizar la vista.", "view"),
+      showLoadSuccess: () =>
+        toasts.success("Vista cargada en el lienzo.", "view"),
+      showLoadError: () =>
+        toasts.error("No se pudo cargar la vista.", "view"),
+      showLoadNotFound: () =>
+        toasts.error("No se encontró la vista solicitada.", "view"),
+      showRenameSuccess: () =>
+        toasts.success("Nombre de la vista actualizado.", "view"),
+      showRenameError: () =>
+        toasts.error("No se pudo renombrar la vista.", "view"),
+      showDeleteSuccess: () => toasts.success("Vista eliminada.", "view"),
+      showDeleteError: () =>
+        toasts.error("No se pudo eliminar la vista.", "view"),
+    }),
+    [toasts],
+  );
+}
+
 export function useDeleteToasts(toasts: ToastManager) {
   return useMemo(
     () => ({
@@ -189,3 +223,5 @@ export function useInsertToast(toasts: ToastManager) {
     [toasts]
   );
 }
+
+export type UseToastsResult = ReturnType<typeof useToasts>;

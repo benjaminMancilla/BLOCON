@@ -10,6 +10,7 @@ import { DeleteActionButton } from "./features/diagram/components/DeleteActionBu
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPanel";
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
+import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { ToastContainer } from "./features/diagram/components/ToastContainer";
@@ -20,7 +21,6 @@ import { useDiagramView } from "./features/diagram/hooks/useDiagramView";
 import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useCloudErrorRecovery } from "./features/diagram/hooks/useCloudErrorRecovery";
-import { useDrafts } from "./features/diagram/hooks/useDrafts";
 import { useEventDetails } from "./features/diagram/hooks/useEventDetails";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
 import { useVersionViewer } from "./features/diagram/hooks/useVersionViewer";
@@ -32,19 +32,23 @@ import { useOrganizationPayload } from "./features/diagram/hooks/useOrganization
 import {
   useToasts,
   useCloudToasts,
-  useDraftToasts,
   useDeleteToasts,
   useInsertToast,
 } from "./features/diagram/hooks/useToasts";
 
 // Services
-import { insertOrganization, loadCloudGraph } from "./services/graphService";
-import { rebuildGraphAtVersion } from "./services/versionViewerService";
-import { isRetryableCloudError } from "./services/apiClient";
+import { insertOrganization } from "./services/graphService";
 
 // Types
 import type { OrganizationUiState } from "./features/diagram/types/organization";
 import type { GateType } from "./features/diagram/types/gates";
+
+// Handlers
+import { useDraftHandlers } from "./features/diagram/hooks/useDraftHandlers";
+import { useViewHandlers } from "./features/diagram/hooks/useViewHandlers";
+import { useRebuildFlow } from "./features/diagram/hooks/useRebuildFlow";
+import { useEvaluateFlow } from "./features/diagram/hooks/useEvaluateFlow";
+import { useFailuresReloadFlow } from "./features/diagram/hooks/useFailuresReloadFlow";
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
@@ -65,13 +69,12 @@ function App() {
   const [insertHighlight, setInsertHighlight] =
     useState<InsertHighlight | null>(null);
   const insertHighlightTokenRef = useRef(0);
-  const [rebuildDialog, setRebuildDialog] = useState<{
-    version: number;
-    step: 1 | 2;
-  } | null>(null);
-  const [isRebuildLoading, setIsRebuildLoading] = useState(false);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
+
+  const reloadGraph = useCallback(() => {
+    setGraphReloadToken((c) => c + 1);
+  }, []);
 
   // FEATURE HOOKS
   const { graph, status, errorMessage } = useDiagramGraph(graphReloadToken);
@@ -93,9 +96,17 @@ function App() {
   // Toast system
   const toasts = useToasts();
   const cloudToasts = useCloudToasts(toasts);
-  const draftToasts = useDraftToasts(toasts);
   const deleteToasts = useDeleteToasts(toasts);
   const insertToast = useInsertToast(toasts);
+
+  // Rebuild flow
+  const rebuildFlow = useRebuildFlow({
+    toasts,
+    versionViewer,
+    versionHistoryPanel,
+    eventDetails,
+    onGraphReload: reloadGraph,
+  });
 
   // Add Component with state machine
   const addComponent = useAddComponent({
@@ -128,15 +139,40 @@ function App() {
     toasts: cloudToasts,
   });
 
-  // Drafts
-  const drafts = useDrafts();
+  // Evaluate flow
+  const evaluateFlow = useEvaluateFlow({
+    toasts,
+    onGraphReload: reloadGraph,
+    onViewRefresh: async () => await diagramView.refresh(),
+  });
+
+  const failuresReloadFlow = useFailuresReloadFlow({
+    toasts,
+    onGraphReload: reloadGraph,
+    onViewRefresh: async () => await diagramView.refresh(),
+  });
+
+  // Draft handlers
+  const draftHandlers = useDraftHandlers({
+    toasts,
+    onGraphReload: reloadGraph,
+  });
+
+  // View handlers
+  const viewHandlers = useViewHandlers({
+    toasts,
+    onViewRefresh: async () => {
+      await diagramView.refresh();
+    },
+  });
 
   // Cloud error recovery
   const cloudErrorRecovery = useCloudErrorRecovery({
-    onRetrySuccess: () => {
-      setGraphReloadToken((c) => c + 1);
-      void diagramView.refresh();
-      void drafts.refreshDrafts();
+    onRetrySuccess: async () => {
+      reloadGraph();
+      await diagramView.refresh();
+      await draftHandlers.refreshDrafts();
+      await viewHandlers.refreshViews();
     },
   });
 
@@ -172,8 +208,11 @@ function App() {
     isOrganizationMode: addComponent.flags.isOrganizing,
     isSelectionMode: addComponent.flags.isSelectingTarget,
     isCloudBusy: cloudActions.cloudActionInFlight !== null,
-    isDraftBusy: drafts.actionInFlight !== null,
-    isRebuildInProgress: isRebuildLoading,
+    isEvaluationBusy: evaluateFlow.isLoading,
+    isFailuresReloadBusy: failuresReloadFlow.isLoading,
+    isDraftBusy: draftHandlers.actionInFlight !== null,
+    isViewBusy: viewHandlers.actionInFlight !== null,
+    isRebuildInProgress: rebuildFlow.isLoading,
     isCloudRecoveryActive:
       cloudErrorRecovery.isModalOpen ||
       cloudErrorRecovery.actionLoading !== null,
@@ -247,115 +286,6 @@ function App() {
     addComponent,
     toasts,
   ]);
-
-  // DRAFT HANDLERS
-  const handleDraftCreate = useCallback(
-    async (name?: string) => {
-      try {
-        await drafts.createDraft(name);
-        draftToasts.showCreateSuccess();
-      } catch {
-        draftToasts.showCreateError();
-      }
-    },
-    [drafts, draftToasts]
-  );
-
-  const handleDraftSave = useCallback(
-    async (draftId: string) => {
-      try {
-        await drafts.saveDraft(draftId);
-        draftToasts.showSaveSuccess();
-      } catch {
-        draftToasts.showSaveError();
-      }
-    },
-    [drafts, draftToasts]
-  );
-
-  const handleDraftLoad = useCallback(
-    async (draftId: string) => {
-      try {
-        const result = await drafts.loadDraft(draftId);
-        if (result.status === "ok") {
-          setGraphReloadToken((c) => c + 1);
-          draftToasts.showLoadSuccess();
-        } else if (result.status === "conflict") {
-          draftToasts.showLoadConflict();
-        } else {
-          draftToasts.showLoadNotFound();
-        }
-      } catch {
-        draftToasts.showLoadError();
-      }
-    },
-    [drafts, draftToasts]
-  );
-
-  const handleDraftRename = useCallback(
-    async (draftId: string, name: string) => {
-      try {
-        await drafts.renameDraft(draftId, name);
-        draftToasts.showRenameSuccess();
-      } catch {
-        draftToasts.showRenameError();
-      }
-    },
-    [drafts, draftToasts]
-  );
-
-  const handleDraftDelete = useCallback(
-    async (draftId: string) => {
-      try {
-        await drafts.deleteDraft(draftId);
-        draftToasts.showDeleteSuccess();
-      } catch {
-        draftToasts.showDeleteError();
-      }
-    },
-    [drafts, draftToasts]
-  );
-
-  // REBUILD HANDLERS
-  const handleRebuildRequest = useCallback((version: number) => {
-    setRebuildDialog({ version, step: 1 });
-  }, []);
-
-  const handleRebuildCancel = useCallback(() => {
-    if (isRebuildLoading) return;
-    setRebuildDialog(null);
-  }, [isRebuildLoading]);
-
-  const handleRebuildConfirm = useCallback(async () => {
-    if (!rebuildDialog) return;
-    if (rebuildDialog.step === 1) {
-      setRebuildDialog((current) =>
-        current ? { ...current, step: 2 } : current
-      );
-      return;
-    }
-    setIsRebuildLoading(true);
-    try {
-      await rebuildGraphAtVersion(rebuildDialog.version);
-      await loadCloudGraph();
-      setGraphReloadToken((c) => c + 1);
-      versionViewer.exitViewer();
-      versionHistoryPanel.close();
-      eventDetails.close();
-      toasts.success(
-        `Rebuild completado en v${rebuildDialog.version}.`,
-        "rebuild"
-      );
-    } catch (error) {
-      if (isRetryableCloudError(error)) {
-        return;
-      }
-      toasts.error("No se pudo completar el rebuild.", "rebuild");
-    } finally {
-      setIsRebuildLoading(false);
-      setRebuildDialog(null);
-    }
-  }, [rebuildDialog, versionViewer, versionHistoryPanel, eventDetails, toasts]);
 
   // AUTO-DISMISS EFFECTS
   
@@ -446,6 +376,20 @@ function App() {
               : "Cargar",
           disabled: !restrictions.canLoadFromCloud,
         }}
+        evaluateState={{
+          isBusy: evaluateFlow.isLoading,
+          disabled: !restrictions.canEvaluate,
+          label: evaluateFlow.isLoading ? "Evaluando..." : "Evaluar",
+        }}
+        failuresReloadState={{
+          isBusy: failuresReloadFlow.isLoading,
+          disabled: !restrictions.canReloadFailures,
+          label: failuresReloadFlow.isLoading
+            ? "Recargando..."
+            : "Recargar fallas",
+        }}
+        onEvaluate={evaluateFlow.evaluate}
+        onReloadFailures={failuresReloadFlow.reload}
         onToggleAddMode={
           addComponent.flags.isActive ? addComponent.cancel : addComponent.start
         }
@@ -453,13 +397,34 @@ function App() {
         onToggleVersionHistory={versionHistoryPanel.toggle}
         onSkipDeleteConfirmationChange={deleteMode.setSkipConfirmForComponents}
         onCloudSave={cloudActions.requestSave}
+        viewsMenu={
+          versionViewer.isActive ? null : (
+            <ViewsMenu
+              views={viewHandlers.views}
+              isLoading={viewHandlers.isLoading}
+              isBusy={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateView
+              }
+              disabled={
+                cloudActions.cloudActionInFlight !== null ||
+                !restrictions.canCreateView
+              }
+              onCreateView={viewHandlers.handleCreate}
+              onSaveView={viewHandlers.handleSave}
+              onLoadView={viewHandlers.handleLoad}
+              onRenameView={viewHandlers.handleRename}
+              onDeleteView={viewHandlers.handleDelete}
+            />
+          )
+        }
         onCloudLoad={cloudActions.requestLoad}
         onExitViewer={versionViewer.exitViewer}
         draftsMenu={
           versionViewer.isActive ? null : (
             <DraftsMenu
-              drafts={drafts.drafts}
-              isLoading={drafts.isLoading}
+              drafts={draftHandlers.drafts}
+              isLoading={draftHandlers.isLoading}
               isBusy={
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateDraft
@@ -468,11 +433,11 @@ function App() {
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateDraft
               }
-              onCreateDraft={handleDraftCreate}
-              onSaveDraft={handleDraftSave}
-              onLoadDraft={handleDraftLoad}
-              onRenameDraft={handleDraftRename}
-              onDeleteDraft={handleDraftDelete}
+              onCreateDraft={draftHandlers.handleCreate}
+              onSaveDraft={draftHandlers.handleSave}
+              onLoadDraft={draftHandlers.handleLoad}
+              onRenameDraft={draftHandlers.handleRename}
+              onDeleteDraft={draftHandlers.handleDelete}
             />
           )
         }
@@ -558,8 +523,10 @@ function App() {
           isOpen={versionHistoryPanel.isOpen}
           onClose={versionHistoryPanel.close}
           onViewDetails={eventDetails.open}
-          onShowVersion={versionViewer.enterVersion}
-          onRebuild={handleRebuildRequest}
+          onShowVersion={(version) =>
+            versionViewer.enterVersion(version, diagramView.getViewSnapshot())
+          }
+          onRebuild={rebuildFlow.requestRebuild}
         />
       </div>
 
@@ -594,15 +561,15 @@ function App() {
       ) : null}
 
       {/* Rebuild Confirm Dialog */}
-      {rebuildDialog ? (
+      {rebuildFlow.dialog && (
         <RebuildConfirmDialog
-          version={rebuildDialog.version}
-          step={rebuildDialog.step}
-          isLoading={isRebuildLoading}
-          onCancel={handleRebuildCancel}
-          onConfirm={handleRebuildConfirm}
+          version={rebuildFlow.dialog.version}
+          step={rebuildFlow.dialog.step}
+          isLoading={rebuildFlow.isLoading}
+          onCancel={rebuildFlow.cancel}
+          onConfirm={rebuildFlow.confirm}
         />
-      ) : null}
+      )}
 
       {/* Toasts - Sistema Unificado */}
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />

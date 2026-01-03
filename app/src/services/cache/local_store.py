@@ -14,6 +14,7 @@ from .repositories import (
     DraftRepo,
     DraftsRepo,
     DiagramViewRepo,
+    SavedViewsRepo,
     EventLogRepo,
 )
 
@@ -63,6 +64,7 @@ class LocalWorkspaceStore:
         self.draft = DraftRepo(data_dir=self.data_dir)
         self.drafts = DraftsRepo(data_dir=self.data_dir)
         self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
+        self.saved_views = SavedViewsRepo(data_dir=self.cache_dir)
         self._eventsourcing_store: Any | None = None
 
     # --- snapshot ---
@@ -161,6 +163,36 @@ class LocalWorkspaceStore:
 
     def save_diagram_view(self, view: Dict[str, Any]) -> None:
         self.diagram_view.save(view or {})
+
+    # --- saved views (multi) ---
+    def saved_views_list(self) -> List[Dict[str, Any]]:
+        return self.saved_views.list_views()
+
+    def saved_views_create(
+        self,
+        *,
+        view: Dict[str, Any],
+        name: str | None = None,
+    ) -> Dict[str, Any]:
+        return self.saved_views.create_view(view=view, name=name)
+
+    def saved_views_save(
+        self,
+        *,
+        view_id: str,
+        view: Dict[str, Any],
+        name: str | None = None,
+    ) -> Dict[str, Any]:
+        return self.saved_views.save_view(view_id=view_id, view=view, name=name)
+
+    def saved_views_rename(self, *, view_id: str, name: str) -> Dict[str, Any]:
+        return self.saved_views.rename_view(view_id=view_id, name=name)
+
+    def saved_views_delete(self, *, view_id: str) -> bool:
+        return self.saved_views.delete_view(view_id=view_id)
+
+    def saved_views_load(self, *, view_id: str) -> Dict[str, Any]:
+        return self.saved_views.load_view(view_id=view_id)
 
     # --- components (fallback local) ---
     def fetch_components(self, ids: List[str]) -> Dict[str, Dict[str, Any]]:

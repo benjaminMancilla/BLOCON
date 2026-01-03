@@ -5,52 +5,17 @@ import {
   fetchDiagramView,
   saveDiagramView,
 } from "../../../services/diagramViewService";
+import {
+  buildGateGuidMaps,
+  migrateCollapsedGateGuids,
+} from "../utils/diagramViewUtils";
 
 export type DiagramViewStateController = {
   collapsedGateIdSet: Set<string>;
   collapseGate: (gateId: string) => void;
   expandGate: (gateId: string) => void;
   refresh: () => Promise<void>;
-};
-
-const buildGateGuidMaps = (graph: GraphData) => {
-  const gateGuidById = new Map<string, string>();
-  const gateIdByGuid = new Map<string, string>();
-  graph.nodes
-    .filter((node) => node.type === "gate")
-    .forEach((node) => {
-      const guid = node.guid ?? node.id;
-      gateGuidById.set(node.id, guid);
-      gateIdByGuid.set(guid, node.id);
-    });
-  return { gateGuidById, gateIdByGuid };
-};
-
-const migrateCollapsedGateGuids = (
-  gateGuidById: Map<string, string>,
-  gateIdByGuid: Map<string, string>,
-  values: string[]
-): string[] => {
-  const resolved = values.map((value) => {
-    if (gateIdByGuid.has(value)) {
-      return value;
-    }
-    return gateGuidById.get(value) ?? value;
-  });
-  return normalizeCollapsedIds(resolved);
-};
-
-const normalizeCollapsedIds = (ids: string[]): string[] => {
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-  ids.forEach((id) => {
-    if (!id || seen.has(id)) {
-      return;
-    }
-    seen.add(id);
-    normalized.push(id);
-  });
-  return normalized;
+  getViewSnapshot: () => DiagramViewState;
 };
 
 export const useDiagramView = (graph: GraphData): DiagramViewStateController => {
@@ -172,10 +137,18 @@ export const useDiagramView = (graph: GraphData): DiagramViewStateController => 
     setCollapsedGateGuids((prev) => prev.filter((id) => id !== guid));
   }, [gateGuidById]);
 
+    const getViewSnapshot = useCallback(
+    (): DiagramViewState => ({
+      collapsedGateIds: [...collapsedGateGuids],
+    }),
+    [collapsedGateGuids],
+  );
+
   return {
     collapsedGateIdSet,
     collapseGate,
     expandGate,
     refresh,
+    getViewSnapshot,
   };
 };

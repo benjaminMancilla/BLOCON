@@ -6,6 +6,7 @@ from .draft import DraftRepo, DraftsRepo
 from .event_log import EventLogRepo
 from .event_store_jsonl import JsonlEventStore
 from .diagram_view import DiagramViewRepo
+from .saved_views import SavedViewRepo, SavedViewsRepo
 from .region import RegionCacheRepo
 
 __all__ = [
@@ -18,5 +19,7 @@ __all__ = [
     "EventLogRepo",
     "EventStoreJsonlRepo",
     "DiagramViewRepo",
+    "SavedViewRepo",
+    "SavedViewsRepo",
     "RegionCacheRepo",
 ]

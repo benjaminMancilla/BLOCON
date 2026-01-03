@@ -25,6 +25,9 @@ from .handlers import (
     EventHistoryHandler,
     DraftHandler,
     ComponentSearchHandler,
+    ViewsHandler,
+    EvaluationHandler,
+    FailuresHandler,
 )
 
 HOST = "127.0.0.1"
@@ -237,6 +240,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler = self._get_handler(DraftHandler)
             handler.handle_list_drafts()
             return
+
+        # View routes
+        if path == "/views":
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_list_views()
+            return
         
         # 404
         handler = self._get_handler(GraphHandler)
@@ -301,7 +310,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler = self._get_handler(CloudHandler)
             handler.handle_cloud_cancel()
             return
-        
+
+        if path == "/evaluate":
+            handler = self._get_handler(EvaluationHandler)
+            handler.handle_evaluate()
+            return
+
+        if path == "/failures/reload":
+            handler = self._get_handler(FailuresHandler)
+            handler.handle_reload_failures()
+            return
+                
         # Draft routes
         if path == "/drafts":
             handler = self._get_handler(DraftHandler)
@@ -313,6 +332,34 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             draft_id = path[len("/drafts/"):-len("/load")].strip("/")
             handler = self._get_handler(DraftHandler)
             handler.handle_load_draft(draft_id)
+            return
+        
+
+        # View routes
+        if path == "/views":
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_create_view(payload)
+            return
+
+        if path.startswith("/views/") and path.endswith("/load"):
+            view_id = path[len("/views/"):-len("/load")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_load_view(view_id)
+            return
+
+        if path.startswith("/views/") and path.endswith("/save"):
+            view_id = path[len("/views/"):-len("/save")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_save_view(view_id, payload)
+            return
+
+        if path.startswith("/views/") and path.endswith("/rename"):
+            view_id = path[len("/views/"):-len("/rename")].strip("/")
+            handler = self._get_handler(ViewsHandler)
+            payload = handler._read_json_body()
+            handler.handle_rename_view(view_id, payload)
             return
         
         # 404
@@ -377,6 +424,13 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             draft_id = path[len("/drafts/"):].strip()
             handler = self._get_handler(DraftHandler)
             handler.handle_delete_draft(draft_id)
+            return
+        
+        # View routes
+        if path.startswith("/views/"):
+            view_id = path[len("/views/"):].strip()
+            handler = self._get_handler(ViewsHandler)
+            handler.handle_delete_view(view_id)
             return
         
         # 404

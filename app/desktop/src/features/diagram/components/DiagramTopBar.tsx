@@ -16,6 +16,16 @@ type DiagramTopBarProps = {
     label: string;
     disabled: boolean;
   };
+  evaluateState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
+  failuresReloadState?: {
+    isBusy: boolean;
+    label: string;
+    disabled: boolean;
+  };
   isDeleteMode?: boolean;
   isDeleteDisabled?: boolean;
   isVersionHistoryOpen?: boolean;
@@ -29,7 +39,10 @@ type DiagramTopBarProps = {
   onSkipDeleteConfirmationChange?: (value: boolean) => void;
   onCloudSave?: () => void;
   onCloudLoad?: () => void;
+  onEvaluate?: () => void;
+  onReloadFailures?: () => void;
   onExitViewer?: () => void;
+  viewsMenu?: ReactNode;
   draftsMenu?: ReactNode;
   isDraftsDisabled?: boolean;
 };
@@ -50,6 +63,8 @@ export const DiagramTopBar = ({
     label: "Cargar",
     disabled: false,
   },
+  evaluateState,
+  failuresReloadState,
   isDeleteMode = false,
   isDeleteDisabled = false,
   isVersionHistoryOpen = false,
@@ -63,7 +78,10 @@ export const DiagramTopBar = ({
   onSkipDeleteConfirmationChange,
   onCloudSave,
   onCloudLoad,
+  onEvaluate,
+  onReloadFailures,
   onExitViewer,
+  viewsMenu,
   draftsMenu,
 }: DiagramTopBarProps) => {
   return (
@@ -126,6 +144,47 @@ export const DiagramTopBar = ({
             </button>
           </div>
         </div>
+        {evaluateState || failuresReloadState ? (
+          <div className="diagram-topbar__section">
+            <p className="diagram-topbar__section-title">Análisis</p>
+            <div className="diagram-topbar__section-buttons">
+              {evaluateState ? (
+                <button
+                  type="button"
+                  className="diagram-topbar__button"
+                  onClick={onEvaluate}
+                  disabled={evaluateState.disabled}
+                  aria-busy={evaluateState.isBusy}
+                >
+                  {evaluateState.isBusy ? (
+                    <span className="diagram-topbar__spinner" aria-hidden="true" />
+                  ) : null}
+                  {evaluateState.label}
+                </button>
+              ) : null}
+              {failuresReloadState ? (
+                <button
+                  type="button"
+                  className="diagram-topbar__button"
+                  onClick={onReloadFailures}
+                  disabled={failuresReloadState.disabled}
+                  aria-busy={failuresReloadState.isBusy}
+                >
+                  {failuresReloadState.isBusy ? (
+                    <span className="diagram-topbar__spinner" aria-hidden="true" />
+                  ) : null}
+                  {failuresReloadState.label}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        {viewsMenu ? (
+          <div className="diagram-topbar__section diagram-topbar__section--inline">
+            <p className="diagram-topbar__section-title">Vistas</p>
+            <div className="diagram-topbar__section-buttons">{viewsMenu}</div>
+          </div>
+        ) : null}
         {draftsMenu ? (
           <div className="diagram-topbar__section diagram-topbar__section--inline">
             <p className="diagram-topbar__section-title">Borradores</p>

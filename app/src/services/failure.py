@@ -71,6 +71,18 @@ def _group_remote_rows(rows: List[Dict[str, Any]]) -> Dict[str, List[Tuple[str, 
         out[cid].sort(key=lambda t: t[0])
     return out
 
+def _normalize_cached_rows(rows: Any) -> set[Tuple[str, str]]:
+    normalized: set[Tuple[str, str]] = set()
+    if not isinstance(rows, list):
+        return normalized
+    for row in rows:
+        if isinstance(row, (list, tuple)) and len(row) >= 2:
+            normalized.add((str(row[0]), str(row[1])))
+        elif isinstance(row, dict):
+            normalized.add(_norm_row(row))
+    return normalized
+
+
 
 # ------------------ Servicio ------------------
 
@@ -117,6 +129,12 @@ class FailuresService:
 
         cache = _ensure_cache_shape(self.local_repo.load())
         items: Dict[str, Any] = cache["items"]
+        existing_rows = {
+            cid: _normalize_cached_rows(
+                items.get(cid, {}).get("rows", []) if isinstance(items.get(cid, {}), dict) else []
+            )
+            for cid in comp_ids
+        }
 
         # 1) fetch remoto (batch)
         rows = self.remote.fetch_failures_for_components(comp_ids, chunk_size=chunk_size, top=top)
@@ -126,14 +144,16 @@ class FailuresService:
         now = _utc_now_iso()
         req_set = set(comp_ids)
 
+        added_count = 0
         for cid in req_set:
             if cid in fresh:
+                added_count += len(set(fresh[cid]) - existing_rows.get(cid, set()))
                 items[cid] = {"rows": fresh[cid], "last_update": now}
             else:
                 # si no viene nada remoto, dejamos entrada vacía (pero existente)
                 items.setdefault(cid, {"rows": [], "last_update": None})
 
-        out = {"items": items}
+        out = {"items": items, "added_count": added_count}
         self.local_repo.save(out)
         return out
 
