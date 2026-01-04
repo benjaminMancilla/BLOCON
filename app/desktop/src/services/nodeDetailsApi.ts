@@ -7,7 +7,13 @@ export type NodeDetailsResponse = {
   id: string;
   snapshot: Record<string, unknown>;
   cache?: Record<string, unknown> | null;
+  failures?: {
+    count: number;
+    records: FailureRecord[];
+  };
 };
+
+export type FailureRecord = Record<string, string | number | boolean | null>;
 
 export async function getNodeDetails(nodeId: string): Promise<NodeDetailsResponse> {
   return enqueueGraphRequest(async () => {

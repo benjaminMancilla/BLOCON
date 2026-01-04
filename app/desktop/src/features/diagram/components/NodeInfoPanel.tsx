@@ -1,4 +1,5 @@
 import { DiagramSidePanelLeft } from "./DiagramSidePanelLeft";
+import { NodeFailuresTable } from "./NodeFailuresTable";
 import type { NodeDetailsResponse } from "../../../services/nodeDetailsApi";
 
 const formatReliability = (reliability: number | null) => {
@@ -175,6 +176,10 @@ export const NodeInfoPanel = ({
               <span className="node-info-panel__value">
                 {formatCalculationType(calculationType)}
               </span>
+            </div>
+            <div className="node-info-panel__section node-info-panel__section--stacked">
+              <h3 className="node-info-panel__section-title">Historial de fallas</h3>
+              <NodeFailuresTable failures={data?.failures} />
             </div>
           </>
         ) : null}

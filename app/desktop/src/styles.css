@@ -2355,11 +2355,77 @@ body {
   background: #ffffff;
 }
 
+.node-info-panel__section--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .node-info-panel__section-title {
   font-size: 0.9rem;
   color: #475467;
   margin: 0;
   font-weight: 600;
+}
+
+.node-failures-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.node-failures-table__meta {
+  font-size: 0.75rem;
+  color: #667085;
+}
+
+.node-failures-table__empty {
+  font-size: 0.85rem;
+  color: #667085;
+  background: #f8fafc;
+  border: 1px dashed #d0d5dd;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+}
+
+.node-failures-table__scroll {
+  max-height: 240px;
+  overflow: auto;
+  border-radius: 10px;
+  border: 1px solid #e4e7ec;
+  background: #ffffff;
+}
+
+.node-failures-table__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.node-failures-table__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #475467;
+  text-align: left;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.node-failures-table__table tbody td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f2f4f7;
+  color: #101828;
+}
+
+.node-failures-table__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.node-failures-table__cell--mono {
+  font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
 }
 
 .context-menu {
