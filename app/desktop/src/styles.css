@@ -2238,10 +2238,23 @@ body {
   align-items: flex-start;
 }
 
+.node-info-panel__header-main {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .node-info-panel__header-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.node-info-panel__type-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .node-info-panel__title-row {

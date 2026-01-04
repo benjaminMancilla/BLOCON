@@ -1,5 +1,6 @@
 import { DiagramSidePanelLeft } from "./DiagramSidePanelLeft";
 import { NodeFailuresTable } from "./NodeFailuresTable";
+import { NodeTypeIcon } from "./NodeTypeIcon";
 import type { NodeDetailsResponse } from "../../../services/nodeDetailsApi";
 
 const formatReliability = (reliability: number | null) => {
@@ -88,6 +89,14 @@ export const NodeInfoPanel = ({
   const cacheId = cache ? getRecordString(cache, "id") : null;
   const kksName = cache ? getRecordString(cache, "kks_name") : null;
   const title = data?.id ?? cacheId ?? "Nodo";
+  const componentType = cache ? getRecordString(cache, "type") : null;
+  const gateSubtype =
+    getRecordString(snapshot, "subtype") ??
+    getRecordString(snapshot, "SubType");
+
+  console.log(data?.kind)
+  console.log(componentType)
+  console.log(gateSubtype)
 
   return (
     <DiagramSidePanelLeft
@@ -98,18 +107,27 @@ export const NodeInfoPanel = ({
     >
       <section className="node-info-panel" aria-live="polite">
         <header className="node-info-panel__header">
-          <div className="node-info-panel__header-text">
-            <div className="node-info-panel__title-row">
-              <h2 className="node-info-panel__title">{title}</h2>
-              {conflict ? (
-                <span className="node-info-panel__badge node-info-panel__badge--conflict">
-                  Faltan fallas
-                </span>
+          <div className="node-info-panel__header-main">
+            <NodeTypeIcon
+              kind={data?.kind === "gate" ? "gate" : "component"}
+              type={componentType}
+              subtype={gateSubtype}
+              size={32}
+              className="node-info-panel__type-icon"
+            />
+            <div className="node-info-panel__header-text">
+              <div className="node-info-panel__title-row">
+                <h2 className="node-info-panel__title">{title}</h2>
+                {conflict ? (
+                  <span className="node-info-panel__badge node-info-panel__badge--conflict">
+                    Faltan fallas
+                  </span>
+                ) : null}
+              </div>
+              {kksName ? (
+                <p className="node-info-panel__subtitle">{kksName}</p>
               ) : null}
             </div>
-            {kksName ? (
-              <p className="node-info-panel__subtitle">{kksName}</p>
-            ) : null}
           </div>
           <button
             type="button"
@@ -143,7 +161,7 @@ export const NodeInfoPanel = ({
               <div className="node-info-panel__row">
                 <span className="node-info-panel__label">Tipo</span>
                 <span className="node-info-panel__value">
-                  {formatDisplayValue(cache?.type)}
+                  {formatDisplayValue(componentType)}
                 </span>
               </div>
               <div className="node-info-panel__row">
@@ -191,13 +209,11 @@ export const NodeInfoPanel = ({
               <span className="node-info-panel__value">{data.id}</span>
             </div>
             <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Tipo</span>
-              <span className="node-info-panel__value">
-                {getRecordString(snapshot, "subtype") ??
-                  getRecordString(snapshot, "SubType") ??
-                  "—"}
-              </span>
-            </div>
+                <span className="node-info-panel__label">Tipo</span>
+                <span className="node-info-panel__value">
+                  {gateSubtype ?? "—"}
+                </span>
+              </div>
             <div className="node-info-panel__row">
               <span className="node-info-panel__label">Etiqueta</span>
               <span className="node-info-panel__value">
