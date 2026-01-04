@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData } from "../../../../../core/graph";
 import type { DiagramNodeSelection } from "../../../types/selection";
+import {
+  calculationTypeOptions,
+  getCalculationTypeOption,
+} from "../../../icons/calculationTypeIcons";
 import type { GateType } from "../../../types/gates";
 import type { CalculationType } from "../../../types/addComponent";
 import type { OrganizationUiState } from "../../../types/organization";
@@ -198,10 +202,9 @@ export const useOrganizationMode = ({
   }, [gateType, organizationBaseGraph.nodes, organizationGateId]);
 
   const organizationCalculationMeta = useMemo(() => {
-    if (calculationType === "weibull") {
-      return { icon: "β", label: "Weibull" };
-    }
-    return { icon: "λ", label: "Exponencial" };
+    return (
+      getCalculationTypeOption(calculationType) ?? calculationTypeOptions[0]
+    );
   }, [calculationType]);
 
   useEffect(() => {

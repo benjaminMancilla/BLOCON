@@ -5,6 +5,7 @@ import type { DiagramNodeSelection, SelectionStatus } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { AddComponentFormState } from "../types/addComponent";
 import { CalculationTypeSelector } from "./addComponent/sections/CalculationTypeSelector";
+import { calculationTypeOptions } from "../icons/calculationTypeIcons";
 import { ComponentSearchSection } from "./addComponent/sections/ComponentSearchSection";
 import { GateTypeSelector } from "./addComponent/sections/GateTypeSelector";
 import { OrganizationSection } from "./addComponent/sections/OrganizationSection";
@@ -115,18 +116,7 @@ export const AddComponentPanel = ({
     onSelectionReset();
   }, [onFormStateChange, onGateTypeChange, onSelectionReset]);
 
-  const calculationOptions = [
-    {
-      value: "exponential" as const,
-      label: "Exponencial",
-      icon: "λ",
-    },
-    {
-      value: "weibull" as const,
-      label: "Weibull",
-      icon: "β",
-    },
-  ];
+  const calculationOptions = calculationTypeOptions;
 
   const gateOptions = [
     {
