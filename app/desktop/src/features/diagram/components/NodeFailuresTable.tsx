@@ -18,6 +18,19 @@ const preferredKeys = [
   "id",
 ];
 
+const getFailureTypeClass = (value: unknown) => {
+  if (typeof value !== "string") return "type-badge--default";
+
+  switch (value.trim().toUpperCase()) {
+    case "M1":
+      return "type-badge--m1";
+    case "M2":
+      return "type-badge--m2";
+    default:
+      return "type-badge--default";
+  }
+};
+
 const formatValue = (value: unknown): string => {
   if (value === null || value === undefined) return "—";
   if (typeof value === "string") {
@@ -120,7 +133,15 @@ export const NodeFailuresTable = ({
                         : "node-failures-table__cell"
                     }
                   >
-                    {formatValue(record[key])}
+                    {key === "type_failure" ? (
+                      <span
+                        className={`type-badge ${getFailureTypeClass(record[key])}`}
+                      >
+                        {formatValue(record[key])}
+                      </span>
+                    ) : (
+                      formatValue(record[key])
+                    )}
                   </td>
                 ))}
               </tr>

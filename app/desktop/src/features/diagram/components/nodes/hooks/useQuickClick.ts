@@ -34,7 +34,7 @@ export const useQuickClick = ({
   isEnabled = true,
   thresholdPx = 6,
   thresholdMs = 240,
-  doubleClickThresholdMs = 320,
+  doubleClickThresholdMs = 280,
   onQuickClick,
   onQuickDoubleClick,
 }: UseQuickClickArgs) => {
@@ -48,6 +48,8 @@ export const useQuickClick = ({
     time: number;
     targetId: string;
     button: number;
+    timeoutId: number | null;
+    payload: QuickClickPayload;
   } | null>(null);
 
   useEffect(() => {
@@ -136,15 +138,26 @@ export const useQuickClick = ({
         now - lastQuickClick.time <= doubleClickThresholdMsRef.current;
 
       if (isDoubleClick) {
+        if (lastQuickClick?.timeoutId !== null) {
+          window.clearTimeout(lastQuickClick.timeoutId);
+        }
         onQuickDoubleClickRef.current?.(payload);
         lastQuickClickRef.current = null;
-      } else {
-        onQuickClickRef.current?.(payload);
+      } else if (state.button === 0 && onQuickDoubleClickRef.current) {
+        const timeoutId = window.setTimeout(() => {
+          onQuickClickRef.current?.(payload);
+          lastQuickClickRef.current = null;
+        }, doubleClickThresholdMsRef.current);
         lastQuickClickRef.current = {
           time: now,
           targetId: state.targetId,
           button: state.button,
+          timeoutId,
+          payload,
         };
+      } else {
+        onQuickClickRef.current?.(payload);
+        lastQuickClickRef.current = null;
       }
     }
 
@@ -156,9 +169,13 @@ export const useQuickClick = ({
 
   const handlePointerCancel = useCallback((event: globalThis.PointerEvent) => {
     const state = stateRef.current;
+    const timeoutId = lastQuickClickRef.current?.timeoutId;
     if (!state) return;
     if (event.pointerId !== state.pointerId) return;
     stateRef.current = null;
+    if (timeoutId != null) {
+      window.clearTimeout(timeoutId);
+    }
     lastQuickClickRef.current = null;
     window.removeEventListener("pointermove", onWindowPointerMove);
     window.removeEventListener("pointerup", onWindowPointerUp);
@@ -213,6 +230,10 @@ export const useQuickClick = ({
   useEffect(() => {
     return () => {
       stateRef.current = null;
+      const timeoutId = lastQuickClickRef.current?.timeoutId;
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
       lastQuickClickRef.current = null;
       window.removeEventListener("pointermove", onWindowPointerMove);
       window.removeEventListener("pointerup", onWindowPointerUp);

@@ -103,7 +103,7 @@ export const NodeInfoPanel = ({
               <h2 className="node-info-panel__title">{title}</h2>
               {conflict ? (
                 <span className="node-info-panel__badge node-info-panel__badge--conflict">
-                  Conflictivo
+                  Faltan fallas
                 </span>
               ) : null}
             </div>

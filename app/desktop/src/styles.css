@@ -2428,6 +2428,36 @@ body {
   font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
 }
 
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.type-badge--m1 {
+  background: rgba(0, 120, 212, 0.12);
+  color: #0078d4;
+  border: 1px solid rgba(0, 120, 212, 0.35);
+}
+
+.type-badge--m2 {
+  background: rgba(255, 185, 0, 0.18);
+  color: #8a6d00;
+  border: 1px solid rgba(255, 185, 0, 0.45);
+}
+
+.type-badge--default {
+  background: rgba(96, 94, 92, 0.12);
+  color: #605e5c;
+  border: 1px solid rgba(96, 94, 92, 0.35);
+}
+
 .context-menu {
   position: fixed;
   z-index: 20;

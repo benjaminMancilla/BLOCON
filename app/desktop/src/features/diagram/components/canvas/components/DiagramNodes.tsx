@@ -109,6 +109,7 @@ const DiagramNodeItem = ({
   const handleDragStart = (event: PointerEvent<HTMLDivElement>) =>
     onDragStart(event, node.id);
   const handleQuickClick = (payload: QuickClickPayload) => {
+    if (payload.button !== 2) return;
     if (!canOpenNodeContextMenu) return;
     const isCollapsedGate = node.type === "component" && node.isCollapsed;
     const target: NodeContextMenuTarget = {
