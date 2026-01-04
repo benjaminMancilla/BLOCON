@@ -25,9 +25,8 @@ export const placeOrGate = (
       .reduce((acc, value) => acc + value, 0) +
     V_SPACING * (children.length - 1);
 
-  const railXLeft = originX + metrics.railPaddingLeft;
-  const railXRight =
-    originX + size.width - metrics.railPaddingRight + metrics.railRightOffset;
+  const railXLeft = originX;
+  const railXRight = originX + size.width;
   const railYTop = originY + metrics.gatePaddingY;
 
   context.anchors.set(nodeId, {

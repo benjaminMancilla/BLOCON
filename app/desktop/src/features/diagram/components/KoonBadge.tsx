@@ -12,7 +12,8 @@ type KoonBadgeProps = {
   onGraphReload?: () => void;
 };
 
-const BADGE_RADIUS = COMPONENT_SIZE.height * 0.75;
+const BADGE_DIAMETER = COMPONENT_SIZE.height * 0.7;
+const BADGE_RADIUS = BADGE_DIAMETER / 2;
 
 export const KoonBadge = ({
   gateId,
@@ -27,7 +28,7 @@ export const KoonBadge = ({
   const [inputValue, setInputValue] = useState(String(k));
   const [serverError, setServerError] = useState<string | null>(null);
   const { isSaving, editGate } = useNodeEdit();
-  const diameter = BADGE_RADIUS * 2;
+  const diameter = BADGE_DIAMETER;
 
   useEffect(() => {
     if (isEditing) return;

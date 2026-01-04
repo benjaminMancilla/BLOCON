@@ -1,6 +1,5 @@
 import { GraphNode } from "../../../../../core/graph";
 import { ConnectionContext, DiagramLayoutLine, DiagramLayoutNode, DiagramGateArea } from "../types";
-import { normalizeSubtype } from "../utils/anchorCalculations";
 import { COMPONENT_SIZE, V_SPACING } from "../utils/constants";
 import { getGateLayoutMetrics } from "../utils/gateLayoutMetrics";
 
@@ -46,12 +45,8 @@ export const buildOrConnections = (
   const metrics = getGateLayoutMetrics(
     context.nodeMap.get(nodeId)?.subtype ?? null
   );
-  const railXLeft = gateArea.x + metrics.railPaddingLeft;
-  const railXRight =
-    gateArea.x +
-    gateArea.width -
-    metrics.railPaddingRight +
-    metrics.railRightOffset;
+  const railXLeft = gateArea.x;
+  const railXRight = gateArea.x + gateArea.width;
   const railYTop = gateArea.y + metrics.gatePaddingY;
   const firstChildHeight =
     context.sizeMap.get(children[0])?.height ?? COMPONENT_SIZE.height;
@@ -85,22 +80,9 @@ export const buildOrConnections = (
       componentMap,
       childSize
     );
-    const childNode = context.nodeMap.get(childId);
-    const midY = childRect.y + childSize.height / 2;
-
-    const childSubtype = normalizeSubtype(childNode);
-    const childAnchor = context.anchors.get(childId);
-
-    let leftX: number;
-    let rightX: number;
-
-    if (childNode?.type === "gate" && (childSubtype === "or" || childSubtype === "koon")) {
-      leftX = childAnchor?.leftX ?? childRect.x;
-      rightX = childAnchor?.rightX ?? childRect.x + childSize.width;
-    } else {
-      leftX = childRect.x;
-      rightX = childRect.x + childSize.width;
-    }
+    const midY = childRect.y + childRect.height / 2;
+    const leftX = childRect.x;
+    const rightX = childRect.x + childRect.width;
 
     lines.push({
       x1: railXLeft,
