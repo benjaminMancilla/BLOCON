@@ -200,6 +200,32 @@ class ReliabilityGraph:
         if self.auto_normalize:
                 self.normalize()
 
+    def edit_component_patch(self, node_id: str, patch: Dict[str, Any]) -> None:
+        """
+        Edit component parameters using a patch dictionary.
+
+        Args:
+            node_id: Component node ID
+            patch: Dictionary with parameters to update
+
+        Raises:
+            KeyError: If node doesn't exist
+            ValueError: If node is not a component
+        """
+        if node_id not in self.nodes:
+            raise KeyError(f"Unknown node '{node_id}'")
+
+        node = self.nodes[node_id]
+        if not node.is_component():
+            raise ValueError("Only component nodes can be edited")
+
+        if not isinstance(node, ComponentNode):
+            raise ValueError("Invalid component node")
+
+        # Placeholder: patchable fields will be added in future iterations.
+        if self.auto_normalize:
+            self.normalize()
+
     def add_component_relative(
         self,
         target_id: str,

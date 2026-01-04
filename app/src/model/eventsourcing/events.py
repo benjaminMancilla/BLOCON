@@ -99,14 +99,34 @@ class SetHeadEvent(BaseEvent):
 
 @dataclass
 class EditComponentEvent(BaseEvent):
-    old_id: str
-    new_id: str
-    dist: Dict[str, Any]
+    node_id: str | None = None
+    patch: Dict[str, Any] = field(default_factory=dict)
+    old_id: str | None = None
+    new_id: str | None = None
+    dist: Dict[str, Any] | None = None
 
     @staticmethod
     def create(old_id: str, new_id: str, dist: Dict[str, Any], actor: str="anonymous") -> "EditComponentEvent":
-        return EditComponentEvent(kind="edit_component", ts=now_iso(), actor=actor,
-                                  old_id=old_id, new_id=new_id, dist=dist)
+        return EditComponentEvent(
+            kind="edit_component",
+            ts=now_iso(),
+            actor=actor,
+            node_id=old_id,
+            patch={},
+            old_id=old_id,
+            new_id=new_id,
+            dist=dist,
+        )
+
+    @staticmethod
+    def create_patch(node_id: str, patch: Dict[str, Any], actor: str="anonymous") -> "EditComponentEvent":
+        return EditComponentEvent(
+            kind="edit_component",
+            ts=now_iso(),
+            actor=actor,
+            node_id=node_id,
+            patch=patch,
+        )
 
 @dataclass
 class EditGateEvent(BaseEvent):
@@ -176,9 +196,16 @@ def event_from_dict(d: Dict[str, Any]) -> Event:
         known_fields = known_base_fields | {"upto"}
         ev = SetHeadEvent(kind="set_head", **common, upto=d["upto"])
     elif k == "edit_component":
-        known_fields = known_base_fields | {"old_id", "new_id", "dist"}
-        ev = EditComponentEvent(kind="edit_component", **common,
-                                old_id=d["old_id"], new_id=d["new_id"], dist=d["dist"])
+        known_fields = known_base_fields | {"old_id", "new_id", "dist", "node_id", "patch"}
+        ev = EditComponentEvent(
+            kind="edit_component",
+            **common,
+            node_id=d.get("node_id") or d.get("old_id"),
+            patch=d.get("patch", {}) or {},
+            old_id=d.get("old_id"),
+            new_id=d.get("new_id"),
+            dist=d.get("dist"),
+        )
     elif k == "edit_gate":
         known_fields = known_base_fields | {"node_id", "params"}
         ev = EditGateEvent(kind="edit_gate", **common, node_id=d["node_id"], params=d.get("params", {}))

@@ -93,12 +93,16 @@ class NodeDetailsHandler(BaseHandler):
         node_id: str,
         snapshot_node: dict[str, Any],
     ) -> dict[str, Any]:
+        gate_node = self.shared.es.graph.nodes.get(node_id)
+        children_count = len(self.shared.es.graph.children.get(node_id, []))
         snapshot = {
             "id": node_id,
             "subtype": snapshot_node.get("subtype"),
             "label": snapshot_node.get("label"),
             "name": snapshot_node.get("name"),
             "reliability": snapshot_node.get("reliability"),
+            "k": getattr(gate_node, "k", None),
+            "children_count": children_count,
         }
         return {
             "kind": "gate",

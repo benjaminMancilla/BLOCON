@@ -402,6 +402,20 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         
+        if path.startswith("/graph/gate/"):
+            node_id = path[len("/graph/gate/"):].strip()
+            handler = self._get_handler(GraphHandler)
+            payload = handler._read_json_body()
+            handler.handle_edit_gate(node_id, payload)
+            return
+
+        if path.startswith("/graph/component/"):
+            node_id = path[len("/graph/component/"):].strip()
+            handler = self._get_handler(GraphHandler)
+            payload = handler._read_json_body()
+            handler.handle_edit_component(node_id, payload)
+            return
+
         # Draft routes
         if path.startswith("/drafts/"):
             draft_id = path[len("/drafts/"):].strip()

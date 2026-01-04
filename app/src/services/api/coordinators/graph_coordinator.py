@@ -14,6 +14,14 @@ from src.model.eventsourcing.events import SnapshotEvent
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
 
 
+class NodeEditValidationError(ValueError):
+    def __init__(self, field: str, message: str, details: dict | None = None):
+        super().__init__(message)
+        self.field = field
+        self.message = message
+        self.details = details or {}
+
+
 class GraphCoordinator:
     """
     Coordinador para operaciones del grafo.
@@ -160,7 +168,49 @@ class GraphCoordinator:
         if node_id not in self.shared.es.graph.nodes:
             raise ValueError(f"Node '{node_id}' not found")
         self.shared.es.remove_node(node_id)
-    
+
+    def edit_gate(self, node_id: str, patch: dict) -> None:
+        if node_id not in self.shared.es.graph.nodes:
+            raise KeyError(f"Node '{node_id}' not found")
+
+        node = self.shared.es.graph.nodes.get(node_id)
+        if node is None or not node.is_gate():
+            raise ValueError("Node is not a gate")
+
+        if "k" in patch:
+            if getattr(node, "subtype", None) != "KOON":
+                raise NodeEditValidationError(
+                    field="k",
+                    message="K is only valid for KOON gates",
+                    details={"subtype": getattr(node, "subtype", None)},
+                )
+            k_value = patch.get("k")
+            if isinstance(k_value, bool) or not isinstance(k_value, int):
+                raise NodeEditValidationError(
+                    field="k",
+                    message="K must be an integer",
+                    details={},
+                )
+            children_count = len(self.shared.es.graph.children.get(node_id, []))
+            if k_value < 1 or k_value > children_count:
+                raise NodeEditValidationError(
+                    field="k",
+                    message=f"K must be between 1 and {children_count}",
+                    details={"min": 1, "max": children_count},
+                )
+
+        self.shared.es.edit_gate(node_id, patch)
+
+    def edit_component(self, node_id: str, patch: dict) -> None:
+        if node_id not in self.shared.es.graph.nodes:
+            raise KeyError(f"Node '{node_id}' not found")
+
+        node = self.shared.es.graph.nodes.get(node_id)
+        if node is None or not node.is_component():
+            raise ValueError("Node is not a component")
+
+        self.shared.es.edit_component_patch(node_id, patch)
+
     # ========== Undo/Redo ==========
     
     def undo(self) -> bool:
