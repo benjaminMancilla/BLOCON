@@ -502,6 +502,7 @@ function App() {
           onOrganizationCancel={addComponent.cancelOrganization}
           canOpenNodeContextMenu={restrictions.canOpenNodeContextMenu}
           onNodeInfoOpen={nodeInfoPanel.open}
+          onGraphReload={reloadGraph}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}

@@ -1,7 +1,8 @@
 import { GraphNode } from "../../../../../core/graph";
 import { ConnectionContext, DiagramLayoutLine, DiagramLayoutNode, DiagramGateArea } from "../types";
 import { normalizeSubtype } from "../utils/anchorCalculations";
-import { COMPONENT_SIZE, GATE_PADDING_Y, V_SPACING } from "../utils/constants";
+import { COMPONENT_SIZE, V_SPACING } from "../utils/constants";
+import { getGateLayoutMetrics } from "../utils/gateLayoutMetrics";
 
 const getNodeRect = (
   nodeId: string,
@@ -42,9 +43,16 @@ export const buildOrConnections = (
       .reduce((acc, value) => acc + value, 0) +
     V_SPACING * (children.length - 1);
 
-  const railXLeft = gateArea.x;
-  const railXRight = gateArea.x + gateArea.width;
-  const railYTop = gateArea.y + GATE_PADDING_Y;
+  const metrics = getGateLayoutMetrics(
+    context.nodeMap.get(nodeId)?.subtype ?? null
+  );
+  const railXLeft = gateArea.x + metrics.railPaddingLeft;
+  const railXRight =
+    gateArea.x +
+    gateArea.width -
+    metrics.railPaddingRight +
+    metrics.railRightOffset;
+  const railYTop = gateArea.y + metrics.gatePaddingY;
   const firstChildHeight =
     context.sizeMap.get(children[0])?.height ?? COMPONENT_SIZE.height;
   const lastChildHeight =

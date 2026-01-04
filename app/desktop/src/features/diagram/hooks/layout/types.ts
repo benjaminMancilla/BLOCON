@@ -44,6 +44,7 @@ export type LayoutResult = {
   nodes: DiagramLayoutNode[];
   lines: DiagramLayoutLine[];
   gateAreas: DiagramGateArea[];
+  anchors: Map<string, NodeAnchor>;
   width: number;
   height: number;
 };

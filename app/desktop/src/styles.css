@@ -1015,6 +1015,11 @@ body {
   font-size: 0.95rem;
 }
 
+.diagram-node__icon--gate-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+}
+
 .diagram-node__meta-text {
   position: absolute;
   width: 1px;
@@ -1097,6 +1102,67 @@ body {
 
 .diagram-gate__label:hover {
   text-decoration: underline;
+}
+
+.diagram-koon-badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--gate-color-soft, rgba(249, 115, 22, 0.16));
+  border: 2px solid var(--gate-color, #f97316);
+  color: #1f2937;
+  font-weight: 700;
+  font-size: 1.05rem;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+  z-index: 950;
+  padding: 6px;
+}
+
+.diagram-koon-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.24);
+  border-color: var(--gate-color, #f97316);
+}
+
+.diagram-koon-badge--editing {
+  cursor: text;
+  transform: none;
+}
+
+.diagram-koon-badge--invalid {
+  border-color: #b91c1c;
+}
+
+.diagram-koon-badge__label {
+  pointer-events: none;
+}
+
+.diagram-koon-badge__input {
+  width: 70%;
+  min-width: 60px;
+  text-align: center;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+
+.diagram-koon-badge__error {
+  position: absolute;
+  bottom: -1.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 2px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .diagram-gate-area {

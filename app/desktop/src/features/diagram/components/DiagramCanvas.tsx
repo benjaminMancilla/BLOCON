@@ -11,6 +11,7 @@ import type { GraphData } from "../../../core/graph";
 import type { DiagramStatus } from "../hooks/useDiagramGraph";
 import { DiagramEdges } from "./canvas/components/DiagramEdges";
 import { DiagramGateAreas } from "./canvas/components/DiagramGateAreas";
+import { DiagramKoonBadges } from "./canvas/components/DiagramKoonBadges";
 import { DiagramNodes } from "./canvas/components/DiagramNodes";
 import { DiagramOverlays } from "./canvas/components/DiagramOverlays";
 import { useDragAndDrop } from "./canvas/hooks/useDragAndDrop";
@@ -66,6 +67,7 @@ type DiagramCanvasProps = {
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
   canOpenNodeContextMenu?: boolean;
   onNodeInfoOpen?: (nodeId: string) => void;
+  onGraphReload?: () => void;
 };
 
 export const DiagramCanvas = ({
@@ -105,6 +107,7 @@ export const DiagramCanvas = ({
   onOrganizationStateChange,
   canOpenNodeContextMenu = true,
   onNodeInfoOpen,
+  onGraphReload,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
@@ -396,6 +399,11 @@ export const DiagramCanvas = ({
                 width={layout.width}
                 height={layout.height}
                 lines={layout.lines}
+              />
+              <DiagramKoonBadges
+                nodes={layout.nodes}
+                anchors={layout.anchors}
+                onGraphReload={onGraphReload}
               />
               <DiagramNodes
                 nodes={layout.nodes}

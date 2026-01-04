@@ -22,6 +22,11 @@ export const DiagramCollapsedGateContent = ({
   const gateLabel = getGatePrimaryLabel(node);
   const gateReliability = formatReliability(node.reliability);
   const gateMeta = "Gate";
+  const normalizedSubtype = node.subtype?.toLowerCase() ?? "and";
+  const collapsedLabel =
+    normalizedSubtype === "koon"
+      ? `${node.k ?? 1}/${node.childCount ?? 0}`
+      : normalizedSubtype.toUpperCase();
 
   return (
     <>
@@ -41,7 +46,9 @@ export const DiagramCollapsedGateContent = ({
       ) : null}
       <div className="diagram-node__title">{gateLabel}</div>
       <div className="diagram-node__meta">
-        <span className="diagram-node__icon">⟲</span>
+        <span className="diagram-node__icon diagram-node__icon--gate-label">
+          {collapsedLabel}
+        </span>
         <span className="diagram-node__meta-text">{gateMeta}</span>
       </div>
       <div className="diagram-node__collapsed-label">{gateReliability}</div>
