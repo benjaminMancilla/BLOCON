@@ -3,6 +3,8 @@ export type GraphNode = {
   type: string;
   subtype?: string | null;
   k?: number | null;
+  label?: string | null;
+  name?: string | null;
   guid?: string;
   unit_type?: string | null;
   dist?: { kind?: string | null } | null;

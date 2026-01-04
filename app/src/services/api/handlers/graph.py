@@ -24,6 +24,7 @@ class GraphHandler(BaseHandler):
     - GET /graph - Obtener grafo completo
     - GET /graph/{node_id} - Obtener nodo específico
     - POST /graph/organization - Insertar componente
+    - POST /graph/root - Insertar componente raíz
     - POST /graph/undo - Deshacer
     - POST /graph/redo - Rehacer
     - DELETE /graph/node/{node_id} - Eliminar nodo
@@ -194,6 +195,49 @@ class GraphHandler(BaseHandler):
             sys.stderr.flush()
         except Exception as exc:
             print(f"[INSERT] Error: {str(exc)}", file=sys.stderr)
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"status": "ok"})
+
+    def handle_root_insert(self, payload: dict | None) -> None:
+        """
+        POST /graph/root - Inserta un componente raíz en el grafo.
+        
+        Args:
+            payload: Payload JSON con datos del componente raíz
+        """
+        if payload is None or not isinstance(payload, dict):
+            self._send_validation_error("payload", "Invalid payload")
+            return
+
+        component_id = payload.get("componentId")
+        if not component_id:
+            self._send_validation_error("componentId", "componentId is required")
+            return
+
+        calculation_type = payload.get("calculationType")
+        if not calculation_type:
+            self._send_validation_error(
+                "calculationType",
+                "calculationType is required",
+            )
+            return
+
+        if calculation_type not in ("exponential", "weibull"):
+            self._send_validation_error(
+                "calculationType",
+                "Invalid calculationType",
+                {"allowed": ["exponential", "weibull"]},
+            )
+            return
+
+        try:
+            self.coordinator.add_root_component(
+                new_comp_id=component_id,
+                calculation_type=calculation_type,
+            )
+        except Exception as exc:
             self._send_json(400, {"error": str(exc)})
             return
 

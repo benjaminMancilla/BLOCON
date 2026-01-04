@@ -1,5 +1,6 @@
 import { PlacementContext } from "../types";
-import { COMPONENT_SIZE, GATE_PADDING_Y, V_SPACING } from "../utils/constants";
+import { COMPONENT_SIZE, V_SPACING } from "../utils/constants";
+import { getGateLayoutMetrics } from "../utils/gateLayoutMetrics";
 import { placeNode } from "./placeTreeHelpers";
 
 export const placeOrGate = (
@@ -14,6 +15,10 @@ export const placeOrGate = (
   const children = context.childrenMap.get(nodeId) ?? [];
   const size = context.sizeMap.get(nodeId) ?? COMPONENT_SIZE;
 
+  const metrics = getGateLayoutMetrics(
+    context.nodeMap.get(nodeId)?.subtype ?? null
+  );
+  const contentWidth = size.width - metrics.railPaddingLeft - metrics.railPaddingRight;
   const totalChildrenHeight =
     children
       .map((child) => context.sizeMap.get(child)?.height ?? COMPONENT_SIZE.height)
@@ -22,7 +27,7 @@ export const placeOrGate = (
 
   const railXLeft = originX;
   const railXRight = originX + size.width;
-  const railYTop = originY + GATE_PADDING_Y;
+  const railYTop = originY + metrics.gatePaddingY;
 
   context.anchors.set(nodeId, {
     leftX: railXLeft,
@@ -33,7 +38,10 @@ export const placeOrGate = (
   let cursorY = railYTop;
   children.forEach((childId) => {
     const childSize = context.sizeMap.get(childId) ?? COMPONENT_SIZE;
-    const childX = originX + (size.width - childSize.width) / 2;
+    const childX =
+      originX +
+      metrics.railPaddingLeft +
+      (contentWidth - childSize.width) / 2;
     const childY = cursorY;
     placeNode(
       childId,

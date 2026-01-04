@@ -280,6 +280,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler.handle_organization_insert(payload)
             return
         
+        if path == "/graph/root":
+            handler = self._get_handler(GraphHandler)
+            payload = handler._read_json_body()
+            handler.handle_root_insert(payload)
+            return
+        
         # Event history routes
         if path.startswith("/event-history/version/") and path.endswith("/rebuild"):
             version_str = path[len("/event-history/version/"):-len("/rebuild")].strip("/")

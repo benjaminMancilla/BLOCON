@@ -1,13 +1,17 @@
 import { Size } from "../types";
-import { RAIL_PADDING, V_SPACING, GATE_PADDING_Y } from "../utils/constants";
+import { V_SPACING } from "../utils/constants";
+import { GateLayoutMetrics } from "../utils/gateLayoutMetrics";
 
-export const measureOrGate = (childSizes: Size[]): Size => {
+export const measureOrGate = (
+  childSizes: Size[],
+  metrics: GateLayoutMetrics
+): Size => {
   const maxWidth = Math.max(...childSizes.map((child) => child.width));
   const totalHeight =
     childSizes.reduce((acc, child) => acc + child.height, 0) +
     V_SPACING * (childSizes.length - 1);
   return {
-    width: maxWidth + RAIL_PADDING * 2,
-    height: GATE_PADDING_Y + totalHeight,
+    width: maxWidth + metrics.railPaddingLeft + metrics.railPaddingRight,
+    height: metrics.gatePaddingY + totalHeight,
   };
 };

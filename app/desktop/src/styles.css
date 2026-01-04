@@ -780,6 +780,11 @@ body {
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
+.diagram-canvas__placeholder-actions {
+  display: flex;
+  justify-content: center;
+}
+
 .diagram-canvas__node {
   display: inline-flex;
   align-items: center;
@@ -849,10 +854,9 @@ body {
 }
 
 .diagram-node--interactive:hover {
+  border-color: #94a3b8;
   transform: translateY(-1px) scale(1.035);
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.22),
-    0 0 0 3px rgba(99, 102, 241, 0.22);
-  outline-color: rgba(99, 102, 241, 0.28);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
 }
 
 .diagram-node--hovered {
@@ -964,9 +968,9 @@ body {
 }
 
 .diagram-node--component {
-  background: #1e90ff;
-  color: #ffffff;
-  border-color: #0a5fb8;
+  background: #f4f7fb;
+  color: #1f2937;
+  border: 1.5px solid #c7d2fe;
 }
 
 .diagram-node--component.diagram-node--selected {
@@ -1013,6 +1017,11 @@ body {
   justify-content: center;
   font-weight: 700;
   font-size: 0.95rem;
+}
+
+.diagram-node__icon--gate-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
 }
 
 .diagram-node__meta-text {
@@ -1088,10 +1097,76 @@ body {
   cursor: default;
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .diagram-gate__label:hover {
   text-decoration: underline;
+}
+
+.diagram-koon-badge {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(245, 245, 245, 0.2);
+  border: 2px solid #1f2937;
+  color: #1f2937;
+  font-weight: 700;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  cursor: pointer;
+  z-index: 950;
+  padding: 6px;
+}
+
+.diagram-koon-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.24);
+  border-color: #1f2937;
+}
+
+.diagram-koon-badge--editing {
+  cursor: text;
+  transform: none;
+}
+
+.diagram-koon-badge--invalid {
+  border-color: #b91c1c;
+}
+
+.diagram-koon-badge__label {
+  pointer-events: none;
+}
+
+.diagram-koon-badge__input {
+  width: 70%;
+  min-width: 60px;
+  text-align: center;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  outline: none;
+}
+
+.diagram-koon-badge__error {
+  position: absolute;
+  bottom: -1.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 2px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .diagram-gate-area {
@@ -1355,9 +1430,18 @@ body {
   z-index: 1;
 }
 
+.diagram-node--collapsed-gate .diagram-node__title,
+.diagram-node--collapsed-gate .diagram-node__collapsed-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .diagram-node__collapsed-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 1.0rem;
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.7);
 }
 
 .diagram-node--organization-placeholder {
@@ -1405,7 +1489,7 @@ body {
 }
 
 .diagram-side-panel--node-info {
-  width: 400px;
+  width: 440px;
 }
 
 .diagram-side-panel__collapse {
@@ -2229,6 +2313,7 @@ body {
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  margin-bottom: 10px;
 }
 
 .node-info-panel__header {
@@ -2342,6 +2427,10 @@ body {
   font-size: 0.9rem;
 }
 
+.node-info-panel__row--editable {
+  align-items: flex-start;
+}
+
 .node-info-panel__label {
   color: #475467;
   font-weight: 600;
@@ -2355,6 +2444,68 @@ body {
 
 .node-info-panel__value--conflict {
   color: #b42318;
+}
+
+.node-info-panel__inline-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.node-info-panel__inline-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  text-align: right;
+}
+
+.node-info-panel__inline-input {
+  width: 160px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #c5c5c5;
+  background: #fff;
+}
+
+.node-info-panel__inline-input:disabled {
+  background: #f3f3f3;
+  color: #8b8b8b;
+}
+
+.node-info-panel__inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-info-panel__inline-icon-button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 2px;
+  color: #101828;
+}
+
+.node-info-panel__inline-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.node-info-panel__inline-counter {
+  font-size: 0.7rem;
+  color: #667085;
+}
+
+.node-info-panel__inline-error {
+  font-size: 0.75rem;
+  color: #c12d2d;
+  text-align: right;
 }
 
 .node-info-panel__section {
@@ -2410,6 +2561,20 @@ body {
   gap: 0.5rem;
 }
 
+.node-info-panel__field-select {
+  min-width: 170px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #c5c5c5;
+  background: #fff;
+}
+
+.node-info-panel__field-select:disabled {
+  background: #f3f3f3;
+  color: #8b8b8b;
+}
+
 .node-info-panel__field-input {
   width: 110px;
   padding: 0.35rem 0.5rem;
@@ -2458,6 +2623,11 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.45);
   border-top-color: #fff;
   animation: nodeInfoSpin 0.8s linear infinite;
+}
+
+.node-info-panel__spinner--dark {
+  border-color: rgba(16, 24, 40, 0.2);
+  border-top-color: #101828;
 }
 
 @keyframes nodeInfoSpin {

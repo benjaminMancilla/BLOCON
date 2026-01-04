@@ -6,6 +6,7 @@ import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
 import { CloudConfirmDialog } from "./features/diagram/components/CloudConfirmDialog";
 import { CloudErrorModal } from "./features/diagram/components/CloudErrorModal";
 import { AddComponentPanel } from "./features/diagram/components/AddComponentPanel";
+import { ConfirmDialog } from "./features/diagram/components/ConfirmDialog";
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPanel";
@@ -39,7 +40,7 @@ import {
 } from "./features/diagram/hooks/useToasts";
 
 // Services
-import { insertOrganization } from "./services/graphService";
+import { addRootComponent, insertOrganization } from "./services/graphService";
 
 // Types
 import type { OrganizationUiState } from "./features/diagram/types/organization";
@@ -73,6 +74,8 @@ function App() {
   const insertHighlightTokenRef = useRef(0);
   const [recentlyInsertedComponentId, setRecentlyInsertedComponentId] =
     useState<string | null>(null);
+  const [isRootConfirmOpen, setIsRootConfirmOpen] = useState(false);
+  const [isRootConfirmLoading, setIsRootConfirmLoading] = useState(false);
 
   const reloadGraph = useCallback(() => {
     setGraphReloadToken((c) => c + 1);
@@ -90,6 +93,7 @@ function App() {
     () => new Set(graph.nodes.map((node) => node.id)),
     [graph.nodes]
   );
+  const isGraphEmpty = graph.nodes.length === 0;
 
   const pinnedExistingIds = useMemo(() => {
     if (!recentlyInsertedComponentId) return undefined;
@@ -251,6 +255,38 @@ function App() {
     [insertValidators]
   );
 
+    const handleComponentSelect = useCallback(
+    (componentId: string, componentName: string) => {
+      if (isGraphEmpty) {
+        addComponent.selectComponent(componentId, componentName, {
+          autoStartSelection: false,
+        });
+        setIsRootConfirmOpen(true);
+        return;
+      }
+
+      addComponent.selectComponent(componentId, componentName);
+    },
+    [addComponent, isGraphEmpty]
+  );
+
+  const handleConfirmRootInsert = useCallback(async () => {
+    const componentId = addComponent.formState.componentId;
+    const calculationType = addComponent.formState.calculationType;
+    if (!componentId) return;
+    setIsRootConfirmLoading(true);
+    try {
+      await addRootComponent({ componentId, calculationType });
+      await addComponent.confirmInsert({ insert: { componentId } });
+      setIsRootConfirmOpen(false);
+    } catch (error) {
+      console.error("Root insert failed:", error);
+      toasts.error("No se pudo agregar el componente raíz", "insert");
+    } finally {
+      setIsRootConfirmLoading(false);
+    }
+  }, [addComponent, toasts]);
+
   const handleInsert = useCallback(async () => {
     if (!organizationPayload.payload || !organizationPayload.isValid) return;
     if (!runInsertValidations(organizationPayload.payload)) return;
@@ -322,6 +358,18 @@ function App() {
       deleteMode.onSelectionCancel();
     }
   }, [versionViewer.isActive, addComponent, deleteMode]);
+
+  useEffect(() => {
+    if (addComponent.flags.isActive && addComponent.formState.componentId) return;
+    setIsRootConfirmOpen(false);
+    setIsRootConfirmLoading(false);
+  }, [addComponent.flags.isActive, addComponent.formState.componentId]);
+
+  useEffect(() => {
+    if (isGraphEmpty) return;
+    setIsRootConfirmOpen(false);
+    setIsRootConfirmLoading(false);
+  }, [isGraphEmpty]);
 
   // DERIVED STATE FOR RENDER
   const activeGraph = versionViewer.isActive ? versionViewer.graph : graph;
@@ -502,6 +550,12 @@ function App() {
           onOrganizationCancel={addComponent.cancelOrganization}
           canOpenNodeContextMenu={restrictions.canOpenNodeContextMenu}
           onNodeInfoOpen={nodeInfoPanel.open}
+          onGraphReload={reloadGraph}
+          onEmptyAdd={
+            addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+          }
+          isEmptyAddDisabled={!restrictions.canEnterAddMode}
+          isEmptyAddActive={addComponent.flags.isActive}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}
@@ -521,8 +575,9 @@ function App() {
               existingNodeIds={existingNodeIds}
               searchState={componentSearch}
               resetToken={addComponent.resetToken}
+              isRootInsertMode={isGraphEmpty}
               onCancelAdd={addComponent.cancel}
-              onComponentSelect={addComponent.selectComponent}
+              onComponentSelect={handleComponentSelect}
               onSelectionConfirm={addComponent.selectTarget}
               onSelectionCancel={addComponent.cancelTarget}
               onSelectionCleared={addComponent.clearTarget}
@@ -587,6 +642,19 @@ function App() {
           onConfirm={rebuildFlow.confirm}
         />
       )}
+
+      {isRootConfirmOpen ? (
+        <ConfirmDialog
+          eyebrow="Agregar raíz"
+          title="Agregar componente raíz"
+          description="¿Agregar este componente como componente raíz del diagrama?"
+          cancelLabel="Cancelar"
+          confirmLabel="Agregar como raíz"
+          isLoading={isRootConfirmLoading}
+          onCancel={() => setIsRootConfirmOpen(false)}
+          onConfirm={handleConfirmRootInsert}
+        />
+      ) : null}
 
       {/* Toasts - Sistema Unificado */}
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />

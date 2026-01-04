@@ -5,6 +5,7 @@ import type { DiagramNodeSelection, SelectionStatus } from "../types/selection";
 import type { GateType } from "../types/gates";
 import type { AddComponentFormState } from "../types/addComponent";
 import { CalculationTypeSelector } from "./addComponent/sections/CalculationTypeSelector";
+import { calculationTypeOptions } from "../icons/calculationTypeIcons";
 import { ComponentSearchSection } from "./addComponent/sections/ComponentSearchSection";
 import { GateTypeSelector } from "./addComponent/sections/GateTypeSelector";
 import { OrganizationSection } from "./addComponent/sections/OrganizationSection";
@@ -24,6 +25,7 @@ type AddComponentPanelProps = {
   existingNodeIds?: Set<string>;
   resetToken?: number;
   searchState: ComponentSearchResult;
+  isRootInsertMode?: boolean;
   onCancelAdd: () => void;
   onComponentSelect: (componentId: string, componentName: string) => void;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
@@ -49,6 +51,7 @@ export const AddComponentPanel = ({
   existingNodeIds = new Set<string>(),
   resetToken = 0,
   searchState,
+  isRootInsertMode = false,
   onCancelAdd,
   onComponentSelect,
   onSelectionConfirm,
@@ -115,18 +118,7 @@ export const AddComponentPanel = ({
     onSelectionReset();
   }, [onFormStateChange, onGateTypeChange, onSelectionReset]);
 
-  const calculationOptions = [
-    {
-      value: "exponential" as const,
-      label: "Exponencial",
-      icon: "λ",
-    },
-    {
-      value: "weibull" as const,
-      label: "Weibull",
-      icon: "β",
-    },
-  ];
+  const calculationOptions = calculationTypeOptions;
 
   const gateOptions = [
     {
@@ -144,7 +136,9 @@ export const AddComponentPanel = ({
   ];
 
   const subtitle = selectedComponent
-    ? step === "selection"
+    ? isRootInsertMode
+      ? "Confirma si quieres agregarlo como componente raíz del diagrama."
+      : step === "selection"
       ? "Selecciona el elemento del diagrama para insertar el componente."
       : confirmedSelection?.type === "component" ||
           confirmedSelection?.type === "collapsedGate"
@@ -204,15 +198,17 @@ export const AddComponentPanel = ({
             resetToken={resetToken}
           />
 
-          <DiagramElementSelector
-            status={selectionStatus}
-            draftSelection={draftSelection}
-            confirmedSelection={confirmedSelection}
-            onSelectionConfirmed={onSelectionConfirm}
-            onSelectionCleared={onSelectionCleared}
-            onSelectionCanceled={onSelectionCancel}
-            onSelectionStart={onSelectionStart}
-          />
+          {!isRootInsertMode ? (
+            <DiagramElementSelector
+              status={selectionStatus}
+              draftSelection={draftSelection}
+              confirmedSelection={confirmedSelection}
+              onSelectionConfirmed={onSelectionConfirm}
+              onSelectionCleared={onSelectionCleared}
+              onSelectionCanceled={onSelectionCancel}
+              onSelectionStart={onSelectionStart}
+            />
+          ) : null}
 
           {shouldShowGateSection ? (
             <GateTypeSelector

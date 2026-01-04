@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ..shared import SharedState
 
 from src.model.graph.graph import ReliabilityGraph
+from src.model.graph.dist import Dist
 from src.model.eventsourcing.events import SnapshotEvent
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
 
@@ -154,6 +155,19 @@ class GraphCoordinator:
             k=k,
             unit_type=unit_type,
         )
+
+    def add_root_component(
+        self,
+        new_comp_id: str,
+        calculation_type: str,
+        unit_type: str | None = None,
+    ) -> None:
+        dist = Dist(kind=calculation_type)
+        self.shared.es.add_root_component(
+            new_id=new_comp_id,
+            dist=dist,
+            unit_type=unit_type,
+        )
     
     def remove_node(self, node_id: str) -> None:
         """
@@ -176,6 +190,9 @@ class GraphCoordinator:
         node = self.shared.es.graph.nodes.get(node_id)
         if node is None or not node.is_gate():
             raise ValueError("Node is not a gate")
+
+        self._normalize_gate_text_patch(node_id, patch, "label", max_length=16)
+        self._normalize_gate_text_patch(node_id, patch, "name", max_length=32)
 
         if "k" in patch:
             if getattr(node, "subtype", None) != "KOON":
@@ -201,6 +218,34 @@ class GraphCoordinator:
 
         self.shared.es.edit_gate(node_id, patch)
 
+    def _normalize_gate_text_patch(
+        self,
+        node_id: str,
+        patch: dict,
+        field: str,
+        max_length: int,
+    ) -> None:
+        if field not in patch:
+            return
+        value = patch.get(field)
+        if value is None or not isinstance(value, str):
+            raise NodeEditValidationError(
+                field=field,
+                message=f"{field.capitalize()} must be a string",
+                details={},
+            )
+        trimmed = value.strip()
+        if trimmed == "":
+            patch[field] = node_id
+            return
+        if len(trimmed) > max_length:
+            raise NodeEditValidationError(
+                field=field,
+                message=f"{field.capitalize()} must be at most {max_length} characters",
+                details={"max": max_length, "length": len(trimmed)},
+            )
+        patch[field] = trimmed
+
     def edit_component(self, node_id: str, patch: dict) -> None:
         if node_id not in self.shared.es.graph.nodes:
             raise KeyError(f"Node '{node_id}' not found")
@@ -208,6 +253,30 @@ class GraphCoordinator:
         node = self.shared.es.graph.nodes.get(node_id)
         if node is None or not node.is_component():
             raise ValueError("Node is not a component")
+
+        if "dist" in patch:
+            dist_patch = patch.get("dist")
+            if not isinstance(dist_patch, dict):
+                raise NodeEditValidationError(
+                    field="dist",
+                    message="Dist must be an object",
+                    details={},
+                )
+            kind = dist_patch.get("kind")
+            if not isinstance(kind, str):
+                raise NodeEditValidationError(
+                    field="dist.kind",
+                    message="Kind must be a string",
+                    details={"allowed": ["exponential", "weibull"]},
+                )
+            normalized_kind = kind.strip().lower()
+            if normalized_kind not in ("exponential", "weibull"):
+                raise NodeEditValidationError(
+                    field="dist.kind",
+                    message="Kind must be exponential or weibull",
+                    details={"allowed": ["exponential", "weibull"]},
+                )
+            dist_patch["kind"] = normalized_kind
 
         self.shared.es.edit_component_patch(node_id, patch)
 

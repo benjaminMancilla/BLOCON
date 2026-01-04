@@ -1,6 +1,7 @@
 import { MeasurementContext, Size } from "../types";
 import { COMPONENT_SIZE, GATE_LABEL_SIZE } from "../utils/constants";
 import { normalizeSubtype } from "../utils/anchorCalculations";
+import { getGateLayoutMetrics } from "../utils/gateLayoutMetrics";
 import { measureAndGate } from "./measureAndGate";
 import { measureOrGate } from "./measureOrGate";
 
@@ -45,7 +46,7 @@ const measureNode = (
   const subtype = normalizeSubtype(node);
   const gateSize =
     subtype === "or" || subtype === "koon"
-      ? measureOrGate(childSizes)
+      ? measureOrGate(childSizes, getGateLayoutMetrics(subtype))
       : measureAndGate(childSizes);
 
   sizeCache.set(nodeId, gateSize);

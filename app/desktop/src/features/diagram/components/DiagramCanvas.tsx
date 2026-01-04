@@ -11,7 +11,9 @@ import type { GraphData } from "../../../core/graph";
 import type { DiagramStatus } from "../hooks/useDiagramGraph";
 import { DiagramEdges } from "./canvas/components/DiagramEdges";
 import { DiagramGateAreas } from "./canvas/components/DiagramGateAreas";
+import { DiagramKoonBadges } from "./canvas/components/DiagramKoonBadges";
 import { DiagramNodes } from "./canvas/components/DiagramNodes";
+import { KOON_BADGE_RADIUS } from "./KoonBadge";
 import { DiagramOverlays } from "./canvas/components/DiagramOverlays";
 import { useDragAndDrop } from "./canvas/hooks/useDragAndDrop";
 import { useInsertHighlight } from "./canvas/hooks/useInsertHighlight";
@@ -66,6 +68,10 @@ type DiagramCanvasProps = {
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
   canOpenNodeContextMenu?: boolean;
   onNodeInfoOpen?: (nodeId: string) => void;
+  onGraphReload?: () => void;
+  onEmptyAdd?: () => void;
+  isEmptyAddDisabled?: boolean;
+  isEmptyAddActive?: boolean;
 };
 
 export const DiagramCanvas = ({
@@ -105,6 +111,10 @@ export const DiagramCanvas = ({
   onOrganizationStateChange,
   canOpenNodeContextMenu = true,
   onNodeInfoOpen,
+  onGraphReload,
+  onEmptyAdd,
+  isEmptyAddDisabled = false,
+  isEmptyAddActive = false,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
@@ -372,6 +382,20 @@ export const DiagramCanvas = ({
             <div className="diagram-canvas__placeholder">
               <div className="diagram-canvas__node">Sin datos</div>
               <p>No hay nodos disponibles para renderizar el diagrama.</p>
+              {onEmptyAdd ? (
+                <div className="diagram-canvas__placeholder-actions">
+                  <button
+                    type="button"
+                    className={`diagram-topbar__button${
+                      isEmptyAddActive ? " diagram-topbar__button--active" : ""
+                    }`}
+                    onClick={onEmptyAdd}
+                    disabled={isEmptyAddDisabled}
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
           {hasDiagram && (
@@ -396,6 +420,28 @@ export const DiagramCanvas = ({
                 width={layout.width}
                 height={layout.height}
                 lines={layout.lines}
+                maskCircles={layout.nodes
+                  .filter(
+                    (node) =>
+                      node.type === "gate" &&
+                      node.subtype?.toLowerCase() === "koon"
+                  )
+                  .flatMap((node) => {
+                    const anchor = layout.anchors.get(node.id);
+                    if (!anchor) return [];
+                    return [
+                      {
+                        x: anchor.rightX,
+                        y: anchor.centerY,
+                        r: KOON_BADGE_RADIUS,
+                      },
+                    ];
+                  })}
+              />
+              <DiagramKoonBadges
+                nodes={layout.nodes}
+                anchors={layout.anchors}
+                onGraphReload={onGraphReload}
               />
               <DiagramNodes
                 nodes={layout.nodes}

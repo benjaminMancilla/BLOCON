@@ -222,7 +222,13 @@ class ReliabilityGraph:
         if not isinstance(node, ComponentNode):
             raise ValueError("Invalid component node")
 
-        # Placeholder: patchable fields will be added in future iterations.
+        dist_patch = patch.get("dist")
+        if isinstance(dist_patch, dict) and "kind" in dist_patch:
+            kind = dist_patch.get("kind")
+            if isinstance(kind, str):
+                from .dist import Dist
+                node.dist = Dist(kind=kind)
+
         if self.auto_normalize:
             self.normalize()
 

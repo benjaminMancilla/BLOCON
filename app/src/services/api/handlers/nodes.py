@@ -101,6 +101,7 @@ class NodeDetailsHandler(BaseHandler):
             "label": snapshot_node.get("label"),
             "name": snapshot_node.get("name"),
             "reliability": snapshot_node.get("reliability"),
+            "guid": snapshot_node.get("guid"),
             "k": getattr(gate_node, "k", None),
             "children_count": children_count,
         }

@@ -15,7 +15,14 @@ export const buildDiagramLayout = (
 
   const rootId = getRootId(graph);
   if (!rootId) {
-    return { nodes: [], lines: [], gateAreas: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      lines: [],
+      gateAreas: [],
+      anchors: new Map(),
+      width: 0,
+      height: 0,
+    };
   }
 
   const measurementContext: MeasurementContext = {
@@ -79,6 +86,7 @@ export const buildDiagramLayout = (
     nodes: placement.nodes,
     lines,
     gateAreas: placement.gateAreas,
+    anchors: placement.anchors,
     width,
     height,
   };
