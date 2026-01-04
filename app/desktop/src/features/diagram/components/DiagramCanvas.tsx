@@ -13,6 +13,7 @@ import { DiagramEdges } from "./canvas/components/DiagramEdges";
 import { DiagramGateAreas } from "./canvas/components/DiagramGateAreas";
 import { DiagramKoonBadges } from "./canvas/components/DiagramKoonBadges";
 import { DiagramNodes } from "./canvas/components/DiagramNodes";
+import { KOON_BADGE_RADIUS } from "./KoonBadge";
 import { DiagramOverlays } from "./canvas/components/DiagramOverlays";
 import { useDragAndDrop } from "./canvas/hooks/useDragAndDrop";
 import { useInsertHighlight } from "./canvas/hooks/useInsertHighlight";
@@ -399,6 +400,23 @@ export const DiagramCanvas = ({
                 width={layout.width}
                 height={layout.height}
                 lines={layout.lines}
+                maskCircles={layout.nodes
+                  .filter(
+                    (node) =>
+                      node.type === "gate" &&
+                      node.subtype?.toLowerCase() === "koon"
+                  )
+                  .flatMap((node) => {
+                    const anchor = layout.anchors.get(node.id);
+                    if (!anchor) return [];
+                    return [
+                      {
+                        x: anchor.rightX,
+                        y: anchor.centerY,
+                        r: KOON_BADGE_RADIUS,
+                      },
+                    ];
+                  })}
               />
               <DiagramKoonBadges
                 nodes={layout.nodes}

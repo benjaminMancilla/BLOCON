@@ -12,8 +12,8 @@ type KoonBadgeProps = {
   onGraphReload?: () => void;
 };
 
-const BADGE_DIAMETER = COMPONENT_SIZE.height * 0.7;
-const BADGE_RADIUS = BADGE_DIAMETER / 2;
+export const KOON_BADGE_DIAMETER = COMPONENT_SIZE.height * 0.7;
+export const KOON_BADGE_RADIUS = KOON_BADGE_DIAMETER / 2;
 
 export const KoonBadge = ({
   gateId,
@@ -28,7 +28,7 @@ export const KoonBadge = ({
   const [inputValue, setInputValue] = useState(String(k));
   const [serverError, setServerError] = useState<string | null>(null);
   const { isSaving, editGate } = useNodeEdit();
-  const diameter = BADGE_DIAMETER;
+  const diameter = KOON_BADGE_DIAMETER;
 
   useEffect(() => {
     if (isEditing) return;
@@ -40,7 +40,10 @@ export const KoonBadge = ({
     if (!isEditing) return;
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (badgeRef.current && badgeRef.current.contains(target)) return;
+      const badgeNode = badgeRef.current;
+      if (!badgeNode) return;
+      const path = event.composedPath?.() ?? [];
+      if (path.includes(badgeNode) || badgeNode.contains(target)) return;
       setIsEditing(false);
       setInputValue(String(k));
       setServerError(null);
@@ -109,8 +112,8 @@ export const KoonBadge = ({
         isValid ? "" : " diagram-koon-badge--invalid"
       }`}
       style={{
-        left: position.x - BADGE_RADIUS,
-        top: position.y - BADGE_RADIUS,
+        left: position.x - KOON_BADGE_RADIUS,
+        top: position.y - KOON_BADGE_RADIUS,
         width: diameter,
         height: diameter,
         ...colorVars,
