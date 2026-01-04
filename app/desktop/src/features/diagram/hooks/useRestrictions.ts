@@ -96,8 +96,7 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
     const isInEditMode = inputs.isAddMode || inputs.isDeleteMode || inputs.isOrganizationMode || inputs.isSelectionMode;
     const hasOpenPanels =
       inputs.isVersionHistoryOpen ||
-      inputs.isEventDetailsOpen ||
-      inputs.isNodeInfoOpen;
+      inputs.isEventDetailsOpen;
     
     // Add Mode
     const canEnterAddMode = 

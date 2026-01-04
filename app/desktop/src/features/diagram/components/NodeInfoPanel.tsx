@@ -14,11 +14,11 @@ const formatCalculationType = (value: string | null) => {
   return value;
 };
 
-const getSnapshotString = (
-  snapshot: Record<string, unknown>,
+const getRecordString = (
+  record: Record<string, unknown>,
   key: string,
 ): string | null => {
-  const value = snapshot[key];
+  const value = record[key];
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
@@ -41,6 +41,22 @@ const getSnapshotBoolean = (
   return value === true;
 };
 
+const formatDisplayValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : "—";
+  }
+  return String(value);
+};
+
+const getDistKind = (snapshot: Record<string, unknown>): string | null => {
+  const dist = snapshot.dist;
+  if (!dist || typeof dist !== "object") return null;
+  const kind = (dist as Record<string, unknown>).kind;
+  return typeof kind === "string" && kind.trim() ? kind.trim() : null;
+};
+
 type NodeInfoPanelProps = {
   isOpen: boolean;
   dependency?: boolean;
@@ -61,26 +77,16 @@ export const NodeInfoPanel = ({
   if (!isOpen) return null;
 
   const snapshot = data?.snapshot ?? {};
+  const cache =
+    data?.cache && typeof data.cache === "object" ? data.cache : null;
   const conflict = getSnapshotBoolean(snapshot, "conflict");
   const reliability =
     getSnapshotNumber(snapshot, "reliability") ??
     getSnapshotNumber(snapshot, "reliability_total");
-  const calculationType =
-    getSnapshotString(snapshot, "calculation_type") ??
-    getSnapshotString(snapshot, "calculationType") ??
-    getSnapshotString(snapshot, "calc_type");
-  const title =
-    (data?.kind === "component"
-      ? getSnapshotString(snapshot, "kks_name")
-      : null) ??
-    data?.id ??
-    "Nodo";
-  const subtitle =
-    data?.kind === "gate"
-      ? "Gate"
-      : data?.kind === "component"
-        ? "Componente"
-        : "Nodo";
+  const calculationType = getDistKind(snapshot);
+  const cacheId = cache ? getRecordString(cache, "id") : null;
+  const kksName = cache ? getRecordString(cache, "kks_name") : null;
+  const title = data?.id ?? cacheId ?? "Nodo";
 
   return (
     <DiagramSidePanelLeft
@@ -100,7 +106,9 @@ export const NodeInfoPanel = ({
                 </span>
               ) : null}
             </div>
-            <p className="node-info-panel__subtitle">{subtitle}</p>
+            {kksName ? (
+              <p className="node-info-panel__subtitle">{kksName}</p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -128,29 +136,25 @@ export const NodeInfoPanel = ({
           <>
             <div className="node-info-panel__list">
               <div className="node-info-panel__row">
-                <span className="node-info-panel__label">ID</span>
-                <span className="node-info-panel__value">{data.id}</span>
+                <span className="node-info-panel__label">KKS</span>
+                <span className="node-info-panel__value">{title}</span>
               </div>
               <div className="node-info-panel__row">
                 <span className="node-info-panel__label">Tipo</span>
                 <span className="node-info-panel__value">
-                  {getSnapshotString(snapshot, "type") ?? "—"}
+                  {formatDisplayValue(cache?.type)}
                 </span>
               </div>
               <div className="node-info-panel__row">
-                <span className="node-info-panel__label">SubType</span>
+                <span className="node-info-panel__label">Subtipo</span>
                 <span className="node-info-panel__value">
-                  {getSnapshotString(snapshot, "SubType") ??
-                    getSnapshotString(snapshot, "subtype") ??
-                    "—"}
+                  {formatDisplayValue(cache?.SubType)}
                 </span>
               </div>
               <div className="node-info-panel__row">
                 <span className="node-info-panel__label">Actualizado</span>
                 <span className="node-info-panel__value">
-                  {getSnapshotString(snapshot, "updated_at") ??
-                    getSnapshotString(snapshot, "updatedAt") ??
-                    "—"}
+                  {formatDisplayValue(cache?.updated_at)}
                 </span>
               </div>
             </div>
@@ -182,23 +186,23 @@ export const NodeInfoPanel = ({
               <span className="node-info-panel__value">{data.id}</span>
             </div>
             <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Subtype</span>
+              <span className="node-info-panel__label">Tipo</span>
               <span className="node-info-panel__value">
-                {getSnapshotString(snapshot, "subtype") ??
-                  getSnapshotString(snapshot, "SubType") ??
+                {getRecordString(snapshot, "subtype") ??
+                  getRecordString(snapshot, "SubType") ??
                   "—"}
               </span>
             </div>
             <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Label</span>
+              <span className="node-info-panel__label">Etiqueta</span>
               <span className="node-info-panel__value">
-                {getSnapshotString(snapshot, "label") ?? "—"}
+                {getRecordString(snapshot, "label") ?? "—"}
               </span>
             </div>
             <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Name</span>
+              <span className="node-info-panel__label">Nombre</span>
               <span className="node-info-panel__value">
-                {getSnapshotString(snapshot, "name") ?? "—"}
+                {getRecordString(snapshot, "name") ?? "—"}
               </span>
             </div>
             <div className="node-info-panel__row">
