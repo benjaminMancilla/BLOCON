@@ -13,16 +13,16 @@ export const useNodeInfoPanel = () => {
   const [state, setState] = useState<NodeInfoPanelState | null>(null);
   const requestTokenRef = useRef(0);
 
-  const open = useCallback((nodeId: string) => {
+  const fetchDetails = useCallback((nodeId: string, keepData = false) => {
     requestTokenRef.current += 1;
     const requestToken = requestTokenRef.current;
 
-    setState({
+    setState((prev) => ({
       nodeId,
-      data: null,
+      data: keepData ? prev?.data ?? null : null,
       loading: true,
       error: null,
-    });
+    }));
 
     getNodeDetails(nodeId)
       .then((data) => {
@@ -49,6 +49,18 @@ export const useNodeInfoPanel = () => {
       });
   }, []);
 
+  const open = useCallback(
+    (nodeId: string) => {
+      fetchDetails(nodeId);
+    },
+    [fetchDetails]
+  );
+
+  const refresh = useCallback(() => {
+    if (!state?.nodeId) return;
+    fetchDetails(state.nodeId, true);
+  }, [fetchDetails, state?.nodeId]);
+
   const close = useCallback(() => {
     requestTokenRef.current += 1;
     setState(null);
@@ -61,6 +73,7 @@ export const useNodeInfoPanel = () => {
     loading: state?.loading ?? false,
     error: state?.error ?? null,
     open,
+    refresh,
     close,
   };
 };

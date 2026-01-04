@@ -454,6 +454,9 @@ function App() {
           error={nodeInfoPanel.error}
           data={nodeInfoPanel.data}
           onClose={nodeInfoPanel.close}
+          onRefresh={nodeInfoPanel.refresh}
+          onGraphReload={reloadGraph}
+          toasts={toasts}
         />
         <EventDetailsPanel
           isOpen={eventDetails.isOpen}

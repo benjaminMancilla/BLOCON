@@ -1,7 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import { DiagramSidePanelLeft } from "./DiagramSidePanelLeft";
 import { NodeFailuresTable } from "./NodeFailuresTable";
 import { NodeTypeIcon } from "./NodeTypeIcon";
 import type { NodeDetailsResponse } from "../../../services/nodeDetailsApi";
+import { useNodeEdit } from "../hooks/useNodeEdit";
+import type { ToastManager } from "../hooks/useToasts";
 
 const formatReliability = (reliability: number | null) => {
   if (reliability === null) return "—";
@@ -66,6 +69,9 @@ type NodeInfoPanelProps = {
   error: string | null;
   data: NodeDetailsResponse | null;
   onClose: () => void;
+  onRefresh: () => void;
+  onGraphReload: () => void;
+  toasts: ToastManager;
 };
 
 export const NodeInfoPanel = ({
@@ -75,6 +81,9 @@ export const NodeInfoPanel = ({
   error,
   data,
   onClose,
+  onRefresh,
+  onGraphReload,
+  toasts,
 }: NodeInfoPanelProps) => {
   if (!isOpen) return null;
 
@@ -93,10 +102,50 @@ export const NodeInfoPanel = ({
   const gateSubtype =
     getRecordString(snapshot, "subtype") ??
     getRecordString(snapshot, "SubType");
+  const currentK = getSnapshotNumber(snapshot, "k") ?? 1;
+  const childrenCount = getSnapshotNumber(snapshot, "children_count") ?? null;
+  const isKoonGate = data?.kind === "gate" && gateSubtype === "KOON";
 
-  console.log(data?.kind)
-  console.log(componentType)
-  console.log(gateSubtype)
+  const { isSaving, error: editError, editGate } = useNodeEdit();
+  const [kInput, setKInput] = useState(String(currentK));
+  const [kServerError, setKServerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isKoonGate) return;
+    setKInput(String(currentK));
+    setKServerError(null);
+  }, [currentK, isKoonGate]);
+
+  const parsedK = useMemo(() => {
+    if (!kInput.trim()) return null;
+    const value = Number(kInput);
+    if (!Number.isInteger(value)) return null;
+    return value;
+  }, [kInput]);
+
+  useEffect(() => {
+    if (kServerError) {
+      setKServerError(null);
+    }
+  }, [kInput, kServerError]);
+
+  const kRange =
+    childrenCount !== null ? { min: 1, max: childrenCount } : null;
+  const kValidationError = useMemo(() => {
+    if (!kInput.trim()) {
+      return "Ingresa un valor para K.";
+    }
+    if (parsedK === null) {
+      return "K debe ser un entero.";
+    }
+    if (kRange && (parsedK < kRange.min || parsedK > kRange.max)) {
+      return `K debe estar entre ${kRange.min} y ${kRange.max}.`;
+    }
+    return null;
+  }, [kInput, parsedK, kRange]);
+
+  const kIsValid = kValidationError === null && kRange !== null;
+  const kIsDirty = parsedK !== null && parsedK !== currentK;
 
   return (
     <DiagramSidePanelLeft
@@ -199,46 +248,143 @@ export const NodeInfoPanel = ({
               <h3 className="node-info-panel__section-title">Historial de fallas</h3>
               <NodeFailuresTable failures={data?.failures} />
             </div>
+            <div className="node-info-panel__section node-info-panel__section--settings">
+              <h3 className="node-info-panel__section-title">Ajustes</h3>
+              <p className="node-info-panel__placeholder">
+                Parámetros editables próximamente.
+              </p>
+            </div>
           </>
         ) : null}
 
         {!loading && !error && data?.kind === "gate" ? (
-          <div className="node-info-panel__list">
-            <div className="node-info-panel__row">
-              <span className="node-info-panel__label">ID</span>
-              <span className="node-info-panel__value">{data.id}</span>
-            </div>
-            <div className="node-info-panel__row">
-                <span className="node-info-panel__label">Tipo</span>
+          <>
+            <div className="node-info-panel__list">
+              <div className="node-info-panel__row">
+                <span className="node-info-panel__label">ID</span>
+                <span className="node-info-panel__value">{data.id}</span>
+              </div>
+              <div className="node-info-panel__row">
+                  <span className="node-info-panel__label">Tipo</span>
+                  <span className="node-info-panel__value">
+                    {gateSubtype ?? "—"}
+                  </span>
+                </div>
+              <div className="node-info-panel__row">
+                <span className="node-info-panel__label">Etiqueta</span>
                 <span className="node-info-panel__value">
-                  {gateSubtype ?? "—"}
+                  {getRecordString(snapshot, "label") ?? "—"}
                 </span>
               </div>
-            <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Etiqueta</span>
-              <span className="node-info-panel__value">
-                {getRecordString(snapshot, "label") ?? "—"}
-              </span>
+              <div className="node-info-panel__row">
+                <span className="node-info-panel__label">Nombre</span>
+                <span className="node-info-panel__value">
+                  {getRecordString(snapshot, "name") ?? "—"}
+                </span>
+              </div>
+              <div className="node-info-panel__row">
+                <span className="node-info-panel__label">Confiabilidad</span>
+                <span
+                  className={
+                    conflict
+                      ? "node-info-panel__value node-info-panel__value--conflict"
+                      : "node-info-panel__value"
+                  }
+                >
+                  {formatReliability(reliability)}
+                </span>
+              </div>
             </div>
-            <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Nombre</span>
-              <span className="node-info-panel__value">
-                {getRecordString(snapshot, "name") ?? "—"}
-              </span>
+            <div className="node-info-panel__section node-info-panel__section--settings">
+              <h3 className="node-info-panel__section-title">Ajustes</h3>
+              {isKoonGate ? (
+                <div className="node-info-panel__field">
+                  <label className="node-info-panel__field-label" htmlFor="koon-k-input">
+                    K (KOON)
+                  </label>
+                  <div className="node-info-panel__field-control">
+                    <input
+                      id="koon-k-input"
+                      type="number"
+                      inputMode="numeric"
+                      step={1}
+                      min={kRange?.min}
+                      max={kRange?.max}
+                      value={kInput}
+                      onChange={(event) => setKInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setKInput(String(currentK));
+                          setKServerError(null);
+                        }
+                      }}
+                      disabled={isSaving || kRange === null}
+                      className="node-info-panel__field-input"
+                    />
+                    {kIsDirty && kIsValid ? (
+                      <button
+                        type="button"
+                        className="node-info-panel__field-action"
+                        onClick={async () => {
+                          if (parsedK === null) return;
+                          const error = await editGate(data.id, { k: parsedK });
+                          if (error) {
+                            setKServerError(error.message);
+                            toasts.error(error.message, "general");
+                            return;
+                          }
+                          toasts.success("K actualizado.", "general");
+                          onGraphReload();
+                          onRefresh();
+                        }}
+                        disabled={isSaving}
+                        aria-label="Aplicar K"
+                      >
+                        {isSaving ? (
+                          <span className="node-info-panel__spinner" />
+                        ) : (
+                          "Aplicar"
+                        )}
+                      </button>
+                    ) : null}
+                    {kIsDirty ? (
+                      <button
+                        type="button"
+                        className="node-info-panel__field-action node-info-panel__field-action--ghost"
+                        onClick={() => {
+                          setKInput(String(currentK));
+                          setKServerError(null);
+                        }}
+                        disabled={isSaving}
+                        aria-label="Cancelar cambios"
+                      >
+                        Cancelar
+                      </button>
+                    ) : null}
+                  </div>
+                  {kValidationError ? (
+                    <div className="node-info-panel__field-error">
+                      {kValidationError}
+                    </div>
+                  ) : null}
+                  {kServerError ? (
+                    <div className="node-info-panel__field-error">
+                      {kServerError}
+                    </div>
+                  ) : null}
+                  {editError && editError.field === "k" && !kServerError ? (
+                    <div className="node-info-panel__field-error">
+                      {editError.message}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="node-info-panel__placeholder">
+                  Sin parámetros editables por ahora.
+                </p>
+              )}
             </div>
-            <div className="node-info-panel__row">
-              <span className="node-info-panel__label">Confiabilidad</span>
-              <span
-                className={
-                  conflict
-                    ? "node-info-panel__value node-info-panel__value--conflict"
-                    : "node-info-panel__value"
-                }
-              >
-                {formatReliability(reliability)}
-              </span>
-            </div>
-          </div>
+          </>
         ) : null}
       </section>
     </DiagramSidePanelLeft>
