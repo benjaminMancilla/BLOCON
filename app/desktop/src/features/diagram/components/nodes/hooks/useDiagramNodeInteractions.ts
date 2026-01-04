@@ -17,6 +17,7 @@ export type UseDiagramNodeInteractionsProps = {
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
   onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const useDiagramNodeInteractions = ({
@@ -33,11 +34,13 @@ export const useDiagramNodeInteractions = ({
   onConfirm,
   onDragStart,
   onQuickClick,
+  onQuickDoubleClick,
 }: UseDiagramNodeInteractionsProps) => {
   const quickClickHandlers = useQuickClick({
     targetId: nodeId,
     isEnabled: isQuickClickEnabled,
     onQuickClick,
+    onQuickDoubleClick,
   });
   const onPointerEnter = useCallback(() => {
     onHoverStart?.(hoverId);

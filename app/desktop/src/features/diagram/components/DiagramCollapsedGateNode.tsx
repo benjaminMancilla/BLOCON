@@ -31,6 +31,7 @@ type DiagramCollapsedGateNodeProps = {
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
   onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramCollapsedGateNode = ({
@@ -58,6 +59,7 @@ export const DiagramCollapsedGateNode = ({
   onConfirm,
   onDragStart,
   onQuickClick,
+  onQuickDoubleClick,
 }: DiagramCollapsedGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -76,6 +78,7 @@ export const DiagramCollapsedGateNode = ({
     onConfirm,
     onDragStart,
     onQuickClick,
+    onQuickDoubleClick,
   });
 
   return (

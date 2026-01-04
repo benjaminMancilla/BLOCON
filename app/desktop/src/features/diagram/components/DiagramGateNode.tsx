@@ -30,6 +30,7 @@ type DiagramGateNodeProps = {
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
   onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramGateNode = ({
@@ -56,6 +57,7 @@ export const DiagramGateNode = ({
   onConfirm,
   onDragStart,
   onQuickClick,
+  onQuickDoubleClick,
 }: DiagramGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
@@ -81,6 +83,7 @@ export const DiagramGateNode = ({
     onConfirm,
     onDragStart,
     onQuickClick,
+    onQuickDoubleClick,
   });
 
   return (

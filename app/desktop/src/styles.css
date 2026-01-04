@@ -1404,6 +1404,10 @@ body {
   width: 360px;
 }
 
+.diagram-side-panel--node-info {
+  width: 360px;
+}
+
 .diagram-side-panel__collapse {
   align-self: flex-start;
   margin: 16px;
@@ -2218,6 +2222,134 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: "Fira Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.node-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.node-info-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.node-info-panel__header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-info-panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.node-info-panel__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.node-info-panel__subtitle {
+  font-size: 0.85rem;
+  color: #667085;
+  margin: 0;
+}
+
+.node-info-panel__badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.node-info-panel__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #1d2939;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.node-info-panel__close:hover {
+  background: #f2f4f7;
+}
+
+.node-info-panel__status {
+  font-size: 0.9rem;
+  color: #475467;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.node-info-panel__status--error {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+}
+
+.node-info-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #e4e7ec;
+}
+
+.node-info-panel__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.9rem;
+}
+
+.node-info-panel__label {
+  color: #475467;
+  font-weight: 600;
+}
+
+.node-info-panel__value {
+  color: #101828;
+  font-weight: 500;
+  text-align: right;
+}
+
+.node-info-panel__value--conflict {
+  color: #b42318;
+}
+
+.node-info-panel__section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e4e7ec;
+  background: #ffffff;
+}
+
+.node-info-panel__section-title {
+  font-size: 0.9rem;
+  color: #475467;
+  margin: 0;
+  font-weight: 600;
 }
 
 .context-menu {

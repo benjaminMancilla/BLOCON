@@ -7,6 +7,7 @@ type NodeContextMenuProps = {
   position: { x: number; y: number } | null;
   target: NodeContextMenuTarget | null;
   onClose: () => void;
+  onViewInfo?: (nodeId: string) => void;
   menuRef?: RefObject<HTMLDivElement>;
 };
 
@@ -34,9 +35,15 @@ export const NodeContextMenu = ({
   position,
   target,
   onClose,
+  onViewInfo,
   menuRef,
 }: NodeContextMenuProps) => {
   if (!isOpen || !position || !target) return null;
+
+  const handleViewInfo = () => {
+    onViewInfo?.(target.nodeId);
+    onClose();
+  };
 
   return (
     <ContextMenu
@@ -55,8 +62,8 @@ export const NodeContextMenu = ({
           {formatNodeSubtitle(target)}
         </div>
       </div>
-      <button type="button" role="menuitem" onClick={onClose}>
-        Ver detalles
+      <button type="button" role="menuitem" onClick={handleViewInfo}>
+        Ver información
       </button>
       <button type="button" role="menuitem" onClick={onClose}>
         Editar...

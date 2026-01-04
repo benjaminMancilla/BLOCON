@@ -24,7 +24,9 @@ type UseQuickClickArgs = {
   isEnabled?: boolean;
   thresholdPx?: number;
   thresholdMs?: number;
+  doubleClickThresholdMs?: number;
   onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const useQuickClick = ({
@@ -32,12 +34,21 @@ export const useQuickClick = ({
   isEnabled = true,
   thresholdPx = 6,
   thresholdMs = 240,
+  doubleClickThresholdMs = 320,
   onQuickClick,
+  onQuickDoubleClick,
 }: UseQuickClickArgs) => {
   const stateRef = useRef<QuickClickState | null>(null);
   const thresholdPxRef = useRef(thresholdPx);
   const thresholdMsRef = useRef(thresholdMs);
+  const doubleClickThresholdMsRef = useRef(doubleClickThresholdMs);
   const onQuickClickRef = useRef(onQuickClick);
+  const onQuickDoubleClickRef = useRef(onQuickDoubleClick);
+  const lastQuickClickRef = useRef<{
+    time: number;
+    targetId: string;
+    button: number;
+  } | null>(null);
 
   useEffect(() => {
     thresholdPxRef.current = thresholdPx;
@@ -48,8 +59,16 @@ export const useQuickClick = ({
   }, [thresholdMs]);
 
   useEffect(() => {
+    doubleClickThresholdMsRef.current = doubleClickThresholdMs;
+  }, [doubleClickThresholdMs]);
+
+  useEffect(() => {
     onQuickClickRef.current = onQuickClick;
   }, [onQuickClick]);
+
+  useEffect(() => {
+    onQuickDoubleClickRef.current = onQuickDoubleClick;
+  }, [onQuickDoubleClick]);
 
   const handlePointerMoveRef = useRef<(event: globalThis.PointerEvent) => void>(
     () => {}
@@ -103,10 +122,30 @@ export const useQuickClick = ({
       nodeElement?.getAttribute("data-node-id") === state.targetId;
 
     if (isQuick && sameTarget) {
-      onQuickClickRef.current?.({
+      const payload = {
         button: state.button,
         position: { x: event.clientX, y: event.clientY },
-      });
+      };
+      const lastQuickClick = lastQuickClickRef.current;
+      const now = performance.now();
+      const isDoubleClick =
+        state.button === 0 &&
+        Boolean(onQuickDoubleClickRef.current) &&
+        lastQuickClick?.targetId === state.targetId &&
+        lastQuickClick?.button === state.button &&
+        now - lastQuickClick.time <= doubleClickThresholdMsRef.current;
+
+      if (isDoubleClick) {
+        onQuickDoubleClickRef.current?.(payload);
+        lastQuickClickRef.current = null;
+      } else {
+        onQuickClickRef.current?.(payload);
+        lastQuickClickRef.current = {
+          time: now,
+          targetId: state.targetId,
+          button: state.button,
+        };
+      }
     }
 
     stateRef.current = null;
@@ -120,6 +159,7 @@ export const useQuickClick = ({
     if (!state) return;
     if (event.pointerId !== state.pointerId) return;
     stateRef.current = null;
+    lastQuickClickRef.current = null;
     window.removeEventListener("pointermove", onWindowPointerMove);
     window.removeEventListener("pointerup", onWindowPointerUp);
     window.removeEventListener("pointercancel", onWindowPointerCancel);
@@ -173,6 +213,7 @@ export const useQuickClick = ({
   useEffect(() => {
     return () => {
       stateRef.current = null;
+      lastQuickClickRef.current = null;
       window.removeEventListener("pointermove", onWindowPointerMove);
       window.removeEventListener("pointerup", onWindowPointerUp);
       window.removeEventListener("pointercancel", onWindowPointerCancel);

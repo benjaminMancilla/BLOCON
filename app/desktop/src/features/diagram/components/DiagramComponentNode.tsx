@@ -27,6 +27,7 @@ type DiagramComponentNodeProps = {
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
   onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramComponentNode = ({
@@ -51,6 +52,7 @@ export const DiagramComponentNode = ({
   onConfirm,
   onDragStart,
   onQuickClick,
+  onQuickDoubleClick,
 }: DiagramComponentNodeProps) => {
   const handlers = useDiagramNodeInteractions({
     nodeId: node.id,
@@ -66,6 +68,7 @@ export const DiagramComponentNode = ({
     onConfirm,
     onDragStart,
     onQuickClick,
+    onQuickDoubleClick,
   });
 
   return (

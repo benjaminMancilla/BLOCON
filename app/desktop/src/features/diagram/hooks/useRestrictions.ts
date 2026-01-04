@@ -28,6 +28,7 @@ type RestrictionInputs = {
   // Paneles abiertos
   isVersionHistoryOpen: boolean;
   isEventDetailsOpen: boolean;
+  isNodeInfoOpen: boolean;
 };
 
 export type Restrictions = {
@@ -93,7 +94,10 @@ export function useRestrictions(inputs: RestrictionInputs): Restrictions {
       inputs.isRebuildInProgress;
     const isInExclusiveMode = inputs.isViewerMode;
     const isInEditMode = inputs.isAddMode || inputs.isDeleteMode || inputs.isOrganizationMode || inputs.isSelectionMode;
-    const hasOpenPanels = inputs.isVersionHistoryOpen || inputs.isEventDetailsOpen;
+    const hasOpenPanels =
+      inputs.isVersionHistoryOpen ||
+      inputs.isEventDetailsOpen ||
+      inputs.isNodeInfoOpen;
     
     // Add Mode
     const canEnterAddMode = 

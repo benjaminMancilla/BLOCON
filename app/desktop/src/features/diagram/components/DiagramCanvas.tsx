@@ -65,6 +65,7 @@ type DiagramCanvasProps = {
   onOrganizationCancel?: () => void;
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
   canOpenNodeContextMenu?: boolean;
+  onNodeInfoOpen?: (nodeId: string) => void;
 };
 
 export const DiagramCanvas = ({
@@ -103,6 +104,7 @@ export const DiagramCanvas = ({
   onOrganizationCancel,
   onOrganizationStateChange,
   canOpenNodeContextMenu = true,
+  onNodeInfoOpen,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
@@ -418,6 +420,7 @@ export const DiagramCanvas = ({
                 onExpandGate={handleExpandGate}
                 onDragStart={dragDrop.handlers.onDragStart}
                 onNodeContextMenu={handleNodeContextMenu}
+                onNodeInfoOpen={onNodeInfoOpen}
                 selectionHandlers={activeSelection.handlers}
               />
               <DiagramOverlays
@@ -439,6 +442,7 @@ export const DiagramCanvas = ({
         position={nodeContextMenu.position}
         target={nodeContextMenu.target}
         onClose={nodeContextMenu.close}
+        onViewInfo={onNodeInfoOpen}
         menuRef={nodeContextMenu.menuRef}
       />
     </section>

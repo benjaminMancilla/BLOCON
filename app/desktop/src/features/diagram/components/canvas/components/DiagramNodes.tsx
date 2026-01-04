@@ -38,6 +38,7 @@ type DiagramNodesProps = {
   onExpandGate: (gateId: string) => void;
   onDragStart: (event: PointerEvent<HTMLDivElement>, nodeId: string) => void;
   onNodeContextMenu: (target: NodeContextMenuTarget, position: { x: number; y: number }) => void;
+  onNodeInfoOpen?: (nodeId: string) => void;
   selectionHandlers: SelectionHandlers;
 };
 
@@ -68,6 +69,7 @@ const DiagramNodeItem = ({
   onExpandGate,
   onDragStart,
   onNodeContextMenu,
+  onNodeInfoOpen,
   selectionHandlers,
 }: DiagramNodeItemProps) => {
   const {
@@ -117,6 +119,10 @@ const DiagramNodeItem = ({
     };
     onNodeContextMenu(target, payload.position);
   };
+  const handleQuickDoubleClick = (payload: QuickClickPayload) => {
+    if (payload.button !== 0) return;
+    onNodeInfoOpen?.(node.id);
+  };
 
   if (isPlaceholder) {
     return (
@@ -163,6 +169,7 @@ const DiagramNodeItem = ({
           onPreselect={handlePreselect}
           onConfirm={handleConfirm}
           onQuickClick={handleQuickClick}
+          onQuickDoubleClick={handleQuickDoubleClick}
         />
       );
     }
@@ -190,6 +197,7 @@ const DiagramNodeItem = ({
         onPreselect={handlePreselect}
         onConfirm={handleConfirm}
         onQuickClick={handleQuickClick}
+        onQuickDoubleClick={handleQuickDoubleClick}
       />
     );
   }
@@ -219,6 +227,7 @@ const DiagramNodeItem = ({
       onPreselect={handlePreselect}
       onConfirm={handleConfirm}
       onQuickClick={handleQuickClick}
+      onQuickDoubleClick={handleQuickDoubleClick}
     />
   );
 };
