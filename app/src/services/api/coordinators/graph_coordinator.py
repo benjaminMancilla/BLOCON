@@ -209,6 +209,30 @@ class GraphCoordinator:
         if node is None or not node.is_component():
             raise ValueError("Node is not a component")
 
+        if "dist" in patch:
+            dist_patch = patch.get("dist")
+            if not isinstance(dist_patch, dict):
+                raise NodeEditValidationError(
+                    field="dist",
+                    message="Dist must be an object",
+                    details={},
+                )
+            kind = dist_patch.get("kind")
+            if not isinstance(kind, str):
+                raise NodeEditValidationError(
+                    field="dist.kind",
+                    message="Kind must be a string",
+                    details={"allowed": ["exponential", "weibull"]},
+                )
+            normalized_kind = kind.strip().lower()
+            if normalized_kind not in ("exponential", "weibull"):
+                raise NodeEditValidationError(
+                    field="dist.kind",
+                    message="Kind must be exponential or weibull",
+                    details={"allowed": ["exponential", "weibull"]},
+                )
+            dist_patch["kind"] = normalized_kind
+
         self.shared.es.edit_component_patch(node_id, patch)
 
     # ========== Undo/Redo ==========
