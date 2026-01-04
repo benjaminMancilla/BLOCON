@@ -9,6 +9,7 @@ import { AddComponentPanel } from "./features/diagram/components/AddComponentPan
 import { DeleteActionButton } from "./features/diagram/components/DeleteActionButton";
 import { DeleteConfirmDialog } from "./features/diagram/components/DeleteConfirmDialog";
 import { EventDetailsPanel } from "./features/diagram/components/EventDetailsPanel";
+import { NodeInfoPanel } from "./features/diagram/components/NodeInfoPanel";
 import { DraftsMenu } from "./features/diagram/components/drafts/DraftsMenu";
 import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
@@ -22,6 +23,7 @@ import { useCloudActions } from "./features/diagram/hooks/useCloudActions";
 import { useDeleteMode } from "./features/diagram/hooks/useDeleteMode";
 import { useCloudErrorRecovery } from "./features/diagram/hooks/useCloudErrorRecovery";
 import { useEventDetails } from "./features/diagram/hooks/useEventDetails";
+import { useNodeInfoPanel } from "./features/diagram/hooks/useNodeInfoPanel";
 import { useUndoRedo } from "./features/diagram/hooks/useUndoRedo";
 import { useVersionViewer } from "./features/diagram/hooks/useVersionViewer";
 import { useVersionHistoryPanel } from "./features/diagram/hooks/useVersionHistoryPanel";
@@ -81,6 +83,7 @@ function App() {
   const diagramView = useDiagramView(graph);
   const versionHistoryPanel = useVersionHistoryPanel();
   const eventDetails = useEventDetails();
+  const nodeInfoPanel = useNodeInfoPanel();
   const versionViewer = useVersionViewer();
 
   const existingNodeIds = useMemo(
@@ -218,6 +221,7 @@ function App() {
       cloudErrorRecovery.actionLoading !== null,
     isVersionHistoryOpen: versionHistoryPanel.isOpen,
     isEventDetailsOpen: eventDetails.isOpen,
+    isNodeInfoOpen: nodeInfoPanel.isOpen,
   });
 
   // UNDO/REDO
@@ -443,6 +447,17 @@ function App() {
         }
       />
       <div className="diagram-workspace">
+        <NodeInfoPanel
+          isOpen={nodeInfoPanel.isOpen}
+          dependency={!eventDetails.isOpen}
+          loading={nodeInfoPanel.loading}
+          error={nodeInfoPanel.error}
+          data={nodeInfoPanel.data}
+          onClose={nodeInfoPanel.close}
+          onRefresh={nodeInfoPanel.refresh}
+          onGraphReload={reloadGraph}
+          toasts={toasts}
+        />
         <EventDetailsPanel
           isOpen={eventDetails.isOpen}
           dependency={versionHistoryPanel.isOpen}
@@ -485,6 +500,8 @@ function App() {
           onDeleteNodeConfirm={deleteMode.onNodeConfirm}
           onDeleteSelectionCancel={deleteMode.onSelectionCancel}
           onOrganizationCancel={addComponent.cancelOrganization}
+          canOpenNodeContextMenu={restrictions.canOpenNodeContextMenu}
+          onNodeInfoOpen={nodeInfoPanel.open}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}

@@ -11,6 +11,7 @@ export type DiagramNodeClassNameFlags = {
   isOrganizationDraggable?: boolean;
   isDragGhost?: boolean;
   isLabelVisible?: boolean;
+  isInteractive?: boolean;
 };
 
 export const buildNodeClassNames = (
@@ -28,6 +29,7 @@ export const buildNodeClassNames = (
     isOrganizationDraggable,
     isDragGhost,
     isLabelVisible,
+    isInteractive,
   }: DiagramNodeClassNameFlags,
 ) => {
   return `${baseClassName}${
@@ -42,5 +44,7 @@ export const buildNodeClassNames = (
     isDraggable ? " diagram-node--draggable" : ""
   }${isDragging ? " diagram-node--organization-drag-placeholder" : ""}${
     isOrganizationDraggable ? " diagram-node--organization-draggable" : ""
-  }${isDragGhost ? " diagram-node--drag-ghost" : ""}`;
+  }${isDragGhost ? " diagram-node--drag-ghost" : ""}${
+    isInteractive ? " diagram-node--interactive" : ""
+  }`;
 };

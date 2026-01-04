@@ -3,6 +3,7 @@ import { DiagramLayoutNode } from "../hooks/useDiagramLayout";
 import { DiagramNode } from "./nodes/DiagramNode";
 import { useDiagramNodeInteractions } from "./nodes/hooks/useDiagramNodeInteractions";
 import { DiagramComponentContent } from "./nodes/variants/DiagramComponentContent";
+import type { QuickClickPayload } from "./nodes/hooks/useQuickClick";
 
 type DiagramComponentNodeProps = {
   node: DiagramLayoutNode;
@@ -18,11 +19,15 @@ type DiagramComponentNodeProps = {
   isDragging?: boolean;
   isOrganizationDraggable?: boolean;
   isDragGhost?: boolean;
+  isInteractive?: boolean;
+  isQuickClickEnabled?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
+  onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramComponentNode = ({
@@ -39,16 +44,22 @@ export const DiagramComponentNode = ({
   isDragging = false,
   isOrganizationDraggable = false,
   isDragGhost = false,
+  isInteractive = false,
+  isQuickClickEnabled = false,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
   onDragStart,
+  onQuickClick,
+  onQuickDoubleClick,
 }: DiagramComponentNodeProps) => {
   const handlers = useDiagramNodeInteractions({
+    nodeId: node.id,
     hoverId: node.parentGateId ?? null,
     isSelectionMode,
     isDraggable,
+    isQuickClickEnabled,
     onHoverStart,
     onHoverEnd,
     onSelectHover,
@@ -56,6 +67,8 @@ export const DiagramComponentNode = ({
     onPreselect,
     onConfirm,
     onDragStart,
+    onQuickClick,
+    onQuickDoubleClick,
   });
 
   return (
@@ -73,6 +86,7 @@ export const DiagramComponentNode = ({
         isDragging,
         isOrganizationDraggable,
         isDragGhost,
+        isInteractive,
       }}
       handlers={handlers}
     >

@@ -1,0 +1,8 @@
+{
+  "gate_types": 
+  [
+    "and",
+    "or",
+    "koon"
+  ]
+}

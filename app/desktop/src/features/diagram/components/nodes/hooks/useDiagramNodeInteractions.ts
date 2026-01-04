@@ -1,10 +1,14 @@
 import { useCallback } from "react";
 import type { PointerEvent } from "react";
+import { useQuickClick } from "./useQuickClick";
+import type { QuickClickPayload } from "./useQuickClick";
 
 export type UseDiagramNodeInteractionsProps = {
+  nodeId: string;
   hoverId?: string | null;
   isSelectionMode?: boolean;
   isDraggable?: boolean;
+  isQuickClickEnabled?: boolean;
   onHoverStart?: (gateId: string | null) => void;
   onHoverEnd?: () => void;
   onSelectHover?: () => void;
@@ -12,12 +16,16 @@ export type UseDiagramNodeInteractionsProps = {
   onPreselect?: () => void;
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
+  onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const useDiagramNodeInteractions = ({
+  nodeId,
   hoverId = null,
   isSelectionMode = false,
   isDraggable = false,
+  isQuickClickEnabled = false,
   onHoverStart,
   onHoverEnd,
   onSelectHover,
@@ -25,7 +33,15 @@ export const useDiagramNodeInteractions = ({
   onPreselect,
   onConfirm,
   onDragStart,
+  onQuickClick,
+  onQuickDoubleClick,
 }: UseDiagramNodeInteractionsProps) => {
+  const quickClickHandlers = useQuickClick({
+    targetId: nodeId,
+    isEnabled: isQuickClickEnabled,
+    onQuickClick,
+    onQuickDoubleClick,
+  });
   const onPointerEnter = useCallback(() => {
     onHoverStart?.(hoverId);
     onSelectHover?.();
@@ -56,10 +72,12 @@ export const useDiagramNodeInteractions = ({
 
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      quickClickHandlers.onPointerDown(event);
       if (!isDraggable) return;
+      if (event.button !== 0) return;
       onDragStart?.(event);
     },
-    [isDraggable, onDragStart],
+    [isDraggable, onDragStart, quickClickHandlers],
   );
 
   return {
@@ -68,5 +86,6 @@ export const useDiagramNodeInteractions = ({
     onClick,
     onDoubleClick,
     onPointerDown,
+    onContextMenu: quickClickHandlers.onContextMenu,
   };
 };

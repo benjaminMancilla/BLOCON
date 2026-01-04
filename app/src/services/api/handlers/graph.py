@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 from .base import BaseHandler
 from ..coordinators import GraphCoordinator
+from ..coordinators.graph_coordinator import NodeEditValidationError
 
 
 class GraphHandler(BaseHandler):
@@ -241,6 +242,66 @@ class GraphHandler(BaseHandler):
             return
         
         self._send_json(200, {"status": "ok"})
+
+    # ========== Handlers PATCH ==========
+
+    def handle_edit_gate(self, node_id: str, payload: dict | None) -> None:
+        node_id = unquote(node_id).strip()
+        if not node_id:
+            self._send_json(404, {"error": "missing node id"})
+            return
+
+        if payload is None or not isinstance(payload, dict):
+            self._send_validation_error("patch", "Invalid payload")
+            return
+
+        patch = payload.get("patch")
+        if not isinstance(patch, dict):
+            self._send_validation_error("patch", "Patch must be an object")
+            return
+
+        try:
+            self.coordinator.edit_gate(node_id, patch)
+        except NodeEditValidationError as exc:
+            self._send_validation_error(exc.field, exc.message, exc.details)
+            return
+        except KeyError:
+            self._send_json(404, {"error": f"node '{node_id}' not found"})
+            return
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"status": "ok"})
+
+    def handle_edit_component(self, node_id: str, payload: dict | None) -> None:
+        node_id = unquote(node_id).strip()
+        if not node_id:
+            self._send_json(404, {"error": "missing node id"})
+            return
+
+        if payload is None or not isinstance(payload, dict):
+            self._send_validation_error("patch", "Invalid payload")
+            return
+
+        patch = payload.get("patch")
+        if not isinstance(patch, dict):
+            self._send_validation_error("patch", "Patch must be an object")
+            return
+
+        try:
+            self.coordinator.edit_component(node_id, patch)
+        except NodeEditValidationError as exc:
+            self._send_validation_error(exc.field, exc.message, exc.details)
+            return
+        except KeyError:
+            self._send_json(404, {"error": f"node '{node_id}' not found"})
+            return
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        self._send_json(200, {"status": "ok"})
     
     # ========== Utilidades ==========
     
@@ -269,3 +330,22 @@ class GraphHandler(BaseHandler):
             return relation_lower
         
         return relation_type
+
+    def _send_validation_error(
+        self,
+        field: str,
+        message: str,
+        details: dict | None = None,
+    ) -> None:
+        self._send_json(
+            400,
+            {
+                "status": "error",
+                "error": {
+                    "kind": "validation",
+                    "field": field,
+                    "message": message,
+                    "details": details or {},
+                },
+            },
+        )

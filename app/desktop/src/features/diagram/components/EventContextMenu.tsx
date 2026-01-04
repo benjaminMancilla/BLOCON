@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { ContextMenu } from "./ContextMenu";
 
 type EventContextMenuProps = {
   isOpen: boolean;
@@ -17,40 +17,12 @@ export const EventContextMenu = ({
   onShowVersion,
   onRebuild,
 }: EventContextMenuProps) => {
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    window.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen || !position) return null;
-
   return (
-    <div
+    <ContextMenu
+      isOpen={isOpen}
+      position={position}
+      onClose={onClose}
       className="event-context-menu"
-      ref={menuRef}
-      role="menu"
-      style={{ top: position.y, left: position.x }}
     >
       <button type="button" role="menuitem" onClick={onViewDetails}>
         Ver detalles
@@ -66,6 +38,6 @@ export const EventContextMenu = ({
       >
         Rebuild
       </button>
-    </div>
+    </ContextMenu>
   );
 };

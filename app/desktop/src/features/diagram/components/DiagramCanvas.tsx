@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { useDiagramCamera } from "../hooks/useDiagramCamera";
 import { buildDiagramLayout } from "../hooks/useDiagramLayout";
@@ -17,6 +17,9 @@ import { useDragAndDrop } from "./canvas/hooks/useDragAndDrop";
 import { useInsertHighlight } from "./canvas/hooks/useInsertHighlight";
 import { useOrganizationMode } from "./canvas/hooks/useOrganizationMode";
 import { useSelectionMode } from "./canvas/hooks/useSelectionMode";
+import { NodeContextMenu } from "./NodeContextMenu";
+import { useNodeContextMenu } from "../hooks/useNodeContextMenu";
+import type { NodeContextMenuTarget } from "../hooks/useNodeContextMenu";
 
 const ORGANIZATION_PADDING = 32;
 
@@ -61,6 +64,8 @@ type DiagramCanvasProps = {
   onDeleteSelectionCancel?: () => void;
   onOrganizationCancel?: () => void;
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
+  canOpenNodeContextMenu?: boolean;
+  onNodeInfoOpen?: (nodeId: string) => void;
 };
 
 export const DiagramCanvas = ({
@@ -98,11 +103,14 @@ export const DiagramCanvas = ({
   onDeleteSelectionCancel,
   onOrganizationCancel,
   onOrganizationStateChange,
+  canOpenNodeContextMenu = true,
+  onNodeInfoOpen,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { collapsedGateIdSet, collapseGate, expandGate } = viewState;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
+  const nodeContextMenu = useNodeContextMenu();
 
   const handleCollapseGate = useCallback(
     (gateId: string) => {
@@ -293,6 +301,23 @@ export const DiagramCanvas = ({
     graph,
     status,
   });
+
+  const handleNodeContextMenu = useCallback(
+    (target: NodeContextMenuTarget, position: { x: number; y: number }) => {
+      if (!canOpenNodeContextMenu) return;
+      nodeContextMenu.openForNode(target, position);
+    },
+    [canOpenNodeContextMenu, nodeContextMenu]
+  );
+
+  const shouldShowNodeContextMenu = canOpenNodeContextMenu && nodeContextMenu.isOpen;
+
+  useEffect(() => {
+    if (canOpenNodeContextMenu) return;
+    if (nodeContextMenu.isOpen) {
+      nodeContextMenu.close();
+    }
+  }, [canOpenNodeContextMenu, nodeContextMenu]);
   
   const organizationIndicator = useMemo(() => {
     if (!isOrganizationMode) return null;
@@ -390,9 +415,12 @@ export const DiagramCanvas = ({
                 insertHighlightedGateId={insertHighlightState.highlightedGateId}
                 draggingNodeId={dragDrop.draggingNodeId}
                 visibleGateIds={visibleGateIds}
+                canOpenNodeContextMenu={canOpenNodeContextMenu}
                 onHoverGateIdChange={setHoveredGateId}
                 onExpandGate={handleExpandGate}
                 onDragStart={dragDrop.handlers.onDragStart}
+                onNodeContextMenu={handleNodeContextMenu}
+                onNodeInfoOpen={onNodeInfoOpen}
                 selectionHandlers={activeSelection.handlers}
               />
               <DiagramOverlays
@@ -409,6 +437,14 @@ export const DiagramCanvas = ({
           )}
         </div>
       </div>
+      <NodeContextMenu
+        isOpen={shouldShowNodeContextMenu}
+        position={nodeContextMenu.position}
+        target={nodeContextMenu.target}
+        onClose={nodeContextMenu.close}
+        onViewInfo={onNodeInfoOpen}
+        menuRef={nodeContextMenu.menuRef}
+      />
     </section>
   );
 };

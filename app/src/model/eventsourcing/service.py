@@ -207,6 +207,15 @@ class GraphES:
                 actor=self.actor
             ))
 
+    def edit_component_patch(self, node_id: str, patch: dict) -> None:
+        self.graph.edit_component_patch(node_id, patch)
+        if self.store:
+            self.store.append(EditComponentEvent.create_patch(
+                node_id=node_id,
+                patch=dict(patch),
+                actor=self.actor,
+            ))
+
     def edit_gate(self, node_id: str, params: dict) -> None:
         self.graph.edit_gate(node_id, params)
         if self.store:
@@ -377,13 +386,19 @@ class GraphES:
                 # manejado en _effective_indices
                 pass
             elif isinstance(ev, EditComponentEvent):
-                d = ev.dist or {}
-                kind = d.get("kind", "exponential")
-                dist = Dist(kind=kind)
-                try:
-                    g.edit_component(ev.old_id, ev.new_id, dist)
-                except KeyError:
-                    pass
+                if ev.patch and ev.node_id:
+                    try:
+                        g.edit_component_patch(ev.node_id, dict(ev.patch))
+                    except KeyError:
+                        pass
+                elif ev.old_id and ev.new_id and ev.dist is not None:
+                    d = ev.dist or {}
+                    kind = d.get("kind", "exponential")
+                    dist = Dist(kind=kind)
+                    try:
+                        g.edit_component(ev.old_id, ev.new_id, dist)
+                    except KeyError:
+                        pass
             elif isinstance(ev, EditGateEvent):
                 try:
                     g.edit_gate(ev.node_id, ev.params)

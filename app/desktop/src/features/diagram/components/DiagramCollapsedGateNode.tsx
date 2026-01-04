@@ -4,6 +4,7 @@ import { DiagramNode } from "./nodes/DiagramNode";
 import { useDiagramNodeInteractions } from "./nodes/hooks/useDiagramNodeInteractions";
 import { DiagramCollapsedGateContent } from "./nodes/variants/DiagramCollapsedGateContent";
 import { buildGateColorVars, resolveGateColor } from "../utils/gateColors";
+import type { QuickClickPayload } from "./nodes/hooks/useQuickClick";
 
 type DiagramCollapsedGateNodeProps = {
   node: DiagramLayoutNode;
@@ -21,12 +22,16 @@ type DiagramCollapsedGateNodeProps = {
   isDragging?: boolean;
   isOrganizationDraggable?: boolean;
   isDragGhost?: boolean;
+  isInteractive?: boolean;
+  isQuickClickEnabled?: boolean;
   allowExpand?: boolean;
   onSelectHover?: () => void;
   onSelectHoverEnd?: () => void;
   onPreselect?: () => void;
   onConfirm?: () => void;
   onDragStart?: (event: PointerEvent<HTMLDivElement>) => void;
+  onQuickClick?: (payload: QuickClickPayload) => void;
+  onQuickDoubleClick?: (payload: QuickClickPayload) => void;
 };
 
 export const DiagramCollapsedGateNode = ({
@@ -45,20 +50,26 @@ export const DiagramCollapsedGateNode = ({
   isDragging = false,
   isOrganizationDraggable = false,
   isDragGhost = false,
+  isInteractive = false,
+  isQuickClickEnabled = false,
   allowExpand = true,
   onSelectHover,
   onSelectHoverEnd,
   onPreselect,
   onConfirm,
   onDragStart,
+  onQuickClick,
+  onQuickDoubleClick,
 }: DiagramCollapsedGateNodeProps) => {
   const gateColor = resolveGateColor(node.subtype, node.color ?? null);
   const colorVars = buildGateColorVars(gateColor) as CSSProperties;
 
   const handlers = useDiagramNodeInteractions({
+    nodeId: node.id,
     hoverId: node.parentGateId ?? null,
     isSelectionMode,
     isDraggable,
+    isQuickClickEnabled,
     onHoverStart,
     onHoverEnd,
     onSelectHover,
@@ -66,6 +77,8 @@ export const DiagramCollapsedGateNode = ({
     onPreselect,
     onConfirm,
     onDragStart,
+    onQuickClick,
+    onQuickDoubleClick,
   });
 
   return (
@@ -84,6 +97,7 @@ export const DiagramCollapsedGateNode = ({
         isDragging,
         isOrganizationDraggable,
         isDragGhost,
+        isInteractive,
       }}
       style={{
         zIndex: 1000,
