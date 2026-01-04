@@ -3,20 +3,18 @@ import { DiagramSidePanelLeft } from "./DiagramSidePanelLeft";
 import { NodeFailuresTable } from "./NodeFailuresTable";
 import { NodeTypeIcon } from "./NodeTypeIcon";
 import type { NodeDetailsResponse } from "../../../services/nodeDetailsApi";
+import { CalculationTypeSelect } from "./CalculationTypeSelect";
 import { useNodeEdit } from "../hooks/useNodeEdit";
 import type { ToastManager } from "../hooks/useToasts";
+import type { CalculationType } from "../types/addComponent";
+import {
+  formatCalculationTypeLabel,
+  normalizeCalculationType,
+} from "../icons/calculationTypeIcons";
 
 const formatReliability = (reliability: number | null) => {
   if (reliability === null) return "—";
   return `${(reliability * 100).toFixed(1)}%`;
-};
-
-const formatCalculationType = (value: string | null) => {
-  if (!value) return "—";
-  const normalized = value.toLowerCase();
-  if (normalized.startsWith("wei")) return "Weibull";
-  if (normalized.startsWith("exp")) return "Exponencial";
-  return value;
 };
 
 const getRecordString = (
@@ -95,6 +93,8 @@ export const NodeInfoPanel = ({
     getSnapshotNumber(snapshot, "reliability") ??
     getSnapshotNumber(snapshot, "reliability_total");
   const calculationType = getDistKind(snapshot);
+  const normalizedCalculationType =
+    normalizeCalculationType(calculationType) ?? "exponential";
   const cacheId = cache ? getRecordString(cache, "id") : null;
   const kksName = cache ? getRecordString(cache, "kks_name") : null;
   const title = data?.id ?? cacheId ?? "Nodo";
@@ -106,15 +106,26 @@ export const NodeInfoPanel = ({
   const childrenCount = getSnapshotNumber(snapshot, "children_count") ?? null;
   const isKoonGate = data?.kind === "gate" && gateSubtype === "KOON";
 
-  const { isSaving, error: editError, editGate } = useNodeEdit();
+  const { isSaving, error: editError, editGate, editComponent } = useNodeEdit();
   const [kInput, setKInput] = useState(String(currentK));
   const [kServerError, setKServerError] = useState<string | null>(null);
+  const [calculationInput, setCalculationInput] = useState<CalculationType>(
+    normalizedCalculationType,
+  );
+  const [calculationServerError, setCalculationServerError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!isKoonGate) return;
     setKInput(String(currentK));
     setKServerError(null);
   }, [currentK, isKoonGate]);
+
+  useEffect(() => {
+    setCalculationInput(normalizedCalculationType);
+    setCalculationServerError(null);
+  }, [normalizedCalculationType]);
 
   const parsedK = useMemo(() => {
     if (!kInput.trim()) return null;
@@ -128,6 +139,12 @@ export const NodeInfoPanel = ({
       setKServerError(null);
     }
   }, [kInput, kServerError]);
+
+  useEffect(() => {
+    if (calculationServerError) {
+      setCalculationServerError(null);
+    }
+  }, [calculationInput, calculationServerError]);
 
   const kRange =
     childrenCount !== null ? { min: 1, max: childrenCount } : null;
@@ -146,6 +163,7 @@ export const NodeInfoPanel = ({
 
   const kIsValid = kValidationError === null && kRange !== null;
   const kIsDirty = parsedK !== null && parsedK !== currentK;
+  const calculationIsDirty = calculationInput !== normalizedCalculationType;
 
   return (
     <DiagramSidePanelLeft
@@ -241,7 +259,7 @@ export const NodeInfoPanel = ({
             <div className="node-info-panel__section">
               <h3 className="node-info-panel__section-title">Tipo de cálculo</h3>
               <span className="node-info-panel__value">
-                {formatCalculationType(calculationType)}
+                {formatCalculationTypeLabel(calculationType)}
               </span>
             </div>
             <div className="node-info-panel__section node-info-panel__section--stacked">
@@ -250,9 +268,81 @@ export const NodeInfoPanel = ({
             </div>
             <div className="node-info-panel__section node-info-panel__section--settings">
               <h3 className="node-info-panel__section-title">Ajustes</h3>
-              <p className="node-info-panel__placeholder">
-                Parámetros editables próximamente.
-              </p>
+              <div className="node-info-panel__field">
+                <label
+                  className="node-info-panel__field-label"
+                  htmlFor="component-calculation-type"
+                >
+                  Tipo de cálculo
+                </label>
+                <div className="node-info-panel__field-control">
+                  <CalculationTypeSelect
+                    id="component-calculation-type"
+                    value={calculationInput}
+                    onChange={setCalculationInput}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        setCalculationInput(normalizedCalculationType);
+                        setCalculationServerError(null);
+                      }
+                    }}
+                    disabled={isSaving}
+                  />
+                  {calculationIsDirty ? (
+                    <button
+                      type="button"
+                      className="node-info-panel__field-action"
+                      onClick={async () => {
+                        const error = await editComponent(data.id, {
+                          dist: { kind: calculationInput },
+                        });
+                        if (error) {
+                          setCalculationServerError(error.message);
+                          toasts.error(error.message, "general");
+                          return;
+                        }
+                        toasts.success("Tipo de cálculo actualizado", "general");
+                        onGraphReload();
+                        onRefresh();
+                      }}
+                      disabled={isSaving}
+                      aria-label="Aplicar tipo de cálculo"
+                    >
+                      {isSaving ? (
+                        <span className="node-info-panel__spinner" />
+                      ) : (
+                        "Aplicar"
+                      )}
+                    </button>
+                  ) : null}
+                  {calculationIsDirty ? (
+                    <button
+                      type="button"
+                      className="node-info-panel__field-action node-info-panel__field-action--ghost"
+                      onClick={() => {
+                        setCalculationInput(normalizedCalculationType);
+                        setCalculationServerError(null);
+                      }}
+                      disabled={isSaving}
+                      aria-label="Cancelar cambios"
+                    >
+                      Cancelar
+                    </button>
+                  ) : null}
+                </div>
+                {calculationServerError ? (
+                  <div className="node-info-panel__field-error">
+                    {calculationServerError}
+                  </div>
+                ) : null}
+                {editError &&
+                editError.field === "dist.kind" &&
+                !calculationServerError ? (
+                  <div className="node-info-panel__field-error">
+                    {editError.message}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </>
         ) : null}

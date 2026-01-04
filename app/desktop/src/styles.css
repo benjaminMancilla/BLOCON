@@ -2410,6 +2410,20 @@ body {
   gap: 0.5rem;
 }
 
+.node-info-panel__field-select {
+  min-width: 170px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #c5c5c5;
+  background: #fff;
+}
+
+.node-info-panel__field-select:disabled {
+  background: #f3f3f3;
+  color: #8b8b8b;
+}
+
 .node-info-panel__field-input {
   width: 110px;
   padding: 0.35rem 0.5rem;
