@@ -177,6 +177,9 @@ class GraphCoordinator:
         if node is None or not node.is_gate():
             raise ValueError("Node is not a gate")
 
+        self._normalize_gate_text_patch(node_id, patch, "label", max_length=16)
+        self._normalize_gate_text_patch(node_id, patch, "name", max_length=32)
+
         if "k" in patch:
             if getattr(node, "subtype", None) != "KOON":
                 raise NodeEditValidationError(
@@ -200,6 +203,34 @@ class GraphCoordinator:
                 )
 
         self.shared.es.edit_gate(node_id, patch)
+
+    def _normalize_gate_text_patch(
+        self,
+        node_id: str,
+        patch: dict,
+        field: str,
+        max_length: int,
+    ) -> None:
+        if field not in patch:
+            return
+        value = patch.get(field)
+        if value is None or not isinstance(value, str):
+            raise NodeEditValidationError(
+                field=field,
+                message=f"{field.capitalize()} must be a string",
+                details={},
+            )
+        trimmed = value.strip()
+        if trimmed == "":
+            patch[field] = node_id
+            return
+        if len(trimmed) > max_length:
+            raise NodeEditValidationError(
+                field=field,
+                message=f"{field.capitalize()} must be at most {max_length} characters",
+                details={"max": max_length, "length": len(trimmed)},
+            )
+        patch[field] = trimmed
 
     def edit_component(self, node_id: str, patch: dict) -> None:
         if node_id not in self.shared.es.graph.nodes:

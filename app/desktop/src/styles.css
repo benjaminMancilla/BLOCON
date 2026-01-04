@@ -1405,7 +1405,7 @@ body {
 }
 
 .diagram-side-panel--node-info {
-  width: 400px;
+  width: 440px;
 }
 
 .diagram-side-panel__collapse {
@@ -2343,6 +2343,10 @@ body {
   font-size: 0.9rem;
 }
 
+.node-info-panel__row--editable {
+  align-items: flex-start;
+}
+
 .node-info-panel__label {
   color: #475467;
   font-weight: 600;
@@ -2356,6 +2360,68 @@ body {
 
 .node-info-panel__value--conflict {
   color: #b42318;
+}
+
+.node-info-panel__inline-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.node-info-panel__inline-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  text-align: right;
+}
+
+.node-info-panel__inline-input {
+  width: 160px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #c5c5c5;
+  background: #fff;
+}
+
+.node-info-panel__inline-input:disabled {
+  background: #f3f3f3;
+  color: #8b8b8b;
+}
+
+.node-info-panel__inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-info-panel__inline-icon-button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 2px;
+  color: #101828;
+}
+
+.node-info-panel__inline-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.node-info-panel__inline-counter {
+  font-size: 0.7rem;
+  color: #667085;
+}
+
+.node-info-panel__inline-error {
+  font-size: 0.75rem;
+  color: #c12d2d;
+  text-align: right;
 }
 
 .node-info-panel__section {
@@ -2473,6 +2539,11 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.45);
   border-top-color: #fff;
   animation: nodeInfoSpin 0.8s linear infinite;
+}
+
+.node-info-panel__spinner--dark {
+  border-color: rgba(16, 24, 40, 0.2);
+  border-top-color: #101828;
 }
 
 @keyframes nodeInfoSpin {

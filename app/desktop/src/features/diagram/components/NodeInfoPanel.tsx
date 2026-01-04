@@ -53,6 +53,14 @@ const formatDisplayValue = (value: unknown): string => {
   return String(value);
 };
 
+const getGateDisplayValue = (
+  snapshot: Record<string, unknown>,
+  key: string,
+  fallback: string
+): string => {
+  return getRecordString(snapshot, key) ?? fallback;
+};
+
 const getDistKind = (snapshot: Record<string, unknown>): string | null => {
   const dist = snapshot.dist;
   if (!dist || typeof dist !== "object") return null;
@@ -105,6 +113,15 @@ export const NodeInfoPanel = ({
   const currentK = getSnapshotNumber(snapshot, "k") ?? 1;
   const childrenCount = getSnapshotNumber(snapshot, "children_count") ?? null;
   const isKoonGate = data?.kind === "gate" && gateSubtype === "KOON";
+  const gateLabel =
+    data?.kind === "gate"
+      ? getGateDisplayValue(snapshot, "label", data.id)
+      : "";
+  const gateName =
+    data?.kind === "gate"
+      ? getGateDisplayValue(snapshot, "name", data.id)
+      : "";
+  const gateId = data?.kind === "gate" ? data.id : "";
 
   const { isSaving, error: editError, editGate, editComponent } = useNodeEdit();
   const [kInput, setKInput] = useState(String(currentK));
@@ -115,12 +132,34 @@ export const NodeInfoPanel = ({
   const [calculationServerError, setCalculationServerError] = useState<
     string | null
   >(null);
+  const [labelInput, setLabelInput] = useState(gateLabel);
+  const [nameInput, setNameInput] = useState(gateName);
+  const [labelServerError, setLabelServerError] = useState<string | null>(null);
+  const [nameServerError, setNameServerError] = useState<string | null>(null);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
 
   useEffect(() => {
     if (!isKoonGate) return;
     setKInput(String(currentK));
     setKServerError(null);
   }, [currentK, isKoonGate]);
+
+  useEffect(() => {
+    if (data?.kind !== "gate") return;
+    if (!isEditingLabel) {
+      setLabelInput(gateLabel);
+      setLabelServerError(null);
+    }
+  }, [data?.kind, gateLabel, isEditingLabel]);
+
+  useEffect(() => {
+    if (data?.kind !== "gate") return;
+    if (!isEditingName) {
+      setNameInput(gateName);
+      setNameServerError(null);
+    }
+  }, [data?.kind, gateName, isEditingName]);
 
   useEffect(() => {
     setCalculationInput(normalizedCalculationType);
@@ -139,6 +178,18 @@ export const NodeInfoPanel = ({
       setKServerError(null);
     }
   }, [kInput, kServerError]);
+
+  useEffect(() => {
+    if (labelServerError) {
+      setLabelServerError(null);
+    }
+  }, [labelInput, labelServerError]);
+
+  useEffect(() => {
+    if (nameServerError) {
+      setNameServerError(null);
+    }
+  }, [nameInput, nameServerError]);
 
   useEffect(() => {
     if (calculationServerError) {
@@ -164,6 +215,22 @@ export const NodeInfoPanel = ({
   const kIsValid = kValidationError === null && kRange !== null;
   const kIsDirty = parsedK !== null && parsedK !== currentK;
   const calculationIsDirty = calculationInput !== normalizedCalculationType;
+  const labelMaxLength = 16;
+  const nameMaxLength = 32;
+  const labelTrimmed = labelInput.trim();
+  const nameTrimmed = nameInput.trim();
+  const normalizedLabel = labelTrimmed ? labelTrimmed : gateId;
+  const normalizedName = nameTrimmed ? nameTrimmed : gateId;
+  const labelValidationError =
+    labelTrimmed.length > labelMaxLength
+      ? `Label debe tener máximo ${labelMaxLength} caracteres.`
+      : null;
+  const nameValidationError =
+    nameTrimmed.length > nameMaxLength
+      ? `Nombre debe tener máximo ${nameMaxLength} caracteres.`
+      : null;
+  const labelIsDirty = normalizedLabel !== gateLabel;
+  const nameIsDirty = normalizedName !== gateName;
 
   return (
     <DiagramSidePanelLeft
@@ -360,17 +427,249 @@ export const NodeInfoPanel = ({
                     {gateSubtype ?? "—"}
                   </span>
                 </div>
-              <div className="node-info-panel__row">
+              <div className="node-info-panel__row node-info-panel__row--editable">
                 <span className="node-info-panel__label">Etiqueta</span>
-                <span className="node-info-panel__value">
-                  {getRecordString(snapshot, "label") ?? "—"}
-                </span>
+                <div className="node-info-panel__inline-field">
+                  <div className="node-info-panel__inline-edit">
+                    {isEditingLabel ? (
+                      <>
+                        <input
+                          type="text"
+                          value={labelInput}
+                          onChange={(event) => setLabelInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              setLabelInput(gateLabel);
+                              setLabelServerError(null);
+                              setIsEditingLabel(false);
+                            }
+                            if (
+                              event.key === "Enter" &&
+                              !labelValidationError &&
+                              labelIsDirty
+                            ) {
+                              event.preventDefault();
+                              void (async () => {
+                                const error = await editGate(gateId, {
+                                  label: normalizedLabel,
+                                });
+                                if (error) {
+                                  setLabelServerError(error.message);
+                                  return;
+                                }
+                                toasts.success("Label actualizada", "general");
+                                setIsEditingLabel(false);
+                                onGraphReload();
+                                onRefresh();
+                              })();
+                            }
+                          }}
+                          className="node-info-panel__inline-input"
+                          maxLength={labelMaxLength + 1}
+                          disabled={isSaving}
+                          aria-label="Editar etiqueta"
+                        />
+                        <div className="node-info-panel__inline-actions">
+                          <button
+                            type="button"
+                            className="node-info-panel__inline-icon-button"
+                            onClick={async () => {
+                              const error = await editGate(gateId, {
+                                label: normalizedLabel,
+                              });
+                              if (error) {
+                                setLabelServerError(error.message);
+                                return;
+                              }
+                              toasts.success("Label actualizada", "general");
+                              setIsEditingLabel(false);
+                              onGraphReload();
+                              onRefresh();
+                            }}
+                            disabled={isSaving || !labelIsDirty || !!labelValidationError}
+                            aria-label="Aplicar etiqueta"
+                          >
+                            {isSaving ? (
+                              <span className="node-info-panel__spinner node-info-panel__spinner--dark" />
+                            ) : (
+                              "✅"
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="node-info-panel__inline-icon-button"
+                            onClick={() => {
+                              setLabelInput(gateLabel);
+                              setLabelServerError(null);
+                              setIsEditingLabel(false);
+                            }}
+                            disabled={isSaving}
+                            aria-label="Cancelar edición de etiqueta"
+                          >
+                            ✖
+                          </button>
+                        </div>
+                        <span className="node-info-panel__inline-counter">
+                          {labelTrimmed.length}/{labelMaxLength}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="node-info-panel__value">
+                          {gateLabel || "—"}
+                        </span>
+                        <button
+                          type="button"
+                          className="node-info-panel__inline-icon-button"
+                          onClick={() => {
+                            setIsEditingLabel(true);
+                            setLabelInput(gateLabel);
+                          }}
+                          aria-label="Editar etiqueta"
+                        >
+                          ✏️
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {labelValidationError ? (
+                    <div className="node-info-panel__inline-error">
+                      {labelValidationError}
+                    </div>
+                  ) : null}
+                  {labelServerError ? (
+                    <div className="node-info-panel__inline-error">
+                      {labelServerError}
+                    </div>
+                  ) : null}
+                  {editError && editError.field === "label" && !labelServerError ? (
+                    <div className="node-info-panel__inline-error">
+                      {editError.message}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-              <div className="node-info-panel__row">
+              <div className="node-info-panel__row node-info-panel__row--editable">
                 <span className="node-info-panel__label">Nombre</span>
-                <span className="node-info-panel__value">
-                  {getRecordString(snapshot, "name") ?? "—"}
-                </span>
+                <div className="node-info-panel__inline-field">
+                  <div className="node-info-panel__inline-edit">
+                    {isEditingName ? (
+                      <>
+                        <input
+                          type="text"
+                          value={nameInput}
+                          onChange={(event) => setNameInput(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              setNameInput(gateName);
+                              setNameServerError(null);
+                              setIsEditingName(false);
+                            }
+                            if (
+                              event.key === "Enter" &&
+                              !nameValidationError &&
+                              nameIsDirty
+                            ) {
+                              event.preventDefault();
+                              void (async () => {
+                                const error = await editGate(gateId, {
+                                  name: normalizedName,
+                                });
+                                if (error) {
+                                  setNameServerError(error.message);
+                                  return;
+                                }
+                                toasts.success("Nombre actualizado", "general");
+                                setIsEditingName(false);
+                                onGraphReload();
+                                onRefresh();
+                              })();
+                            }
+                          }}
+                          className="node-info-panel__inline-input"
+                          maxLength={nameMaxLength + 1}
+                          disabled={isSaving}
+                          aria-label="Editar nombre"
+                        />
+                        <div className="node-info-panel__inline-actions">
+                          <button
+                            type="button"
+                            className="node-info-panel__inline-icon-button"
+                            onClick={async () => {
+                              const error = await editGate(gateId, {
+                                name: normalizedName,
+                              });
+                              if (error) {
+                                setNameServerError(error.message);
+                                return;
+                              }
+                              toasts.success("Nombre actualizado", "general");
+                              setIsEditingName(false);
+                              onGraphReload();
+                              onRefresh();
+                            }}
+                            disabled={isSaving || !nameIsDirty || !!nameValidationError}
+                            aria-label="Aplicar nombre"
+                          >
+                            {isSaving ? (
+                              <span className="node-info-panel__spinner node-info-panel__spinner--dark" />
+                            ) : (
+                              "✅"
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="node-info-panel__inline-icon-button"
+                            onClick={() => {
+                              setNameInput(gateName);
+                              setNameServerError(null);
+                              setIsEditingName(false);
+                            }}
+                            disabled={isSaving}
+                            aria-label="Cancelar edición de nombre"
+                          >
+                            ✖
+                          </button>
+                        </div>
+                        <span className="node-info-panel__inline-counter">
+                          {nameTrimmed.length}/{nameMaxLength}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="node-info-panel__value">
+                          {gateName || "—"}
+                        </span>
+                        <button
+                          type="button"
+                          className="node-info-panel__inline-icon-button"
+                          onClick={() => {
+                            setIsEditingName(true);
+                            setNameInput(gateName);
+                          }}
+                          aria-label="Editar nombre"
+                        >
+                          ✏️
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  {nameValidationError ? (
+                    <div className="node-info-panel__inline-error">
+                      {nameValidationError}
+                    </div>
+                  ) : null}
+                  {nameServerError ? (
+                    <div className="node-info-panel__inline-error">
+                      {nameServerError}
+                    </div>
+                  ) : null}
+                  {editError && editError.field === "name" && !nameServerError ? (
+                    <div className="node-info-panel__inline-error">
+                      {editError.message}
+                    </div>
+                  ) : null}
+                </div>
               </div>
               <div className="node-info-panel__row">
                 <span className="node-info-panel__label">Confiabilidad</span>
