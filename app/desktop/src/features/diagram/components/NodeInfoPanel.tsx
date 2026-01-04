@@ -185,11 +185,6 @@ export const NodeInfoPanel = ({
             <div className="node-info-panel__header-text">
               <div className="node-info-panel__title-row">
                 <h2 className="node-info-panel__title">{title}</h2>
-                {conflict ? (
-                  <span className="node-info-panel__badge node-info-panel__badge--conflict">
-                    Faltan fallas
-                  </span>
-                ) : null}
               </div>
               {kksName ? (
                 <p className="node-info-panel__subtitle">{kksName}</p>
@@ -246,6 +241,11 @@ export const NodeInfoPanel = ({
             </div>
             <div className="node-info-panel__section">
               <h3 className="node-info-panel__section-title">Confiabilidad</h3>
+                {conflict ? (
+                  <span className="node-info-panel__badge node-info-panel__badge--conflict">
+                    Fallas insuficientes
+                  </span>
+                ) : null}
               <span
                 className={
                   conflict

@@ -2229,6 +2229,7 @@ body {
   flex-direction: column;
   gap: 16px;
   height: 100%;
+  margin-bottom: 10px;
 }
 
 .node-info-panel__header {
