@@ -28,6 +28,7 @@ from .handlers import (
     ViewsHandler,
     EvaluationHandler,
     FailuresHandler,
+    NodeDetailsHandler,
 )
 
 HOST = "127.0.0.1"
@@ -189,6 +190,12 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/graph":
             handler = self._get_handler(GraphHandler)
             handler.handle_get_graph()
+            return
+        
+        if path.startswith("/nodes/") and path.endswith("/details"):
+            node_id = path[len("/nodes/"):-len("/details")].strip("/")
+            handler = self._get_handler(NodeDetailsHandler)
+            handler.handle_node_details(node_id)
             return
         
         if path.startswith("/graph/"):

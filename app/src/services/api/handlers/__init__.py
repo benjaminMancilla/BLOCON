@@ -6,6 +6,7 @@ from .components import ComponentSearchHandler
 from .views import ViewsHandler
 from .evaluate import EvaluationHandler
 from .failures import FailuresHandler
+from .nodes import NodeDetailsHandler
 
 __all__ = [
     "GraphHandler",
@@ -16,4 +17,5 @@ __all__ = [
     "ComponentSearchHandler",
     "EvaluationHandler",
     "FailuresHandler",
+    "NodeDetailsHandler",
 ]
