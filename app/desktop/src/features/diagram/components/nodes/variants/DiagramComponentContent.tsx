@@ -34,7 +34,6 @@ export const DiagramComponentContent = ({ node }: DiagramComponentContentProps) 
         </span>
       </div>
       <div className="diagram-node__reliability">
-        <span className="diagram-node__reliability-label">Confiabilidad</span>
         <span className="diagram-node__reliability-value">
           {formatReliability(node.reliability)}
         </span>

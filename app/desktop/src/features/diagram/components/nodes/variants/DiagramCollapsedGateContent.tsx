@@ -1,19 +1,11 @@
 import type { DiagramLayoutNode } from "../../../hooks/useDiagramLayout";
+import { getGatePrimaryLabel } from "../utils/gateText";
 
-const formatGateMeta = (node: DiagramLayoutNode) => {
-  const subtype = node.subtype?.toLowerCase();
-  if (subtype === "koon") {
-    const total = node.childCount ?? node.k ?? 1;
-    const required = node.k ?? 1;
-    return `Gate ${required}/${total}`;
+const formatReliability = (reliability?: number | null) => {
+  if (reliability === null || reliability === undefined) {
+    return "—";
   }
-  if (subtype === "or") {
-    return "Gate OR";
-  }
-  if (subtype === "and") {
-    return "Gate AND";
-  }
-  return "Gate";
+  return `${(reliability * 100).toFixed(1)}%`;
 };
 
 type DiagramCollapsedGateContentProps = {
@@ -27,7 +19,9 @@ export const DiagramCollapsedGateContent = ({
   allowExpand,
   onExpand,
 }: DiagramCollapsedGateContentProps) => {
-  const gateMeta = formatGateMeta(node);
+  const gateLabel = getGatePrimaryLabel(node);
+  const gateReliability = formatReliability(node.reliability);
+  const gateMeta = "Gate";
 
   return (
     <>
@@ -45,12 +39,12 @@ export const DiagramCollapsedGateContent = ({
           +
         </button>
       ) : null}
-      <div className="diagram-node__title">{node.id}</div>
+      <div className="diagram-node__title">{gateLabel}</div>
       <div className="diagram-node__meta">
         <span className="diagram-node__icon">⟲</span>
         <span className="diagram-node__meta-text">{gateMeta}</span>
       </div>
-      <div className="diagram-node__collapsed-label">{gateMeta}</div>
+      <div className="diagram-node__collapsed-label">{gateReliability}</div>
     </>
   );
 };

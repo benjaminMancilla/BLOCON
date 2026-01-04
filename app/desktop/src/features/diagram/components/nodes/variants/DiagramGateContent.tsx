@@ -1,9 +1,5 @@
 import type { DiagramLayoutNode } from "../../../hooks/useDiagramLayout";
-
-const formatGateLabel = (node: DiagramLayoutNode) => {
-  const subtype = node.subtype?.toUpperCase() ?? "GATE";
-  return `${node.id} <${subtype}>`;
-};
+import { getGatePrimaryLabel } from "../utils/gateText";
 
 type DiagramGateContentProps = {
   node: DiagramLayoutNode;
@@ -15,10 +11,11 @@ export const DiagramGateContent = ({ node }: DiagramGateContentProps) => {
     node.childCount !== undefined
       ? `${node.k ?? 1}/${node.childCount}`
       : `${node.k ?? 1}`;
+  const gateLabel = getGatePrimaryLabel(node);
 
   return (
     <>
-      <span className="diagram-gate__label">{formatGateLabel(node)}</span>
+      <span className="diagram-gate__label">{gateLabel}</span>
       {isKoon && <span className="diagram-gate__badge">{koonLabel}</span>}
     </>
   );

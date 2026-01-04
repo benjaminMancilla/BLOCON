@@ -1088,6 +1088,11 @@ body {
   cursor: default;
   position: relative;
   z-index: 1;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .diagram-gate__label:hover {
@@ -1355,9 +1360,18 @@ body {
   z-index: 1;
 }
 
+.diagram-node--collapsed-gate .diagram-node__title,
+.diagram-node--collapsed-gate .diagram-node__collapsed-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .diagram-node__collapsed-label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 1.0rem;
+  font-weight: 500;
+  color: rgba(15, 23, 42, 0.7);
 }
 
 .diagram-node--organization-placeholder {

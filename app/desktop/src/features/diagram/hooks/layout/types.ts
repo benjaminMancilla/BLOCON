@@ -5,6 +5,8 @@ export type DiagramLayoutNode = {
   type: "component" | "gate";
   subtype?: string | null;
   k?: number | null;
+  label?: string | null;
+  name?: string | null;
   color?: string | null;
   parentGateId?: string | null;
   x: number;
