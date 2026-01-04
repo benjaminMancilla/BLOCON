@@ -9,7 +9,7 @@ import {
   type AddComponentState,
   type AddComponentEvent,
   type AddComponentContext,
-} from "../machines/AddComponentMachine";
+} from "../machines/addComponentMachine";
 
 type UseAddComponentOptions = {
   onInsertSuccess?: (componentId: string) => void;
@@ -79,15 +79,26 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     dispatch({ type: "START" });
   }, []);
 
-  const selectComponent = useCallback((componentId: string, componentName?: string) => {
-    shouldAutoStartSelection.current = true;
-    setFormState({
-      componentId,
-      calculationType: "exponential",
-    });
-    dispatch({ type: "SELECT_COMPONENT", componentId, componentName: componentName || componentId });
-    // La transición automática a selectingTarget ocurre vía useEffect
-  }, []);
+  const selectComponent = useCallback(
+    (
+      componentId: string,
+      componentName?: string,
+      options: { autoStartSelection?: boolean } = {}
+    ) => {
+      shouldAutoStartSelection.current = options.autoStartSelection ?? true;
+      setFormState({
+        componentId,
+        calculationType: "exponential",
+      });
+      dispatch({
+        type: "SELECT_COMPONENT",
+        componentId,
+        componentName: componentName || componentId,
+      });
+      // La transición automática a selectingTarget ocurre vía useEffect
+    },
+    []
+  );
 
   const clearComponent = useCallback(() => {
     setFormState({

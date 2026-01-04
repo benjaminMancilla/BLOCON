@@ -69,6 +69,9 @@ type DiagramCanvasProps = {
   canOpenNodeContextMenu?: boolean;
   onNodeInfoOpen?: (nodeId: string) => void;
   onGraphReload?: () => void;
+  onEmptyAdd?: () => void;
+  isEmptyAddDisabled?: boolean;
+  isEmptyAddActive?: boolean;
 };
 
 export const DiagramCanvas = ({
@@ -109,6 +112,9 @@ export const DiagramCanvas = ({
   canOpenNodeContextMenu = true,
   onNodeInfoOpen,
   onGraphReload,
+  onEmptyAdd,
+  isEmptyAddDisabled = false,
+  isEmptyAddActive = false,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const { cameraStyle, handlers, camera } = useDiagramCamera();
@@ -376,6 +382,20 @@ export const DiagramCanvas = ({
             <div className="diagram-canvas__placeholder">
               <div className="diagram-canvas__node">Sin datos</div>
               <p>No hay nodos disponibles para renderizar el diagrama.</p>
+              {onEmptyAdd ? (
+                <div className="diagram-canvas__placeholder-actions">
+                  <button
+                    type="button"
+                    className={`diagram-topbar__button${
+                      isEmptyAddActive ? " diagram-topbar__button--active" : ""
+                    }`}
+                    onClick={onEmptyAdd}
+                    disabled={isEmptyAddDisabled}
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
           {hasDiagram && (

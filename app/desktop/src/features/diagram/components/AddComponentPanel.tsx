@@ -25,6 +25,7 @@ type AddComponentPanelProps = {
   existingNodeIds?: Set<string>;
   resetToken?: number;
   searchState: ComponentSearchResult;
+  isRootInsertMode?: boolean;
   onCancelAdd: () => void;
   onComponentSelect: (componentId: string, componentName: string) => void;
   onSelectionConfirm: (selection: DiagramNodeSelection) => void;
@@ -50,6 +51,7 @@ export const AddComponentPanel = ({
   existingNodeIds = new Set<string>(),
   resetToken = 0,
   searchState,
+  isRootInsertMode = false,
   onCancelAdd,
   onComponentSelect,
   onSelectionConfirm,
@@ -134,7 +136,9 @@ export const AddComponentPanel = ({
   ];
 
   const subtitle = selectedComponent
-    ? step === "selection"
+    ? isRootInsertMode
+      ? "Confirma si quieres agregarlo como componente raíz del diagrama."
+      : step === "selection"
       ? "Selecciona el elemento del diagrama para insertar el componente."
       : confirmedSelection?.type === "component" ||
           confirmedSelection?.type === "collapsedGate"
@@ -194,15 +198,17 @@ export const AddComponentPanel = ({
             resetToken={resetToken}
           />
 
-          <DiagramElementSelector
-            status={selectionStatus}
-            draftSelection={draftSelection}
-            confirmedSelection={confirmedSelection}
-            onSelectionConfirmed={onSelectionConfirm}
-            onSelectionCleared={onSelectionCleared}
-            onSelectionCanceled={onSelectionCancel}
-            onSelectionStart={onSelectionStart}
-          />
+          {!isRootInsertMode ? (
+            <DiagramElementSelector
+              status={selectionStatus}
+              draftSelection={draftSelection}
+              confirmedSelection={confirmedSelection}
+              onSelectionConfirmed={onSelectionConfirm}
+              onSelectionCleared={onSelectionCleared}
+              onSelectionCanceled={onSelectionCancel}
+              onSelectionStart={onSelectionStart}
+            />
+          ) : null}
 
           {shouldShowGateSection ? (
             <GateTypeSelector

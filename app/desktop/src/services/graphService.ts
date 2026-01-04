@@ -1,5 +1,6 @@
 import { GraphData } from "../core/graph";
 import type { OrganizationPayload } from "../features/diagram/types/organization";
+import type { CalculationType } from "../features/diagram/types/addComponent";
 import { fetchWithCloudErrorHandling } from "./apiClient";
 import { enqueueGraphRequest } from "./graphRequestQueue";
 
@@ -30,6 +31,24 @@ export async function insertOrganization(
       body: JSON.stringify(payload),
     });
     console.log('[INSERT] Response status:', response.status);
+    if (!response.ok) {
+      throw new Error(`Backend responded with ${response.status}`);
+    }
+  });
+}
+
+export async function addRootComponent(payload: {
+  componentId: string;
+  calculationType: CalculationType;
+}): Promise<void> {
+  return enqueueGraphRequest(async () => {
+    const response = await fetch(`${BACKEND_ENDPOINT}/graph/root`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
     if (!response.ok) {
       throw new Error(`Backend responded with ${response.status}`);
     }

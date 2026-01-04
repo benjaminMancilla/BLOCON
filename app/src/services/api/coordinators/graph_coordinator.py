@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ..shared import SharedState
 
 from src.model.graph.graph import ReliabilityGraph
+from src.model.graph.dist import Dist
 from src.model.eventsourcing.events import SnapshotEvent
 from src.services.api.graph_snapshot import serialize_graph, serialize_node
 
@@ -152,6 +153,19 @@ class GraphCoordinator:
             position_reference_id=position_reference_id,
             children_order=children_order,
             k=k,
+            unit_type=unit_type,
+        )
+
+    def add_root_component(
+        self,
+        new_comp_id: str,
+        calculation_type: str,
+        unit_type: str | None = None,
+    ) -> None:
+        dist = Dist(kind=calculation_type)
+        self.shared.es.add_root_component(
+            new_id=new_comp_id,
+            dist=dist,
             unit_type=unit_type,
         )
     
