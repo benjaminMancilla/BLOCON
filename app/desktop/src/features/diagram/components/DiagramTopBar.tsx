@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { TopbarReliabilityIndicator } from "./ReliabilityIndicator";
 
 type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
+  reliabilityTotal?: number | null;
   isAddMode?: boolean;
   isBlocked?: boolean;
   isAddDisabled?: boolean;
@@ -50,6 +52,7 @@ type DiagramTopBarProps = {
 export const DiagramTopBar = ({
   title = "BLOCON",
   subtitle = "Lienzo base de diagrama",
+  reliabilityTotal = null,
   isAddMode = false,
   isBlocked = false,
   isAddDisabled = false,
@@ -90,15 +93,18 @@ export const DiagramTopBar = ({
         isBlocked ? " diagram-topbar--blocked" : ""
       }`}
     >
-      <div>
-        <p className="diagram-topbar__eyebrow">Diagrama</p>
-        <h1 className="diagram-topbar__title">{title}</h1>
-        <p className="diagram-topbar__subtitle">{subtitle}</p>
-        {isViewerMode ? (
-          <p className="diagram-topbar__viewer-label">
-            VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
-          </p>
-        ) : null}
+      <div className="diagram-topbar__summary">
+        <div className="diagram-topbar__titles">
+          <p className="diagram-topbar__eyebrow">Diagrama</p>
+          <h1 className="diagram-topbar__title">{title}</h1>
+          <p className="diagram-topbar__subtitle">{subtitle}</p>
+          {isViewerMode ? (
+            <p className="diagram-topbar__viewer-label">
+              VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
+            </p>
+          ) : null}
+        </div>
+        <TopbarReliabilityIndicator reliabilityTotal={0.98} />
       </div>
       <div className="diagram-topbar__actions">
         {isViewerMode ? (

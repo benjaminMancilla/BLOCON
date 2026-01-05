@@ -412,6 +412,7 @@ function App() {
         isViewerMode={versionViewer.isActive}
         viewerVersion={versionViewer.version}
         skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
+        reliabilityTotal={activeGraph.reliability_total ?? null}
         cloudSaveState={{
           isBusy: cloudActions.cloudActionInFlight === "save",
           label:

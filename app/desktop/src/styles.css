@@ -63,6 +63,17 @@ body {
   margin: 0 0 4px;
 }
 
+.diagram-topbar__summary {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.diagram-topbar__titles {
+  display: flex;
+  flex-direction: column;
+}
+
 .diagram-topbar__title {
   margin: 0;
   font-size: 1.5rem;
@@ -85,6 +96,91 @@ body {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.topbar-reliability {
+  --reliability-color: #64748b;
+  --reliability-color-soft: #cbd5f5;
+  --reliability-bg: #f1f5f9;
+  --reliability-text: #475569;
+  --reliability-border: rgba(148, 163, 184, 0.5);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-reliability__ring {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.topbar-reliability__ring-svg {
+  transform: rotate(-90deg);
+}
+
+.topbar-reliability__track {
+  fill: none;
+  stroke: #e2e8f0;
+  opacity: 0.9;
+}
+
+.topbar-reliability__progress {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.3s ease;
+}
+
+.topbar-reliability__value {
+  position: absolute;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.topbar-reliability__status-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--reliability-bg);
+  color: var(--reliability-text);
+  border: 1px solid var(--reliability-border);
+}
+
+.topbar-reliability--optimal {
+  --reliability-color: #16a34a;
+  --reliability-color-soft: #86efac;
+  --reliability-bg: rgba(34, 197, 94, 0.12);
+  --reliability-text: #15803d;
+  --reliability-border: rgba(22, 163, 74, 0.35);
+}
+
+.topbar-reliability--acceptable {
+  --reliability-color: #eab308;
+  --reliability-color-soft: #fde68a;
+  --reliability-bg: rgba(234, 179, 8, 0.16);
+  --reliability-text: #a16207;
+  --reliability-border: rgba(234, 179, 8, 0.35);
+}
+
+.topbar-reliability--moderate {
+  --reliability-color: #f97316;
+  --reliability-color-soft: #fdba74;
+  --reliability-bg: rgba(249, 115, 22, 0.16);
+  --reliability-text: #c2410c;
+  --reliability-border: rgba(249, 115, 22, 0.35);
+}
+
+.topbar-reliability--danger {
+  --reliability-color: #ef4444;
+  --reliability-color-soft: #fca5a5;
+  --reliability-bg: rgba(239, 68, 68, 0.16);
+  --reliability-text: #b91c1c;
+  --reliability-border: rgba(239, 68, 68, 0.35);
 }
 
 .diagram-topbar__actions {
@@ -1011,7 +1107,7 @@ body {
   height: 28px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
-  border: 2px solid #1f293728;
+  border: 2px solid #c7c9cccb;
   display: inline-flex;
   align-items: center;
   justify-content: center;
