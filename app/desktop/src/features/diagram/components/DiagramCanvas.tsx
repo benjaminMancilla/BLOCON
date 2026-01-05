@@ -118,7 +118,6 @@ export const DiagramCanvas = ({
   isEmptyAddActive = false,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { collapsedGateIdSet, collapseGate, expandGate } = viewState;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
   const nodeContextMenu = useNodeContextMenu();
@@ -179,6 +178,12 @@ export const DiagramCanvas = ({
     },
     [organization.collapsedGateIdSet, organization.graph, lastFailureById]
   );
+
+  const { cameraStyle, handlers, camera } = useDiagramCamera({
+    viewportRef: surfaceRef,
+    nodes: layout.nodes,
+    gateAreas: layout.gateAreas,
+  });
 
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
   const layoutNodeById = useMemo(
