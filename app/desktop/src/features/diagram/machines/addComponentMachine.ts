@@ -45,7 +45,7 @@ export function addComponentReducer(
 ): AddComponentState {
   // Manejar RESET globalmente - puede ocurrir desde cualquier estado
   if (event.type === "RESET") {
-    return { type: "idle" };
+    return { type: "searchingComponent" };
   }
 
   // Manejar CANCEL globalmente - vuelve a idle desde cualquier estado
