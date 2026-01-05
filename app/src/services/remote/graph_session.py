@@ -199,3 +199,23 @@ class GraphSession:
     def put_json(self, url_or_path: str, obj: Any) -> dict:
         raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         return self.put_bytes(url_or_path, raw, content_type="application/json")
+
+    @_sharepoint_retry()
+    def delete(self, url_or_path: str) -> None:
+        url = self._abs_url(url_or_path)
+        r = self._http.delete(
+            url,
+            headers=self._headers(),
+            timeout=self.s.timeout_s,
+        )
+
+        if r.status_code == 401:
+            self._token = None
+            r = self._http.delete(
+                url,
+                headers=self._headers(),
+                timeout=self.s.timeout_s,
+            )
+
+        if r.status_code >= 400:
+            raise GraphError(r.status_code, url, r.text or "")

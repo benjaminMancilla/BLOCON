@@ -14,6 +14,10 @@ CLOUD_ERROR_MESSAGES = {
     "event-history": "No se pudo obtener el historial de eventos de la nube.",
     "evaluate": "No se pudo evaluar la confiabilidad.",
     "failures-reload": "No se pudieron recargar las fallas.",
+    "global-view-load": "No se pudo cargar la vista global.",
+    "global-view-save": "No se pudo guardar la vista global.",
+    "global-view-delete": "No se pudo eliminar la vista global.",
+    "global-view-reload": "No se pudo recargar la vista global.",
 }
 
 

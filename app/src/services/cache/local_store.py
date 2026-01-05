@@ -14,6 +14,7 @@ from .repositories import (
     DraftRepo,
     DraftsRepo,
     DiagramViewRepo,
+    GlobalDiagramViewRepo,
     SavedViewsRepo,
     EventLogRepo,
 )
@@ -64,6 +65,7 @@ class LocalWorkspaceStore:
         self.draft = DraftRepo(data_dir=self.data_dir)
         self.drafts = DraftsRepo(data_dir=self.data_dir)
         self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
+        self.global_view = GlobalDiagramViewRepo(data_dir=self.cache_dir)
         self.saved_views = SavedViewsRepo(data_dir=self.cache_dir)
         self._eventsourcing_store: Any | None = None
 
@@ -163,6 +165,12 @@ class LocalWorkspaceStore:
 
     def save_diagram_view(self, view: Dict[str, Any]) -> None:
         self.diagram_view.save(view or {})
+
+    def load_global_view_cache(self) -> Dict[str, Any] | None:
+        return self.global_view.load()
+
+    def save_global_view_cache(self, view: Dict[str, Any] | None) -> None:
+        self.global_view.save(view)
 
     # --- saved views (multi) ---
     def saved_views_list(self) -> List[Dict[str, Any]]:

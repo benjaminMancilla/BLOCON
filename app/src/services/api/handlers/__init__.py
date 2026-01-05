@@ -3,6 +3,7 @@ from .cloud import CloudHandler
 from .events import EventHistoryHandler
 from .drafts import DraftHandler
 from .components import ComponentSearchHandler
+from .global_view import GlobalViewHandler
 from .views import ViewsHandler
 from .evaluate import EvaluationHandler
 from .failures import FailuresHandler
@@ -14,6 +15,7 @@ __all__ = [
     "EventHistoryHandler",
     "DraftHandler",
     "ViewsHandler",
+    "GlobalViewHandler",
     "ComponentSearchHandler",
     "EvaluationHandler",
     "FailuresHandler",

@@ -26,6 +26,7 @@ from .handlers import (
     DraftHandler,
     ComponentSearchHandler,
     ViewsHandler,
+    GlobalViewHandler,
     EvaluationHandler,
     FailuresHandler,
     NodeDetailsHandler,
@@ -254,6 +255,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler.handle_list_views()
             return
         
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_get()
+            return
+        
         # 404
         handler = self._get_handler(GraphHandler)
         handler._send_json(404, {"error": "not found"})
@@ -355,6 +361,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler.handle_create_view(payload)
             return
 
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            payload = handler._read_json_body()
+            handler.handle_global_view_save(payload)
+            return
+
+        if path == "/views/global/reload":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_reload()
+            return
+
         if path.startswith("/views/") and path.endswith("/load"):
             view_id = path[len("/views/"):-len("/load")].strip("/")
             handler = self._get_handler(ViewsHandler)
@@ -454,6 +471,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
         
         # View routes
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_delete()
+            return
+
         if path.startswith("/views/"):
             view_id = path[len("/views/"):].strip()
             handler = self._get_handler(ViewsHandler)
