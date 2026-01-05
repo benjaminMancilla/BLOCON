@@ -28,6 +28,13 @@ type DraftLoadResponse = {
   draft?: DraftApiWrapper;
 };
 
+export type DraftListResult = {
+  items: DraftSummary[];
+  maxDrafts: number;
+  draftCount: number;
+  isFull: boolean;
+};
+
 const normalizeDraft = (entry: DraftApiEntry | DraftApiWrapper): DraftSummary => {
   const data: DraftApiEntry = "meta" in entry ? (entry.meta ?? {} as DraftApiEntry) : entry;
   const draftName =
@@ -43,14 +50,27 @@ const normalizeDraft = (entry: DraftApiEntry | DraftApiWrapper): DraftSummary =>
   };
 };
 
-export async function listDrafts(): Promise<DraftSummary[]> {
+export async function listDrafts(): Promise<DraftListResult> {
   return enqueueGraphRequest(async () => {
     const response = await fetch(`${BACKEND_ENDPOINT}/drafts`);
     if (!response.ok) {
       throw new Error(`Backend responded with ${response.status}`);
     }
-    const data = (await response.json()) as { drafts?: DraftApiEntry[] };
-    return (data.drafts ?? []).map((entry) => normalizeDraft(entry));
+    const data = (await response.json()) as {
+      items?: DraftApiEntry[];
+      maxDrafts?: number;
+      draftCount?: number;
+      isFull?: boolean;
+    };
+    const items = (data.items ?? []).map((entry) => normalizeDraft(entry));
+    const maxDrafts = data.maxDrafts ?? items.length;
+    const draftCount = data.draftCount ?? items.length;
+    return {
+      items,
+      maxDrafts,
+      draftCount,
+      isFull: data.isFull ?? draftCount >= maxDrafts,
+    };
   });
 }
 

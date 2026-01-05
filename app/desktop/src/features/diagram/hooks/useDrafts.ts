@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { DraftSummary } from "../../../services/draftService";
+import type { DraftListResult, DraftSummary } from "../../../services/draftService";
 import {
   createDraft,
   deleteDraft,
@@ -18,6 +18,12 @@ type DraftActionState = {
 
 export const useDrafts = () => {
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
+  const [draftLimit, setDraftLimit] = useState<DraftListResult>({
+    items: [],
+    maxDrafts: 0,
+    draftCount: 0,
+    isFull: false,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [actionInFlight, setActionInFlight] =
     useState<DraftActionState | null>(null);
@@ -25,10 +31,17 @@ export const useDrafts = () => {
   const refreshDrafts = useCallback(async () => {
     setIsLoading(true);
     try {
-      const items = await listDrafts();
-      setDrafts(items);
+      const result = await listDrafts();
+      setDrafts(result.items);
+      setDraftLimit(result);
     } catch (error) {
       setDrafts([]);
+      setDraftLimit({
+        items: [],
+        maxDrafts: 0,
+        draftCount: 0,
+        isFull: false,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -52,11 +65,11 @@ export const useDrafts = () => {
 
   const handleCreate = useCallback(
     async (name?: string) => {
-      const result = await handleAction({ type: "create" }, () =>
-        createDraft(name),
-      );
-      await refreshDrafts();
-      return result;
+      try {
+        return await handleAction({ type: "create" }, () => createDraft(name));
+      } finally {
+        await refreshDrafts();
+      }
     },
     [handleAction, refreshDrafts],
   );
@@ -110,6 +123,9 @@ export const useDrafts = () => {
     isLoading,
     actionInFlight,
     refreshDrafts,
+    draftCount: draftLimit.draftCount,
+    maxDrafts: draftLimit.maxDrafts,
+    isFull: draftLimit.isFull,
     createDraft: handleCreate,
     saveDraft: handleSave,
     renameDraft: handleRename,

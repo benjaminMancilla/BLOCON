@@ -499,6 +499,8 @@ function App() {
             <DraftsMenu
               drafts={draftHandlers.drafts}
               isLoading={draftHandlers.isLoading}
+              maxDrafts={draftHandlers.maxDrafts}
+              isFull={draftHandlers.isFull}
               isBusy={
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateDraft

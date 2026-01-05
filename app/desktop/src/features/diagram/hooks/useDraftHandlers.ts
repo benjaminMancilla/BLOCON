@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import { useDrafts } from "./useDrafts";
 import { useDraftToasts } from "./useToasts";
-import type { ToastManager  } from "./useToasts";
+import type { ToastManager } from "./useToasts";
 
 type UseDraftHandlersOptions = {
-  toasts: ToastManager ;
+  toasts: ToastManager;
   onGraphReload?: () => void;
 };
 
@@ -30,9 +30,9 @@ export function useDraftHandlers({ toasts, onGraphReload }: UseDraftHandlersOpti
   );
 
   const handleSave = useCallback(
-    async (draftId: string) => {
+    async (draftId: string, name?: string) => {
       try {
-        await drafts.saveDraft(draftId);
+        await drafts.saveDraft(draftId, name);
         draftToasts.showSaveSuccess();
       } catch (error) {
         console.error("Draft save failed:", error);
@@ -93,6 +93,9 @@ export function useDraftHandlers({ toasts, onGraphReload }: UseDraftHandlersOpti
     drafts: drafts.drafts,
     isLoading: drafts.isLoading,
     actionInFlight: drafts.actionInFlight,
+    draftCount: drafts.draftCount,
+    maxDrafts: drafts.maxDrafts,
+    isFull: drafts.isFull,
     
     // Actions with integrated error handling and toasts
     handleCreate,

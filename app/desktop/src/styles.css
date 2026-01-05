@@ -392,6 +392,14 @@ body {
   gap: 10px;
 }
 
+.drafts-menu__full {
+  margin: 0;
+  color: #667085;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
 .drafts-menu__input {
   border: 1px solid #d0d5dd;
   border-radius: 10px;
