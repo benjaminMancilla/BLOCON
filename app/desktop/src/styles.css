@@ -1032,19 +1032,18 @@ body {
   gap: 6px;
   padding: 10px 16px;
   z-index: 10;
+  outline: 3px solid transparent;
 }
 
 .diagram-node--selectable {
   transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease,
     outline-color 120ms ease;
-  outline: 3px solid transparent;
   cursor: pointer;
 }
 
 .diagram-node--interactive {
   transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease,
     outline-color 120ms ease;
-  outline: 3px solid transparent;
   cursor: pointer;
 }
 
