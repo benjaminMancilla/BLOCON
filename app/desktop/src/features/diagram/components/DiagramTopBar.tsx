@@ -51,7 +51,7 @@ type DiagramTopBarProps = {
 
 export const DiagramTopBar = ({
   title = "BLOCON",
-  subtitle = "Lienzo base de diagrama",
+  subtitle = "Generadora Metropolitana",
   reliabilityTotal = null,
   isAddMode = false,
   isBlocked = false,
@@ -104,7 +104,7 @@ export const DiagramTopBar = ({
             </p>
           ) : null}
         </div>
-        <TopbarReliabilityIndicator reliabilityTotal={0.98} />
+        <TopbarReliabilityIndicator reliabilityTotal={reliabilityTotal} />
       </div>
       <div className="diagram-topbar__actions">
         {isViewerMode ? (
