@@ -38,6 +38,14 @@ export const DiagramComponentContent = ({ node }: DiagramComponentContentProps) 
           {formatReliability(node.reliability)}
         </span>
       </div>
+      {node.lastFailureType && (
+        <span
+          className={`diagram-node__failure-badge diagram-node__failure-badge--${node.lastFailureType.toLowerCase()}`}
+          title={`Última falla: ${node.lastFailureType}`}
+        >
+          {node.lastFailureType}
+        </span>
+      )}
     </>
   );
 };

@@ -1,4 +1,4 @@
-import { GraphNode } from "../../../../core/graph";
+import { FailureType, GraphNode } from "../../../../core/graph";
 
 export type DiagramLayoutNode = {
   id: string;
@@ -17,6 +17,7 @@ export type DiagramLayoutNode = {
   reliability?: number | null;
   childCount?: number;
   isCollapsed?: boolean;
+  lastFailureType?: FailureType | null;
 };
 
 export type DiagramLayoutLine = {

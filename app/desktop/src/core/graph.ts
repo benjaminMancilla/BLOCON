@@ -13,6 +13,19 @@ export type GraphNode = {
   color?: string | null;
 };
 
+export type FailureType = "M1" | "M2";
+
+export type FailureCacheRow = Record<string, unknown> | unknown[];
+
+export type FailuresCacheEntry = {
+  rows?: FailureCacheRow[] | null;
+  last_update?: string | null;
+};
+
+export type FailuresCache = {
+  items?: Record<string, FailuresCacheEntry | FailureCacheRow[] | null> | null;
+};
+
 export type GraphEdge = {
   from: string;
   to: string;
@@ -23,6 +36,7 @@ export type GraphData = {
   edges: GraphEdge[];
   root?: string | null;
   reliability_total?: number | null;
+  failures_cache?: FailuresCache | null;
 };
 
 export const createEmptyGraph = (): GraphData => ({

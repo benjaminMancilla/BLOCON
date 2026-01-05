@@ -1011,7 +1011,7 @@ body {
   height: 28px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.6);
+  border: 2px solid #1f293728;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1051,6 +1051,33 @@ body {
 .diagram-node__reliability-value {
   font-size: 1.1rem;
   font-weight: 700;
+}
+
+.diagram-node__failure-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  user-select: none;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.diagram-node__failure-badge--m1 {
+  background: rgba(0, 120, 212, 0.12);
+  color: #0078d4;
+  border: 1px solid rgba(0, 120, 212, 0.35);
+}
+
+.diagram-node__failure-badge--m2 {
+  background: rgba(255, 185, 0, 0.18);
+  color: #8a6d00;
+  border: 1px solid rgba(255, 185, 0, 0.45);
 }
 
 .diagram-node--gate {

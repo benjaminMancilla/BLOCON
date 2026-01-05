@@ -22,6 +22,7 @@ import { useSelectionMode } from "./canvas/hooks/useSelectionMode";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { useNodeContextMenu } from "../hooks/useNodeContextMenu";
 import type { NodeContextMenuTarget } from "../hooks/useNodeContextMenu";
+import { buildLastFailureTypeById } from "../utils/failureCache";
 
 const ORGANIZATION_PADDING = 32;
 
@@ -150,9 +151,33 @@ export const DiagramCanvas = ({
     onCancel: onOrganizationCancel,
   });
 
+  const lastFailureById = useMemo(
+    () => buildLastFailureTypeById(graph.failures_cache),
+    [graph.failures_cache]
+  );
+
   const layout = useMemo(
-    () => buildDiagramLayout(organization.graph, organization.collapsedGateIdSet),
-    [organization.collapsedGateIdSet, organization.graph]
+    () => {
+      const baseLayout = buildDiagramLayout(
+        organization.graph,
+        organization.collapsedGateIdSet
+      );
+      if (lastFailureById.size === 0) {
+        return baseLayout;
+      }
+      return {
+        ...baseLayout,
+        nodes: baseLayout.nodes.map((node) =>
+          node.type === "component"
+            ? {
+                ...node,
+                lastFailureType: lastFailureById.get(node.id) ?? null,
+              }
+            : node
+        ),
+      };
+    },
+    [organization.collapsedGateIdSet, organization.graph, lastFailureById]
   );
 
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
