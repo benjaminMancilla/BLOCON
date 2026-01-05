@@ -32,6 +32,7 @@ import { useComponentSearch } from "./features/diagram/components/addComponent/h
 import { useAddComponent } from "./features/diagram/hooks/useAddComponent";
 import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
 import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
+import { useGlobalView } from "./features/diagram/hooks/useGlobalView";
 import {
   useToasts,
   useCloudToasts,
@@ -173,6 +174,14 @@ function App() {
     },
   });
 
+  const globalView = useGlobalView({
+    getCurrentView: diagramView.getViewSnapshot,
+    onViewApplied: async () => {
+      await diagramView.refresh();
+    },
+    toasts,
+  });
+
   // Cloud error recovery
   const cloudErrorRecovery = useCloudErrorRecovery({
     onRetrySuccess: async () => {
@@ -218,7 +227,9 @@ function App() {
     isEvaluationBusy: evaluateFlow.isLoading,
     isFailuresReloadBusy: failuresReloadFlow.isLoading,
     isDraftBusy: draftHandlers.actionInFlight !== null,
-    isViewBusy: viewHandlers.actionInFlight !== null,
+    isViewBusy:
+      viewHandlers.actionInFlight !== null ||
+      globalView.actionInFlight !== null,
     isRebuildInProgress: rebuildFlow.isLoading,
     isCloudRecoveryActive:
       cloudErrorRecovery.isModalOpen ||
@@ -463,6 +474,16 @@ function App() {
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateView
               }
+              globalView={{
+                exists: globalView.exists,
+                isCollapsed: globalView.isCollapsed,
+                isLoading: globalView.isLoading,
+                onToggleCollapse: globalView.toggleCollapse,
+                onLoad: globalView.loadGlobalView,
+                onSave: globalView.saveGlobalView,
+                onReload: globalView.reloadGlobalView,
+                onDelete: globalView.deleteGlobalView,
+              }}
               onCreateView={viewHandlers.handleCreate}
               onSaveView={viewHandlers.handleSave}
               onLoadView={viewHandlers.handleLoad}

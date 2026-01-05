@@ -200,6 +200,32 @@ export function useViewToasts(toasts: ToastManager) {
   );
 }
 
+export function useGlobalViewToasts(toasts: ToastManager) {
+  return useMemo(
+    () => ({
+      showSaveSuccess: () =>
+        toasts.success("Vista global guardada correctamente.", "view"),
+      showSaveError: () =>
+        toasts.error("No se pudo guardar la vista global.", "view"),
+      showLoadSuccess: () =>
+        toasts.success("Vista global cargada en el lienzo.", "view"),
+      showLoadError: () =>
+        toasts.error("No se pudo cargar la vista global.", "view"),
+      showLoadNotFound: () =>
+        toasts.error("No se encontró la vista global solicitada.", "view"),
+      showReloadSuccess: () =>
+        toasts.success("Vista global recargada.", "view"),
+      showReloadError: () =>
+        toasts.error("No se pudo recargar la vista global.", "view"),
+      showDeleteSuccess: () =>
+        toasts.success("Vista global eliminada.", "view"),
+      showDeleteError: () =>
+        toasts.error("No se pudo eliminar la vista global.", "view"),
+    }),
+    [toasts],
+  );
+}
+
 export function useDeleteToasts(toasts: ToastManager) {
   return useMemo(
     () => ({
