@@ -33,14 +33,22 @@ class DraftCoordinator:
     
     # ========== Operaciones CRUD ==========
     
-    def list_drafts(self) -> list[dict]:
+    def list_drafts(self) -> dict:
         """
         Lista todos los drafts disponibles.
         
         Returns:
-            Lista de diccionarios con metadata de drafts
+            Diccionario con lista y metadata de drafts
         """
-        return self.shared.local.drafts_list()
+        items = self.shared.local.drafts_list()
+        max_drafts = self.shared.local.drafts_max()
+        draft_count = self.shared.local.drafts_count()
+        return {
+            "items": items,
+            "maxDrafts": max_drafts,
+            "draftCount": draft_count,
+            "isFull": draft_count >= max_drafts,
+        }
     
     def create_draft(self, name: str | None = None) -> dict:
         """

@@ -214,6 +214,16 @@ class DraftRepo:
         return meta
 
 
+MAX_DRAFTS = 10
+
+
+class DraftsFullError(RuntimeError):
+    def __init__(self, *, max_drafts: int, draft_count: int) -> None:
+        super().__init__("Draft limit reached")
+        self.max_drafts = max_drafts
+        self.draft_count = draft_count
+
+
 class DraftsRepo:
     """
     Maneja múltiples borradores guardados en subdirectorios draft_<id>.
@@ -281,6 +291,13 @@ class DraftsRepo:
         drafts.sort(key=lambda entry: entry.get("saved_at") or "", reverse=True)
         return drafts
 
+    def count_drafts(self) -> int:
+        return len(self.list_drafts())
+
+    @property
+    def max_drafts(self) -> int:
+        return MAX_DRAFTS
+
     def _generate_id(self) -> str:
         return uuid.uuid4().hex
 
@@ -292,6 +309,12 @@ class DraftsRepo:
         base_version: int,
         name: Optional[str] = None,
     ) -> Dict[str, Any]:
+        draft_count = self.count_drafts()
+        if draft_count >= self.max_drafts:
+            raise DraftsFullError(
+                max_drafts=self.max_drafts,
+                draft_count=draft_count,
+            )
         os.makedirs(self.drafts_dir, exist_ok=True)
         draft_id = self._generate_id()
         while os.path.exists(

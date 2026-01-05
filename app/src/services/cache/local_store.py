@@ -244,6 +244,12 @@ class LocalWorkspaceStore:
     def drafts_list(self) -> List[Dict[str, Any]]:
         return self.drafts.list_drafts()
 
+    def drafts_count(self) -> int:
+        return self.drafts.count_drafts()
+
+    def drafts_max(self) -> int:
+        return self.drafts.max_drafts
+
     def drafts_create(
         self,
         *,
