@@ -19,6 +19,7 @@ import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { ToastContainer } from "./features/diagram/components/ToastContainer";
+import { GradientBackdrop } from "./ui/components/GradientBackDrop";
 
 // Hooks
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
@@ -455,7 +456,7 @@ function AppContent() {
 
   // RENDER
   return (
-    <div className="app">
+    <GradientBackdrop section="app" className="app">
       <DiagramTopBar
         isAddMode={addComponent.flags.isActive}
         isBlocked={!restrictions.canEnterAddMode && !addComponent.flags.isActive}
@@ -734,7 +735,7 @@ function AppContent() {
 
       {/* Toasts - Sistema Unificado */}
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />
-    </div>
+    </GradientBackdrop>
   );
 }
 

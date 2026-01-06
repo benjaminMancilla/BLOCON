@@ -1,0 +1,45 @@
+export const uiTokens = {
+  colors: {
+    ink: "#1e1f24",
+    inkMuted: "#475569",
+    inkSoft: "#64748b",
+    surface: "#ffffff",
+    surfaceMuted: "#f8fafc",
+    borderSoft: "rgba(148, 163, 184, 0.24)",
+    borderStrong: "rgba(148, 163, 184, 0.45)",
+    accentBlue: "#3b82f6",
+    accentBlueSoft: "rgba(59, 130, 246, 0.18)",
+    accentOrange: "#f97316",
+    accentOrangeSoft: "rgba(249, 115, 22, 0.18)",
+    accentPurple: "#7f56d9",
+    accentPurpleSoft: "rgba(127, 86, 217, 0.16)",
+    danger: "#dc2626",
+    dangerSoft: "rgba(220, 38, 38, 0.18)",
+    warning: "#f59e0b",
+    warningSoft: "rgba(245, 158, 11, 0.18)",
+    success: "#16a34a",
+    successSoft: "rgba(34, 197, 94, 0.16)",
+  },
+  radius: {
+    sm: "10px",
+    md: "14px",
+    lg: "18px",
+    xl: "24px",
+    pill: "999px",
+  },
+  shadow: {
+    sm: "0 8px 18px rgba(15, 23, 42, 0.08)",
+    md: "0 18px 32px rgba(15, 23, 42, 0.12)",
+    lg: "0 32px 60px rgba(15, 23, 42, 0.16)",
+  },
+  spacing: {
+    xs: "6px",
+    sm: "10px",
+    md: "16px",
+    lg: "24px",
+    xl: "32px",
+    xxl: "40px",
+  },
+} as const;
+
+export type UiTokens = typeof uiTokens;
