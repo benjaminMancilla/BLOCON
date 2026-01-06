@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import msvcrt
+import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 from typing import ClassVar
@@ -37,6 +38,7 @@ HOST = "127.0.0.1"
 PORT = 8000
 
 _lock_file = None
+_sharepoint_ready = threading.Event()
 
 
 # ========== Funciones de lock y setup ==========
@@ -95,26 +97,24 @@ def is_port_available(host: str, port: int) -> bool:
         return False
 
 
-def _get_cloud_base_version(local: LocalWorkspaceStore) -> int:
-    """Obtiene la head version desde SharePoint, con fallback a cache local."""
-    try:
-        cloud = CloudClient(base_dir=os.getcwd())
-        sp_events = cloud._sp_events()
-        if sp_events:
-            return sp_events.get_max_version()
-    except Exception as exc:
-        print(f"[warning] Could not get cloud base_version: {exc}", file=sys.stderr)
-    
+def _get_cloud_base_version_lazy(local: LocalWorkspaceStore, cloud: CloudClient) -> int:
+    """
+    Obtiene la head version desde cache local (rápido).
+    La sincronización con SharePoint se hace en background.
+    """
     try:
         return len(local.load_events())
     except Exception:
         return 0
 
 
-def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
-    """Construye GraphES desde local store."""
+def build_graph_es_fast(local: LocalWorkspaceStore | None = None, cloud: CloudClient | None = None) -> GraphES:
+    """
+    Construye GraphES RÁPIDO usando solo cache local.
+    La verificación de SharePoint se hace después en background.
+    """
     local = local or LocalWorkspaceStore()
-    base_version = _get_cloud_base_version(local)
+    base_version = _get_cloud_base_version_lazy(local, cloud) if cloud else 0
     store = EventStore(local, base_version=base_version)
     snapshot = local.load_snapshot()
     
@@ -126,17 +126,26 @@ def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     return GraphES(graph=graph, store=store, actor="anonymous")
 
 
-def clean_start(shared: SharedState) -> None:
-    """Limpia eventos locales y pre-inicializa clientes SharePoint."""
-    shared.local.clean_local_events()
-    print("Pre-initializing SharePoint clients...", file=sys.stderr)
+def background_init(shared: SharedState) -> None:
+    """
+    Inicialización costosa en background thread.
+    No bloquea el startup del servidor.
+    """
     try:
+        # Limpieza de eventos locales (I/O)
+        shared.local.clean_local_events()
+        
+        # Pre-warm SharePoint clients (HTTP requests)
+        print("Pre-initializing SharePoint clients...", file=sys.stderr)
         shared.cloud._sp_components()
         shared.cloud._sp_snapshot()
         shared.cloud._sp_events()
         print("SharePoint clients ready", file=sys.stderr)
+        
+        _sharepoint_ready.set()
     except Exception as e:
-        print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
+        print(f"Warning: Background init failed: {e}", file=sys.stderr)
+        _sharepoint_ready.set()
 
 
 # ========== Request Handler Refactorizado ==========
@@ -185,7 +194,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         # Health check (no requiere handler)
         if path == "/health":
             handler = self._get_handler(GraphHandler)
-            handler._send_json(200, {"status": "ok"})
+            status = {
+                "status": "ok",
+                "sharepoint_ready": _sharepoint_ready.is_set()
+            }
+            handler._send_json(200, status)
             return
         
         # Graph routes
@@ -507,11 +520,11 @@ def main() -> None:
         release_single_instance_lock()
         sys.exit(1)
 
-    # Setup inicial
     local = LocalWorkspaceStore()
-    es = build_graph_es(local)
     base_dir = os.path.abspath(os.path.dirname(__file__))
     cloud = CloudClient(base_dir=base_dir)
+    
+    es = build_graph_es_fast(local, cloud)
     
     # Crear shared state
     GraphRequestHandler.shared = SharedState(
@@ -522,10 +535,13 @@ def main() -> None:
         cloud_baseline=es.graph.to_data(),
     )
 
-    # Clean start
-    clean_start(GraphRequestHandler.shared)
-
-    # Iniciar servidor
+    init_thread = threading.Thread(
+        target=background_init, 
+        args=(GraphRequestHandler.shared,),
+        daemon=True,
+        name="background-init"
+    )
+    init_thread.start()
     server = None
     try:
         server = HTTPServer((HOST, PORT), GraphRequestHandler)

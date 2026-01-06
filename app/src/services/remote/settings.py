@@ -98,6 +98,10 @@ class SPSettings:
         self.site.validate()
 
 
+_env_loaded = False
+_env_path_used: Optional[str] = None
+
+
 def _find_env_file() -> Optional[str]:
     """
     Busca el archivo .env en el siguiente orden:
@@ -138,16 +142,27 @@ def _find_env_file() -> Optional[str]:
     return None
 
 
-def _load_env(project_root: str | None = None, dotenv_path: str | None = None) -> None:
-    """Carga .env con búsqueda inteligente."""
+def _load_env_once(project_root: str | None = None, dotenv_path: str | None = None) -> None:
+    """
+    Carga .env UNA SOLA VEZ por proceso.
+    Llamadas subsecuentes son no-ops.
+    """
+    global _env_loaded, _env_path_used
+    
+    if _env_loaded:
+        return
+    
     if load_dotenv is None:
         print("Warning: python-dotenv not available, skipping .env loading", file=sys.stderr)
+        _env_loaded = True
         return
 
     if dotenv_path:
         if os.path.isfile(dotenv_path):
             load_dotenv(dotenv_path, override=False)
+            _env_path_used = dotenv_path
             print(f"Loaded .env from: {dotenv_path}", file=sys.stderr)
+            _env_loaded = True
             return
         else:
             print(f"Warning: Specified .env not found: {dotenv_path}", file=sys.stderr)
@@ -156,23 +171,30 @@ def _load_env(project_root: str | None = None, dotenv_path: str | None = None) -
         p = os.path.join(project_root, ".env")
         if os.path.isfile(p):
             load_dotenv(p, override=False)
+            _env_path_used = p
             print(f"Loaded .env from: {p}", file=sys.stderr)
+            _env_loaded = True
             return
     
     env_path = _find_env_file()
     if env_path:
         load_dotenv(env_path, override=False)
+        _env_path_used = env_path
         print(f"Loaded .env from: {env_path}", file=sys.stderr)
+        _env_loaded = True
         return
     
     if find_dotenv is not None:
         p = find_dotenv(usecwd=True) or ""
         if p and os.path.isfile(p):
             load_dotenv(p, override=False)
+            _env_path_used = p
             print(f"Loaded .env from: {p}", file=sys.stderr)
+            _env_loaded = True
             return
     
     print("Warning: No .env file found. SharePoint integration may not work.", file=sys.stderr)
+    _env_loaded = True
 
 
 def _getenv(key: str, default: str = "") -> str:
@@ -180,8 +202,8 @@ def _getenv(key: str, default: str = "") -> str:
 
 
 def load_settings(project_root: str | None = None, dotenv_path: str | None = None) -> SPSettings:
-    """Carga settings desde env (.env)."""
-    _load_env(project_root=project_root, dotenv_path=dotenv_path)
+    """Carga settings desde env (.env) - con cache de .env."""
+    _load_env_once(project_root=project_root, dotenv_path=dotenv_path)
 
     tenant_id = _getenv("SP_TENANT_ID")
     client_id = _getenv("SP_CLIENT_ID")
