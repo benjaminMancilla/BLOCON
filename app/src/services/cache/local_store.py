@@ -129,6 +129,16 @@ class LocalWorkspaceStore:
             f"Cleaned local events on startup ({removed} removed)",
             file=sys.stderr,
         )
+
+    def local_events_count(self, filename: str = "events.local.jsonl") -> int:
+        path = self.eventsourcing_events_path(filename=filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return sum(1 for line in f if line.strip())
+        except FileNotFoundError:
+            return 0
+        except Exception:
+            return 0
     
     def _validate_event_versions(self, events: List[dict], context: str) -> None:
         invalid_indices = [

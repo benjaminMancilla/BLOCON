@@ -33,6 +33,7 @@ import { useAddComponent } from "./features/diagram/hooks/useAddComponent";
 import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
 import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
 import { useGlobalView } from "./features/diagram/hooks/useGlobalView";
+import { useUnsavedChangesGuard } from "./features/diagram/hooks/useUnsavedChangesGuard";
 import type { NodeContextMenuTarget } from "./features/diagram/hooks/useNodeContextMenu";
 import {
   useToasts,
@@ -192,6 +193,13 @@ function App() {
       await draftHandlers.refreshDrafts();
       await viewHandlers.refreshViews();
     },
+  });
+
+ const unsavedChangesGuard = useUnsavedChangesGuard({
+    isCloudBusy:
+      cloudActions.cloudActionInFlight !== null ||
+      rebuildFlow.isLoading ||
+      cloudErrorRecovery.actionLoading !== null,
   });
 
   // Delete mode
@@ -717,6 +725,8 @@ function App() {
           onConfirm={handleConfirmRootInsert}
         />
       ) : null}
+
+      {unsavedChangesGuard.dialog}
 
       {/* Toasts - Sistema Unificado */}
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />

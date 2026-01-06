@@ -30,6 +30,7 @@ from .handlers import (
     EvaluationHandler,
     FailuresHandler,
     NodeDetailsHandler,
+    LocalHandler,
 )
 
 HOST = "127.0.0.1"
@@ -258,6 +259,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/views/global":
             handler = self._get_handler(GlobalViewHandler)
             handler.handle_global_view_get()
+            return
+        
+        if path == "/local/dirty":
+            handler = self._get_handler(LocalHandler)
+            handler.handle_local_dirty()
             return
         
         # 404
