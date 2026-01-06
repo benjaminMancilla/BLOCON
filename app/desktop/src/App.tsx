@@ -33,6 +33,7 @@ import { useAddComponent } from "./features/diagram/hooks/useAddComponent";
 import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
 import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
 import { useGlobalView } from "./features/diagram/hooks/useGlobalView";
+import type { NodeContextMenuTarget } from "./features/diagram/hooks/useNodeContextMenu";
 import {
   useToasts,
   useCloudToasts,
@@ -46,6 +47,7 @@ import { addRootComponent, insertOrganization } from "./services/graphService";
 // Types
 import type { OrganizationUiState } from "./features/diagram/types/organization";
 import type { GateType } from "./features/diagram/types/gates";
+import type { DiagramNodeSelection } from "./features/diagram/types/selection";
 
 // Handlers
 import { useDraftHandlers } from "./features/diagram/hooks/useDraftHandlers";
@@ -266,7 +268,7 @@ function App() {
     [insertValidators]
   );
 
-    const handleComponentSelect = useCallback(
+  const handleComponentSelect = useCallback(
     (componentId: string, componentName: string) => {
       if (isGraphEmpty) {
         addComponent.selectComponent(componentId, componentName, {
@@ -279,6 +281,36 @@ function App() {
       addComponent.selectComponent(componentId, componentName);
     },
     [addComponent, isGraphEmpty]
+  );
+
+  const toContextSelection = useCallback(
+    (target: NodeContextMenuTarget): DiagramNodeSelection => ({
+      id: target.nodeId,
+      type: target.selectionType,
+      name: target.name ?? null,
+    }),
+    [],
+  );
+
+  const handleContextMenuDelete = useCallback(
+    (target: NodeContextMenuTarget) => {
+      deleteMode.requestDeleteForSelection(toContextSelection(target));
+    },
+    [deleteMode, toContextSelection],
+  );
+
+  const handleContextMenuAddHere = useCallback(
+    (target: NodeContextMenuTarget) => {
+      if (!restrictions.canEnterAddMode) return;
+      addComponent.startAddComponentFlow({
+        autoTarget: {
+          hostId: target.nodeId,
+          hostType: target.nodeType === "gate" ? "gate" : "component",
+        },
+        entryPoint: "context_menu",
+      });
+    },
+    [addComponent, restrictions.canEnterAddMode],
   );
 
   const handleConfirmRootInsert = useCallback(async () => {
@@ -455,7 +487,9 @@ function App() {
         onEvaluate={evaluateFlow.evaluate}
         onReloadFailures={failuresReloadFlow.reload}
         onToggleAddMode={
-          addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+          addComponent.flags.isActive
+            ? addComponent.cancel
+            : () => addComponent.startAddComponentFlow({ entryPoint: "topbar" })
         }
         onToggleDeleteMode={deleteMode.toggleDeleteMode}
         onToggleVersionHistory={versionHistoryPanel.toggle}
@@ -576,10 +610,14 @@ function App() {
           onNodeInfoOpen={nodeInfoPanel.open}
           onGraphReload={reloadGraph}
           onEmptyAdd={
-            addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+            addComponent.flags.isActive
+              ? addComponent.cancel
+              : () => addComponent.startAddComponentFlow({ entryPoint: "topbar" })
           }
           isEmptyAddDisabled={!restrictions.canEnterAddMode}
           isEmptyAddActive={addComponent.flags.isActive}
+          onNodeDelete={handleContextMenuDelete}
+          onNodeAddHere={handleContextMenuAddHere}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}

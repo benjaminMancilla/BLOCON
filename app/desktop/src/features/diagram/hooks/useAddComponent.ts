@@ -2,7 +2,11 @@
 import { useCallback, useEffect, useReducer, useState, useRef } from "react";
 import type { DiagramNodeSelection } from "../types/selection";
 import type { GateType } from "../types/gates";
-import type { AddComponentFormState } from "../types/addComponent";
+import type {
+  AddComponentAutoTarget,
+  AddComponentEntryPoint,
+  AddComponentFormState,
+} from "../types/addComponent";
 import {
   addComponentReducer,
   deriveFlags,
@@ -16,11 +20,18 @@ type UseAddComponentOptions = {
   onInsertError?: (error: unknown) => void;
 };
 
+type StartAddComponentFlowOptions = {
+  autoTarget?: AddComponentAutoTarget | null;
+  entryPoint?: AddComponentEntryPoint | null;
+};
+
 export function useAddComponent(options: UseAddComponentOptions = {}) {
   // Estado adicional (UI concerns)
   const [formState, setFormState] = useState<AddComponentFormState>({
     componentId: null,
     calculationType: "exponential",
+    autoTarget: null,
+    entryPoint: null,
   });
   const [draftSelection, setDraftSelection] = useState<DiagramNodeSelection | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -52,6 +63,14 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
   const prevStateType = useRef<string>(state.type);
   const shouldAutoStartSelection = useRef(false);
 
+  const buildSelectionFromAutoTarget = useCallback(
+    (autoTarget: AddComponentAutoTarget): DiagramNodeSelection => ({
+      id: autoTarget.hostId,
+      type: autoTarget.hostType === "gate" ? "gate" : "component",
+    }),
+    [],
+  );
+
   // TRANSICIÓN AUTOMÁTICA 1: componentSelected → selectingTarget
   useEffect(() => {
     if (state.type === "componentSelected" && prevStateType.current !== "componentSelected") {
@@ -74,10 +93,27 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     }
   }, [state.type]);
 
+  const startAddComponentFlow = useCallback(
+    (flowOptions: StartAddComponentFlowOptions = {}) => {
+      const nextAutoTarget = flowOptions.autoTarget ?? null;
+      const entryPoint = flowOptions.entryPoint ?? null;
+      setFormState({
+        componentId: null,
+        calculationType: "exponential",
+        autoTarget: nextAutoTarget,
+        entryPoint,
+      });
+      setDraftSelection(null);
+      setHoveredNodeId(null);
+      dispatch({ type: "RESET" });
+    },
+    [],
+  );
+
   // Actions
   const start = useCallback(() => {
-    dispatch({ type: "START" });
-  }, []);
+    startAddComponentFlow({ entryPoint: "topbar" });
+  }, [startAddComponentFlow]);
 
   const selectComponent = useCallback(
     (
@@ -85,26 +121,37 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
       componentName?: string,
       options: { autoStartSelection?: boolean } = {}
     ) => {
-      shouldAutoStartSelection.current = options.autoStartSelection ?? true;
-      setFormState({
+      const autoTarget = formState.autoTarget;
+      shouldAutoStartSelection.current = autoTarget
+        ? false
+        : (options.autoStartSelection ?? true);
+      setFormState((prev) => ({
+        ...prev,
         componentId,
         calculationType: "exponential",
-      });
+      }));
       dispatch({
         type: "SELECT_COMPONENT",
         componentId,
         componentName: componentName || componentId,
       });
+      if (autoTarget) {
+        dispatch({
+          type: "SELECT_TARGET",
+          target: buildSelectionFromAutoTarget(autoTarget),
+        });
+      }
       // La transición automática a selectingTarget ocurre vía useEffect
     },
-    []
+    [buildSelectionFromAutoTarget, formState.autoTarget]
   );
 
   const clearComponent = useCallback(() => {
-    setFormState({
+    setFormState((prev) => ({
+      ...prev,
       componentId: null,
       calculationType: "exponential",
-    });
+    }));
     setDraftSelection(null);
     setHoveredNodeId(null);
     dispatch({ type: "CLEAR_COMPONENT" });
@@ -133,6 +180,10 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     // Solo limpiar la selección actual, mantener modo activo
     setDraftSelection(null);
     setHoveredNodeId(null);
+    setFormState((prev) => ({
+      ...prev,
+      autoTarget: null,
+    }));
     dispatch({ type: "CLEAR_TARGET" });
   }, []);
 
@@ -167,6 +218,8 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     setFormState({
       componentId: null,
       calculationType: "exponential",
+      autoTarget: null,
+      entryPoint: null,
     });
     setDraftSelection(null);
     setHoveredNodeId(null);
@@ -180,6 +233,8 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
     setFormState({
       componentId: null,
       calculationType: "exponential",
+      autoTarget: null,
+      entryPoint: null,
     });
     setDraftSelection(null);
     setHoveredNodeId(null);
@@ -250,6 +305,7 @@ export function useAddComponent(options: UseAddComponentOptions = {}) {
 
     // Actions
     start,
+    startAddComponentFlow,
     selectComponent,
     clearComponent,
     startTargetSelection,

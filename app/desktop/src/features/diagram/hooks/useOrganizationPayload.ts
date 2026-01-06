@@ -67,7 +67,8 @@ export function useOrganizationPayload({
 
     // Construir insert data
     const insert = {
-      ...formState,
+      componentId: formState.componentId,
+      calculationType: formState.calculationType,
       // Si es koon, agregar k: 1 por defecto
       ...(insertTarget?.relationType === "koon" ? { k: 1 } : {}),
       target: insertTarget,

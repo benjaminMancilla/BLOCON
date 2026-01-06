@@ -100,23 +100,25 @@ export const AddComponentPanel = ({
     (item: RemoteComponent) => {
       setSelectedComponent(item);
       onFormStateChange({
+        ...formState,
         componentId: item.id,
         calculationType: "exponential",
       });
       onComponentSelect(item.id, item.kks_name);
     },
-    [onFormStateChange, onComponentSelect],
+    [formState, onFormStateChange, onComponentSelect],
   );
 
   const handleClearSelection = useCallback(() => {
     setSelectedComponent(null);
     onFormStateChange({
+      ...formState,
       componentId: null,
       calculationType: "exponential",
     });
     onGateTypeChange(null);
     onSelectionReset();
-  }, [onFormStateChange, onGateTypeChange, onSelectionReset]);
+  }, [formState, onFormStateChange, onGateTypeChange, onSelectionReset]);
 
   const calculationOptions = calculationTypeOptions;
 
@@ -203,6 +205,7 @@ export const AddComponentPanel = ({
               status={selectionStatus}
               draftSelection={draftSelection}
               confirmedSelection={confirmedSelection}
+              isAutoTarget={Boolean(formState.autoTarget)}
               onSelectionConfirmed={onSelectionConfirm}
               onSelectionCleared={onSelectionCleared}
               onSelectionCanceled={onSelectionCancel}

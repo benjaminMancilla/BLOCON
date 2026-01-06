@@ -8,6 +8,8 @@ type NodeContextMenuProps = {
   target: NodeContextMenuTarget | null;
   onClose: () => void;
   onViewInfo?: (nodeId: string) => void;
+  onDelete?: (target: NodeContextMenuTarget) => void;
+  onAddHere?: (target: NodeContextMenuTarget) => void;
   menuRef?: RefObject<HTMLDivElement>;
 };
 
@@ -36,12 +38,24 @@ export const NodeContextMenu = ({
   target,
   onClose,
   onViewInfo,
+  onDelete,
+  onAddHere,
   menuRef,
 }: NodeContextMenuProps) => {
   if (!isOpen || !position || !target) return null;
 
   const handleViewInfo = () => {
     onViewInfo?.(target.nodeId);
+    onClose();
+  };
+
+  const handleDelete = () => {
+    onDelete?.(target);
+    onClose();
+  };
+
+  const handleAddHere = () => {
+    onAddHere?.(target);
     onClose();
   };
 
@@ -65,11 +79,17 @@ export const NodeContextMenu = ({
       <button type="button" role="menuitem" onClick={handleViewInfo}>
         Ver información
       </button>
+      <button type="button" role="menuitem" onClick={handleAddHere}>
+        Agregar aquí
+      </button>
       <button type="button" role="menuitem" onClick={onClose}>
         Editar...
       </button>
       <button type="button" role="menuitem" onClick={onClose}>
         Organizar...
+      </button>
+      <button type="button" role="menuitem" onClick={handleDelete}>
+        Borrar
       </button>
       <button type="button" role="menuitem" onClick={onClose}>
         Cerrar

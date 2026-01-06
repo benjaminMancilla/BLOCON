@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type NodeContextMenuTarget = {
   nodeId: string;
   nodeType: "component" | "gate";
+  selectionType: "component" | "gate" | "collapsedGate";
   gateSubtype?: string | null;
   name?: string | null;
 };

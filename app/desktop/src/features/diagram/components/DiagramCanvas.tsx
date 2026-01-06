@@ -69,6 +69,8 @@ type DiagramCanvasProps = {
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
   canOpenNodeContextMenu?: boolean;
   onNodeInfoOpen?: (nodeId: string) => void;
+  onNodeDelete?: (target: NodeContextMenuTarget) => void;
+  onNodeAddHere?: (target: NodeContextMenuTarget) => void;
   onGraphReload?: () => void;
   onEmptyAdd?: () => void;
   isEmptyAddDisabled?: boolean;
@@ -112,6 +114,8 @@ export const DiagramCanvas = ({
   onOrganizationStateChange,
   canOpenNodeContextMenu = true,
   onNodeInfoOpen,
+  onNodeDelete,
+  onNodeAddHere,
   onGraphReload,
   onEmptyAdd,
   isEmptyAddDisabled = false,
@@ -519,6 +523,8 @@ export const DiagramCanvas = ({
         target={nodeContextMenu.target}
         onClose={nodeContextMenu.close}
         onViewInfo={onNodeInfoOpen}
+        onDelete={onNodeDelete}
+        onAddHere={onNodeAddHere}
         menuRef={nodeContextMenu.menuRef}
       />
     </section>

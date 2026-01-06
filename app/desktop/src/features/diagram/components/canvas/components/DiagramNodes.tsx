@@ -112,11 +112,13 @@ const DiagramNodeItem = ({
     if (payload.button !== 2) return;
     if (!canOpenNodeContextMenu) return;
     const isCollapsedGate = node.type === "component" && node.isCollapsed;
+    const selectionType = isCollapsedGate ? "collapsedGate" : node.type;
     const target: NodeContextMenuTarget = {
       nodeId: node.id,
       nodeType: isCollapsedGate ? "gate" : node.type,
+      selectionType,
       gateSubtype: isCollapsedGate || node.type === "gate" ? node.subtype ?? null : null,
-      name: null,
+      name: node.name ?? node.label ?? null,
     };
     onNodeContextMenu(target, payload.position);
   };
