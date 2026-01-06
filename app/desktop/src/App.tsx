@@ -1,5 +1,8 @@
 // Components
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/tauri";
+import { ConfigWizard } from "./components/ConfigWizard";
+import { DebugConfig } from "./components/DebugConfig";
 import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
@@ -59,6 +62,7 @@ import { useFailuresReloadFlow } from "./features/diagram/hooks/useFailuresReloa
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
+const DEBUG = true;
 
 type InsertHighlight = {
   token: number;
@@ -68,7 +72,7 @@ type InsertHighlight = {
   gateType: GateType | null;
 };
 
-function App() {
+function AppContent() {
   // CORE STATE
   const [graphReloadToken, setGraphReloadToken] = useState(0);
   const [organizationUiState, setOrganizationUiState] =
@@ -732,6 +736,49 @@ function App() {
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />
     </div>
   );
+}
+
+function App() {
+  const [hasConfig, setHasConfig] = useState<boolean | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    invoke<boolean>("has_config")
+      .then((result) => {
+        if (!isMounted) return;
+        setHasConfig(result);
+      })
+      .catch((error) => {
+        console.error("Error checking config:", error);
+        if (!isMounted) return;
+        setConfigError(
+          "No se pudo verificar la configuración. Puedes intentar configurarla nuevamente."
+        );
+        setHasConfig(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (hasConfig === null) {
+    return (
+      <div className="config-wizard config-wizard__loading">
+        <div className="config-wizard__spinner">
+          <span>Verificando configuración...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasConfig) {
+    return <ConfigWizard initialHasConfig={false} initialError={configError} />;
+  }
+
+  //if(DEBUG) return <DebugConfig />;
+
+  return <AppContent />;
 }
 
 export default App;

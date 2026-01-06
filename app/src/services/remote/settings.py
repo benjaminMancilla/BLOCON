@@ -105,6 +105,7 @@ _env_path_used: Optional[str] = None
 def _find_env_file() -> Optional[str]:
     """
     Busca el archivo .env en el siguiente orden:
+    0. En AppData (Tauri config) si es Windows
     1. Junto al ejecutable (PyInstaller)
     2. En bin/.env si el ejecutable está en bin/
     3. En el directorio app/ del proyecto
@@ -112,6 +113,11 @@ def _find_env_file() -> Optional[str]:
     5. Usando find_dotenv() como fallback
     """
     candidates = []
+
+    if sys.platform == "win32":
+        appdata = os.getenv("LOCALAPPDATA")
+        if appdata:
+            candidates.append(os.path.join(appdata, "Blocon", ".env"))
     
     if getattr(sys, 'frozen', False):
         exe_dir = os.path.dirname(sys.executable)

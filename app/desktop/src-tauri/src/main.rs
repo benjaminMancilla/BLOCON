@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod config;
+
 use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
@@ -7,7 +9,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tauri::{api::process::{Command, CommandChild, CommandEvent}, Manager};
+use config::{delete_config, get_config_dir, get_config_info, get_env_path, has_config, load_config, save_config, ConfigManager};
+use tauri::{
+    api::process::{Command, CommandChild, CommandEvent},
+    Manager,
+};
 
 const HEALTHCHECK_URL: &str = "127.0.0.1:8000";
 const HEALTHCHECK_PATH: &str = "/health";
@@ -137,6 +143,28 @@ fn main() {
                 }
             window.hide()?;
 
+            // Get the app handle from the app
+            let app_handle = app.handle();
+            
+            if let Ok(manager) = ConfigManager::new(&app_handle) {
+                if manager.has_config() {
+                    match manager.load_config() {
+                        Ok(config) => {
+                            if let Err(err) = manager.save_config(&config) {
+                                eprintln!("Warning: Failed to refresh .env: {}", err);
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("Warning: Failed to load config: {}", err);
+                        }
+                    }
+                } else {
+                    println!("No SharePoint config found; starting without .env");
+                }
+            } else {
+                eprintln!("Warning: Unable to resolve app data directory for config");
+            }
+
             let backend_already_running = check_health();
             
             let output_log = Arc::new(Mutex::new(Vec::new()));
@@ -215,6 +243,15 @@ fn main() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            has_config,
+            save_config,
+            load_config,
+            get_env_path,
+            delete_config,
+            get_config_dir,
+            get_config_info,
+        ])
         .on_window_event(|event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event.event() {
                 let app_handle = event.window().app_handle();
