@@ -79,7 +79,7 @@ export const NodeContextMenu = ({
       <button type="button" role="menuitem" onClick={handleViewInfo}>
         Ver información
       </button>
-      <button type="button" role="menuitem" onClick={handleAddHere}>
+      <button type="button" role="menuitem" data-tone="accent" onClick={handleAddHere}>
         Agregar aquí
       </button>
       <button type="button" role="menuitem" onClick={onClose}>
@@ -88,7 +88,7 @@ export const NodeContextMenu = ({
       <button type="button" role="menuitem" onClick={onClose}>
         Organizar...
       </button>
-      <button type="button" role="menuitem" onClick={handleDelete}>
+      <button type="button" role="menuitem" data-tone="danger" onClick={handleDelete}>
         Borrar
       </button>
       <button type="button" role="menuitem" onClick={onClose}>
