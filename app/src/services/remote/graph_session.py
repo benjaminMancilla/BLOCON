@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -18,6 +19,8 @@ from .settings import SPSettings
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 
 LOG = logging.getLogger(__name__)
+
+from .runtime import get_current_operation, get_runtime_context
 
 
 @dataclass
@@ -131,14 +134,48 @@ class GraphSession:
     @_sharepoint_retry() 
     def request_json(self, method: str, url_or_path: str, *, params: dict | None = None, json_body: Any | None = None, headers: dict | None = None) -> dict:
         url = self._abs_url(url_or_path)
-        r = self._http.request(
-            method.upper(),
-            url,
-            headers=self._headers(headers),
-            params=params,
-            json=json_body,
-            timeout=self.s.timeout_s,
+        ctx = get_runtime_context()
+        LOG.info(
+            "Graph request start %s",
+            {
+                "operation": get_current_operation(),
+                "method": method.upper(),
+                "url": url,
+                "timeout_s": self.s.timeout_s,
+                "tenacity": True,
+                "config_loaded": ctx.config_loaded,
+                "config_path": ctx.config_path,
+                "base_dir": ctx.base_dir,
+                "appdata_dir": ctx.appdata_dir,
+                "cwd": os.getcwd(),
+                "api_server": ctx.api_server,
+                "http_proxy": os.getenv("HTTP_PROXY"),
+                "https_proxy": os.getenv("HTTPS_PROXY"),
+                "no_proxy": os.getenv("NO_PROXY"),
+            },
         )
+        try:
+            r = self._http.request(
+                method.upper(),
+                url,
+                headers=self._headers(headers),
+                params=params,
+                json=json_body,
+                timeout=self.s.timeout_s,
+            )
+        except Exception as exc:
+            LOG.exception(
+                "Graph request failed before response %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": method.upper(),
+                    "url": url,
+                    "error_type": type(exc).__name__,
+                    "error": repr(exc),
+                    "cause": repr(getattr(exc, "__cause__", None)),
+                },
+            )
+            raise
 
         if r.status_code == 401:
             # token expirado/invalidado -> refresh y retry
@@ -153,6 +190,16 @@ class GraphSession:
             )
 
         if r.status_code >= 400:
+            LOG.error(
+                "Graph request failed with status %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": method.upper(),
+                    "url": url,
+                    "status_code": r.status_code,
+                    "response_body": (r.text or "")[:500],
+                },
+            )
             raise GraphError(r.status_code, url, r.text or "")
 
         if not r.text:
@@ -175,12 +222,46 @@ class GraphSession:
     @_sharepoint_retry()
     def put_bytes(self, url_or_path: str, content: bytes, *, content_type: str = "application/octet-stream") -> dict:
         url = self._abs_url(url_or_path)
-        r = self._http.put(
-            url,
-            headers=self._headers({"Content-Type": content_type}),
-            data=content,
-            timeout=self.s.timeout_s,
+        ctx = get_runtime_context()
+        LOG.info(
+            "Graph request start %s",
+            {
+                "operation": get_current_operation(),
+                "method": "PUT",
+                "url": url,
+                "timeout_s": self.s.timeout_s,
+                "tenacity": True,
+                "config_loaded": ctx.config_loaded,
+                "config_path": ctx.config_path,
+                "base_dir": ctx.base_dir,
+                "appdata_dir": ctx.appdata_dir,
+                "cwd": os.getcwd(),
+                "api_server": ctx.api_server,
+                "http_proxy": os.getenv("HTTP_PROXY"),
+                "https_proxy": os.getenv("HTTPS_PROXY"),
+                "no_proxy": os.getenv("NO_PROXY"),
+            },
         )
+        try:
+            r = self._http.put(
+                url,
+                headers=self._headers({"Content-Type": content_type}),
+                data=content,
+                timeout=self.s.timeout_s,
+            )
+        except Exception as exc:
+            LOG.exception(
+                "Graph request failed before response %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": "PUT",
+                    "url": url,
+                    "error_type": type(exc).__name__,
+                    "error": repr(exc),
+                    "cause": repr(getattr(exc, "__cause__", None)),
+                },
+            )
+            raise
 
         if r.status_code == 401:
             self._token = None
@@ -192,6 +273,16 @@ class GraphSession:
             )
 
         if r.status_code >= 400:
+            LOG.error(
+                "Graph request failed with status %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": "PUT",
+                    "url": url,
+                    "status_code": r.status_code,
+                    "response_body": (r.text or "")[:500],
+                },
+            )
             raise GraphError(r.status_code, url, r.text or "")
 
         return r.json() if r.text else {}
@@ -203,11 +294,45 @@ class GraphSession:
     @_sharepoint_retry()
     def delete(self, url_or_path: str) -> None:
         url = self._abs_url(url_or_path)
-        r = self._http.delete(
-            url,
-            headers=self._headers(),
-            timeout=self.s.timeout_s,
+        ctx = get_runtime_context()
+        LOG.info(
+            "Graph request start %s",
+            {
+                "operation": get_current_operation(),
+                "method": "DELETE",
+                "url": url,
+                "timeout_s": self.s.timeout_s,
+                "tenacity": True,
+                "config_loaded": ctx.config_loaded,
+                "config_path": ctx.config_path,
+                "base_dir": ctx.base_dir,
+                "appdata_dir": ctx.appdata_dir,
+                "cwd": os.getcwd(),
+                "api_server": ctx.api_server,
+                "http_proxy": os.getenv("HTTP_PROXY"),
+                "https_proxy": os.getenv("HTTPS_PROXY"),
+                "no_proxy": os.getenv("NO_PROXY"),
+            },
         )
+        try:
+            r = self._http.delete(
+                url,
+                headers=self._headers(),
+                timeout=self.s.timeout_s,
+            )
+        except Exception as exc:
+            LOG.exception(
+                "Graph request failed before response %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": "DELETE",
+                    "url": url,
+                    "error_type": type(exc).__name__,
+                    "error": repr(exc),
+                    "cause": repr(getattr(exc, "__cause__", None)),
+                },
+            )
+            raise
 
         if r.status_code == 401:
             self._token = None
@@ -218,4 +343,14 @@ class GraphSession:
             )
 
         if r.status_code >= 400:
+            LOG.error(
+                "Graph request failed with status %s",
+                {
+                    "operation": get_current_operation(),
+                    "method": "DELETE",
+                    "url": url,
+                    "status_code": r.status_code,
+                    "response_body": (r.text or "")[:500],
+                },
+            )
             raise GraphError(r.status_code, url, r.text or "")

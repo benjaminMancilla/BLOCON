@@ -3,6 +3,8 @@ import time
 import json
 from typing import Any
 
+from src.services.remote.runtime import resolve_appdata_dir
+
 def iso_utc() -> str:
     # Mismo formato que usabas en cloud.py: YYYY-mm-ddTHH:MM:SSZ
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -35,5 +37,4 @@ def _read_json_file(path: str, default: Any) -> Any:
         return default
     
 def default_user_data_dir(app_name: str) -> str:
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, app_name)
+    return resolve_appdata_dir(app_name=app_name)

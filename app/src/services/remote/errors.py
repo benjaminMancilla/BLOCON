@@ -29,6 +29,7 @@ class CloudOperationError(RuntimeError):
     details: Optional[str] = None
     cause: Optional[Exception] = None
     http_status: Optional[int] = None
+    code: Optional[str] = None
 
     def __str__(self) -> str:
         return f"{self.operation}: {self.message}"

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import msvcrt
 import threading
+import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 from typing import ClassVar
@@ -17,6 +18,7 @@ from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.remote.client import CloudClient
+from src.services.remote.runtime import resolve_appdata_dir, set_runtime_context
 
 # Imports de shared state y handlers
 from .shared import SharedState
@@ -32,6 +34,7 @@ from .handlers import (
     FailuresHandler,
     NodeDetailsHandler,
     LocalHandler,
+    DiagnosticsHandler,
 )
 
 HOST = "127.0.0.1"
@@ -199,6 +202,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
                 "sharepoint_ready": _sharepoint_ready.is_set()
             }
             handler._send_json(200, status)
+            return
+
+        if path == "/diagnostics/cloud":
+            handler = self._get_handler(DiagnosticsHandler)
+            handler.handle_cloud_diagnostics()
             return
         
         # Graph routes
@@ -520,9 +528,39 @@ def main() -> None:
         release_single_instance_lock()
         sys.exit(1)
 
+    appdata_dir = resolve_appdata_dir(app_name="Blocon")
+    log_dir = os.path.join(appdata_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "backend.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        handlers=[
+            logging.FileHandler(log_path, encoding="utf-8"),
+            logging.StreamHandler(sys.stderr),
+        ],
+    )
+
     local = LocalWorkspaceStore()
     base_dir = os.path.abspath(os.path.dirname(__file__))
-    cloud = CloudClient(base_dir=base_dir)
+    config_path = os.path.join(appdata_dir, ".env")
+    set_runtime_context(
+        base_dir=base_dir,
+        appdata_dir=appdata_dir,
+        config_path=config_path,
+        api_server=f"http://{HOST}:{PORT}",
+    )
+    logging.getLogger(__name__).info(
+        "Runtime context initialized %s",
+        {
+            "base_dir": base_dir,
+            "appdata_dir": appdata_dir,
+            "config_path": config_path,
+            "cwd": os.getcwd(),
+            "api_server": f"http://{HOST}:{PORT}",
+        },
+    )
+    cloud = CloudClient(base_dir=base_dir, appdata_dir=appdata_dir, config_path=config_path)
     
     es = build_graph_es_fast(local, cloud)
     

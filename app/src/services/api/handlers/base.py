@@ -113,6 +113,7 @@ class BaseHandler:
                     "has_pending_operation": has_pending,
                     "message": error.message,
                     "details": error.details,
+                    "code": error.code,
                 },
             },
         )

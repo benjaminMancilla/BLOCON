@@ -1,6 +1,7 @@
 import type { CloudError } from "./cloudErrors";
 import { parseCloudErrorPayload } from "./cloudErrors";
 import { openCloudError } from "./cloudErrorStore";
+import { logCloudAction } from "./appLogger";
 
 export class ApiError extends Error {
   status: number;
@@ -38,8 +39,12 @@ export async function fetchWithCloudErrorHandling(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
+  const url = typeof input === "string" ? input : (input as Request).url;
+  const method = init?.method ?? "GET";
+  await logCloudAction("cloud-request", { method, url });
   const response = await fetch(input, init);
   if (response.ok) {
+    await logCloudAction("cloud-response", { method, url, status: response.status });
     return response;
   }
 
@@ -54,6 +59,13 @@ export async function fetchWithCloudErrorHandling(
   if (cloudError?.retryable && cloudError.hasPendingOperation) {
     openCloudError(cloudError);
   }
+
+  await logCloudAction("cloud-error", {
+    method,
+    url,
+    status: response.status,
+    payload,
+  });
 
   throw new ApiError(buildCloudErrorMessage(response, cloudError), response.status, payload);
 }

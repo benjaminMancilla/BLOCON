@@ -5,6 +5,8 @@ import sys
 from dataclasses import dataclass
 from typing import Optional
 
+from .runtime import resolve_appdata_dir, set_runtime_context
+
 try:
     from dotenv import load_dotenv, find_dotenv
 except Exception:
@@ -115,9 +117,9 @@ def _find_env_file() -> Optional[str]:
     candidates = []
 
     if sys.platform == "win32":
-        appdata = os.getenv("LOCALAPPDATA")
-        if appdata:
-            candidates.append(os.path.join(appdata, "Blocon", ".env"))
+        candidates.append(os.path.join(resolve_appdata_dir(app_name="Blocon"), ".env"))
+    else:
+        candidates.append(os.path.join(resolve_appdata_dir(app_name="Blocon"), ".env"))
     
     if getattr(sys, 'frozen', False):
         exe_dir = os.path.dirname(sys.executable)
@@ -210,6 +212,11 @@ def _getenv(key: str, default: str = "") -> str:
 def load_settings(project_root: str | None = None, dotenv_path: str | None = None) -> SPSettings:
     """Carga settings desde env (.env) - con cache de .env."""
     _load_env_once(project_root=project_root, dotenv_path=dotenv_path)
+    set_runtime_context(
+        config_path=_env_path_used,
+        config_loaded=bool(_env_path_used),
+        config_source=_env_path_used,
+    )
 
     tenant_id = _getenv("SP_TENANT_ID")
     client_id = _getenv("SP_CLIENT_ID")

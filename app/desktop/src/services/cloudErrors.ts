@@ -7,6 +7,7 @@ export type CloudErrorPayload = {
     has_pending_operation: boolean;
     message: string;
     details?: string;
+    code?: string;
   };
 };
 
@@ -14,6 +15,7 @@ export type CloudError = {
   operation?: string;
   message: string;
   details?: string;
+  code?: string;
   retryable: boolean;
   hasPendingOperation: boolean;
 };
@@ -36,6 +38,7 @@ export const parseCloudErrorPayload = (payload: unknown): CloudError | null => {
       typeof error.operation === "string" ? error.operation : undefined,
     message: error.message,
     details: typeof error.details === "string" ? error.details : undefined,
+    code: typeof error.code === "string" ? error.code : undefined,
     retryable: error.retryable,
     hasPendingOperation: error.has_pending_operation,
   };

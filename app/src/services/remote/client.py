@@ -15,6 +15,7 @@ from ..cache.local_store import LocalWorkspaceStore
 from .atomic import CloudAtomicOperation
 from .fallback import try_cloud_with_fallback, require_cloud_client
 from .errors import normalize_cloud_error
+from .runtime import operation_context
 
 ISO = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 LOG = logging.getLogger(__name__)
@@ -23,8 +24,10 @@ LOG = logging.getLogger(__name__)
 class CloudClient:
     """Cliente para operaciones con SharePoint."""
     
-    def __init__(self, base_dir: str):
+    def __init__(self, base_dir: str, *, appdata_dir: str | None = None, config_path: str | None = None):
         self.base_dir = base_dir
+        self.appdata_dir = appdata_dir
+        self.config_path = config_path
         self.local = LocalWorkspaceStore()
         
         # Lazy-loaded clients
@@ -66,9 +69,11 @@ class CloudClient:
         self._sp_components_checked = True
         try:
             self._sp_components_client = SharePointComponentsClient.from_env(
-                project_root=self.base_dir
+                project_root=self.base_dir,
+                dotenv_path=self.config_path,
             )
-        except Exception:
+        except Exception as exc:
+            LOG.exception("Failed to initialize SharePoint components client: %s", exc)
             self._sp_components_client = None
         return self._sp_components_client
 
@@ -78,9 +83,11 @@ class CloudClient:
         self._sp_events_checked = True
         try:
             self._sp_events_client = SharePointEventsClient.from_env(
-                project_root=self.base_dir
+                project_root=self.base_dir,
+                dotenv_path=self.config_path,
             )
-        except Exception:
+        except Exception as exc:
+            LOG.exception("Failed to initialize SharePoint events client: %s", exc)
             self._sp_events_client = None
         return self._sp_events_client
 
@@ -90,9 +97,11 @@ class CloudClient:
         self._sp_snapshot_checked = True
         try:
             self._sp_snapshot_client = SharePointSnapshotClient.from_env(
-                project_root=self.base_dir
+                project_root=self.base_dir,
+                dotenv_path=self.config_path,
             )
-        except Exception:
+        except Exception as exc:
+            LOG.exception("Failed to initialize SharePoint snapshot client: %s", exc)
             self._sp_snapshot_client = None
         return self._sp_snapshot_client
 
@@ -102,9 +111,11 @@ class CloudClient:
         self._sp_global_view_checked = True
         try:
             self._sp_global_view_client = SharePointDiagramViewClient.from_env(
-                project_root=self.base_dir
+                project_root=self.base_dir,
+                dotenv_path=self.config_path,
             )
-        except Exception:
+        except Exception as exc:
+            LOG.exception("Failed to initialize SharePoint global view client: %s", exc)
             self._sp_global_view_client = None
         return self._sp_global_view_client
 
@@ -153,9 +164,10 @@ class CloudClient:
         sp = self._sp_snapshot()
         if sp is not None:
             try:
-                sp.save_snapshot(snapshot)
+                with operation_context("cloud-save"):
+                    sp.save_snapshot(snapshot)
             except Exception as exc:
-                LOG.warning("Failed to save snapshot to SharePoint: %s", exc)
+                LOG.exception("Failed to save snapshot to SharePoint: %s", exc)
 
     # ========== Operaciones de vista global ==========
 
@@ -200,12 +212,14 @@ class CloudClient:
         self.local.save_global_view_cache(view)
         sp = self._sp_global_view()
         require_cloud_client(sp, operation)
-        sp.save_global_view(view)
+        with operation_context(operation):
+            sp.save_global_view(view)
 
     def delete_global_view(self, *, operation: str = "global-view-delete") -> bool:
         sp = self._sp_global_view()
         require_cloud_client(sp, operation)
-        deleted = sp.delete_global_view()
+        with operation_context(operation):
+            deleted = sp.delete_global_view()
         self.local.save_global_view_cache(None)
         return bool(deleted)
 
