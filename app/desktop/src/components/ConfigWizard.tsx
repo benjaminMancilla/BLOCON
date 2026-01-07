@@ -62,8 +62,8 @@ const DEFAULT_CONFIG: SharePointConfig = {
   client_id: "",
   client_secret: "",
   site_id: "",
-  site_hostname: "your-hostname-here.sharepoint.com",
-  site_path: "/sites/your-site-name",
+  site_hostname: "",
+  site_path: "",
   events_list_id: "",
   events_list_name: "eventsBLOCON",
   events_field_kind: "kind",
@@ -148,9 +148,30 @@ export function ConfigWizard({
         nextErrors.client_secret = "Client Secret es requerido.";
       }
     }
+
+    // Step 2: SharePoint
+    if (currentStep === 2) {
+      if (
+        !config.site_hostname.trim() ||
+        config.site_hostname.trim() === "your-hostname-here.sharepoint.com"
+      ) {
+        nextErrors.site_hostname = "Hostname del Sitio es requerido.";
+      }
+      if (!config.site_path.trim() || config.site_path.trim() === "/sites/your-site-name") {
+        nextErrors.site_path = "Ruta del Sitio es requerida.";
+      }
+    }
     
     return nextErrors;
-  }, [currentStep, config.user_name, config.tenant_id, config.client_id, config.client_secret]);
+  }, [
+    currentStep,
+    config.user_name,
+    config.tenant_id,
+    config.client_id,
+    config.client_secret,
+    config.site_hostname,
+    config.site_path,
+  ]);
 
   const loadExistingConfig = async () => {
     try {
@@ -431,17 +452,43 @@ export function ConfigWizard({
 
               <section className="config-wizard__section">
                 <div className="config-wizard__field">
-                  <label htmlFor="site_id">Site ID</label>
+                  <label htmlFor="site_hostname">Hostname del Sitio *</label>
                   <div className="config-wizard__input-with-icon">
                     <KeyRound aria-hidden="true" />
                     <input
-                      id="site_id"
+                      id="site_hostname"
                       type="text"
-                      value={config.site_id}
-                      onChange={handleChange("site_id")}
-                      placeholder="Opcional"
+                      value={config.site_hostname}
+                      onChange={handleChange("site_hostname")}
+                      placeholder="tuempresa.sharepoint.com"
+                      aria-invalid={Boolean(errors.site_hostname)}
+                      aria-describedby={
+                        errors.site_hostname ? "site_hostname-error" : undefined
+                      }
                     />
                   </div>
+                  {errors.site_hostname && (
+                    <span id="site_hostname-error" className="config-wizard__error">
+                      {errors.site_hostname}
+                    </span>
+                  )}
+                </div>
+                <div className="config-wizard__field">
+                  <label htmlFor="site_path">Ruta del Sitio *</label>
+                  <input
+                    id="site_path"
+                    type="text"
+                    value={config.site_path}
+                    onChange={handleChange("site_path")}
+                    placeholder="/sites/nombre-de-tu-sitio"
+                    aria-invalid={Boolean(errors.site_path)}
+                    aria-describedby={errors.site_path ? "site_path-error" : undefined}
+                  />
+                  {errors.site_path && (
+                    <span id="site_path-error" className="config-wizard__error">
+                      {errors.site_path}
+                    </span>
+                  )}
                 </div>
                 <div className="config-wizard__field">
                   <label htmlFor="events_list_id">Events List ID</label>
