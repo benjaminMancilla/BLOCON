@@ -5,7 +5,7 @@ type DraftItemProps = {
   draft: DraftSummary;
   isBusy: boolean;
   onLoad: (draftId: string) => void;
-  onSave: (draftId: string) => void;
+  onSave: (draftId: string, name?: string) => void;
   onRename: (draftId: string, name: string) => void;
   onDelete: (draftId: string) => void;
 };
@@ -37,6 +37,7 @@ export const DraftItem = ({
   const savedAtLabel = useMemo(() => formatSavedAt(draft.savedAt), [draft.savedAt]);
   const trimmedName = name.trim();
   const canRename = Boolean(trimmedName) && trimmedName !== draft.name;
+  const saveName = trimmedName || undefined;
 
   return (
     <div className="draft-item">
@@ -63,7 +64,7 @@ export const DraftItem = ({
         <button
           type="button"
           className="draft-item__button"
-          onClick={() => onSave(draft.id)}
+          onClick={() => onSave(draft.id, saveName)}
           disabled={isBusy}
         >
           Guardar

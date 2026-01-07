@@ -7,6 +7,8 @@ import os
 import sys
 import tempfile
 import msvcrt
+import threading
+import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 from typing import ClassVar
@@ -16,6 +18,7 @@ from src.model.eventsourcing.service import GraphES
 from src.services.cache.local_store import LocalWorkspaceStore
 from src.services.cache.event_store import EventStore
 from src.services.remote.client import CloudClient
+from src.services.remote.runtime import resolve_appdata_dir, set_runtime_context
 
 # Imports de shared state y handlers
 from .shared import SharedState
@@ -26,15 +29,19 @@ from .handlers import (
     DraftHandler,
     ComponentSearchHandler,
     ViewsHandler,
+    GlobalViewHandler,
     EvaluationHandler,
     FailuresHandler,
     NodeDetailsHandler,
+    LocalHandler,
+    DiagnosticsHandler,
 )
 
 HOST = "127.0.0.1"
 PORT = 8000
 
 _lock_file = None
+_sharepoint_ready = threading.Event()
 
 
 # ========== Funciones de lock y setup ==========
@@ -93,26 +100,24 @@ def is_port_available(host: str, port: int) -> bool:
         return False
 
 
-def _get_cloud_base_version(local: LocalWorkspaceStore) -> int:
-    """Obtiene la head version desde SharePoint, con fallback a cache local."""
-    try:
-        cloud = CloudClient(base_dir=os.getcwd())
-        sp_events = cloud._sp_events()
-        if sp_events:
-            return sp_events.get_max_version()
-    except Exception as exc:
-        print(f"[warning] Could not get cloud base_version: {exc}", file=sys.stderr)
-    
+def _get_cloud_base_version_lazy(local: LocalWorkspaceStore, cloud: CloudClient) -> int:
+    """
+    Obtiene la head version desde cache local (rápido).
+    La sincronización con SharePoint se hace en background.
+    """
     try:
         return len(local.load_events())
     except Exception:
         return 0
 
 
-def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
-    """Construye GraphES desde local store."""
+def build_graph_es_fast(local: LocalWorkspaceStore | None = None, cloud: CloudClient | None = None) -> GraphES:
+    """
+    Construye GraphES RÁPIDO usando solo cache local.
+    La verificación de SharePoint se hace después en background.
+    """
     local = local or LocalWorkspaceStore()
-    base_version = _get_cloud_base_version(local)
+    base_version = _get_cloud_base_version_lazy(local, cloud) if cloud else 0
     store = EventStore(local, base_version=base_version)
     snapshot = local.load_snapshot()
     
@@ -124,17 +129,26 @@ def build_graph_es(local: LocalWorkspaceStore | None = None) -> GraphES:
     return GraphES(graph=graph, store=store, actor="anonymous")
 
 
-def clean_start(shared: SharedState) -> None:
-    """Limpia eventos locales y pre-inicializa clientes SharePoint."""
-    shared.local.clean_local_events()
-    print("Pre-initializing SharePoint clients...", file=sys.stderr)
+def background_init(shared: SharedState) -> None:
+    """
+    Inicialización costosa en background thread.
+    No bloquea el startup del servidor.
+    """
     try:
+        # Limpieza de eventos locales (I/O)
+        shared.local.clean_local_events()
+        
+        # Pre-warm SharePoint clients (HTTP requests)
+        print("Pre-initializing SharePoint clients...", file=sys.stderr)
         shared.cloud._sp_components()
         shared.cloud._sp_snapshot()
         shared.cloud._sp_events()
         print("SharePoint clients ready", file=sys.stderr)
+        
+        _sharepoint_ready.set()
     except Exception as e:
-        print(f"Warning: SharePoint init failed: {e}", file=sys.stderr)
+        print(f"Warning: Background init failed: {e}", file=sys.stderr)
+        _sharepoint_ready.set()
 
 
 # ========== Request Handler Refactorizado ==========
@@ -183,7 +197,16 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         # Health check (no requiere handler)
         if path == "/health":
             handler = self._get_handler(GraphHandler)
-            handler._send_json(200, {"status": "ok"})
+            status = {
+                "status": "ok",
+                "sharepoint_ready": _sharepoint_ready.is_set()
+            }
+            handler._send_json(200, status)
+            return
+
+        if path == "/diagnostics/cloud":
+            handler = self._get_handler(DiagnosticsHandler)
+            handler.handle_cloud_diagnostics()
             return
         
         # Graph routes
@@ -252,6 +275,16 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
         if path == "/views":
             handler = self._get_handler(ViewsHandler)
             handler.handle_list_views()
+            return
+        
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_get()
+            return
+        
+        if path == "/local/dirty":
+            handler = self._get_handler(LocalHandler)
+            handler.handle_local_dirty()
             return
         
         # 404
@@ -355,6 +388,17 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             handler.handle_create_view(payload)
             return
 
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            payload = handler._read_json_body()
+            handler.handle_global_view_save(payload)
+            return
+
+        if path == "/views/global/reload":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_reload()
+            return
+
         if path.startswith("/views/") and path.endswith("/load"):
             view_id = path[len("/views/"):-len("/load")].strip("/")
             handler = self._get_handler(ViewsHandler)
@@ -454,6 +498,11 @@ class GraphRequestHandler(BaseHTTPRequestHandler):
             return
         
         # View routes
+        if path == "/views/global":
+            handler = self._get_handler(GlobalViewHandler)
+            handler.handle_global_view_delete()
+            return
+
         if path.startswith("/views/"):
             view_id = path[len("/views/"):].strip()
             handler = self._get_handler(ViewsHandler)
@@ -479,11 +528,41 @@ def main() -> None:
         release_single_instance_lock()
         sys.exit(1)
 
-    # Setup inicial
+    appdata_dir = resolve_appdata_dir(app_name="Blocon")
+    log_dir = os.path.join(appdata_dir, "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, "backend.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+        handlers=[
+            logging.FileHandler(log_path, encoding="utf-8"),
+            logging.StreamHandler(sys.stderr),
+        ],
+    )
+
     local = LocalWorkspaceStore()
-    es = build_graph_es(local)
     base_dir = os.path.abspath(os.path.dirname(__file__))
-    cloud = CloudClient(base_dir=base_dir)
+    config_path = os.path.join(appdata_dir, ".env")
+    set_runtime_context(
+        base_dir=base_dir,
+        appdata_dir=appdata_dir,
+        config_path=config_path,
+        api_server=f"http://{HOST}:{PORT}",
+    )
+    logging.getLogger(__name__).info(
+        "Runtime context initialized %s",
+        {
+            "base_dir": base_dir,
+            "appdata_dir": appdata_dir,
+            "config_path": config_path,
+            "cwd": os.getcwd(),
+            "api_server": f"http://{HOST}:{PORT}",
+        },
+    )
+    cloud = CloudClient(base_dir=base_dir, appdata_dir=appdata_dir, config_path=config_path)
+    
+    es = build_graph_es_fast(local, cloud)
     
     # Crear shared state
     GraphRequestHandler.shared = SharedState(
@@ -494,10 +573,13 @@ def main() -> None:
         cloud_baseline=es.graph.to_data(),
     )
 
-    # Clean start
-    clean_start(GraphRequestHandler.shared)
-
-    # Iniciar servidor
+    init_thread = threading.Thread(
+        target=background_init, 
+        args=(GraphRequestHandler.shared,),
+        daemon=True,
+        name="background-init"
+    )
+    init_thread.start()
     server = None
     try:
         server = HTTPServer((HOST, PORT), GraphRequestHandler)

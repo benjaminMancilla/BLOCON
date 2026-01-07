@@ -41,6 +41,7 @@ class GraphHandler(BaseHandler):
     def handle_get_graph(self) -> None:
         """GET /graph - Retorna el grafo completo serializado."""
         graph_data = self.coordinator.serialize_full_graph()
+        graph_data["failures_cache"] = self.shared.local.load_failures_cache()
         self._send_json(200, graph_data)
     
     def handle_get_node(self, node_id: str) -> None:

@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { DraftSummary } from "../../../../services/draftService";
+import { useConfirmDialog } from "../../hooks/useConfirmDialog";
 import { DraftItem } from "./DraftItem";
 
 type DraftsMenuProps = {
   drafts: DraftSummary[];
   isLoading: boolean;
   isBusy: boolean;
+  maxDrafts: number;
+  isFull: boolean;
   disabled?: boolean;
   onCreateDraft: (name?: string) => Promise<void>;
-  onSaveDraft: (draftId: string) => Promise<void>;
+  onSaveDraft: (draftId: string, name?: string) => Promise<void>;
   onLoadDraft: (draftId: string) => Promise<void>;
   onRenameDraft: (draftId: string, name: string) => Promise<void>;
   onDeleteDraft: (draftId: string) => Promise<void>;
@@ -18,6 +21,8 @@ export const DraftsMenu = ({
   drafts,
   isLoading,
   isBusy,
+  maxDrafts,
+  isFull,
   disabled,
   onCreateDraft,
   onSaveDraft,
@@ -28,6 +33,7 @@ export const DraftsMenu = ({
   const [isOpen, setIsOpen] = useState(false);
   const [newDraftName, setNewDraftName] = useState("");
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const { confirm, dialog } = useConfirmDialog();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,14 +48,45 @@ export const DraftsMenu = ({
   }, [isOpen]);
 
   const handleCreate = async () => {
+    if (isFull) return;
+    const confirmed = await confirm({
+      title: "Guardar borrador",
+      description: "¿Guardar cambios en este borrador?",
+      confirmLabel: "Guardar",
+    });
+    if (!confirmed) return;
     await onCreateDraft(newDraftName.trim() || undefined);
     setNewDraftName("");
   };
 
+  const handleSave = async (draftId: string, name?: string) => {
+    const confirmed = await confirm({
+      title: "Guardar borrador",
+      description: "¿Guardar cambios en este borrador?",
+      confirmLabel: "Guardar",
+    });
+    if (!confirmed) return;
+    await onSaveDraft(draftId, name);
+  };
+
+  const handleLoad = async (draftId: string) => {
+    const confirmed = await confirm({
+      title: "Cargar borrador",
+      description:
+        "Cargar este borrador reemplazará el grafo y la vista actual. ¿Continuar?",
+      confirmLabel: "Cargar",
+    });
+    if (!confirmed) return;
+    await onLoadDraft(draftId);
+  };
+
   const handleDelete = async (draftId: string) => {
-    const confirmed = window.confirm(
-      "¿Eliminar este borrador? Esta acción no se puede deshacer.",
-    );
+    const confirmed = await confirm({
+      title: "Eliminar borrador",
+      description: "Eliminar este borrador no se puede deshacer. ¿Eliminar?",
+      confirmLabel: "Eliminar",
+      confirmTone: "danger",
+    });
     if (!confirmed) return;
     await onDeleteDraft(draftId);
   };
@@ -82,18 +119,24 @@ export const DraftsMenu = ({
             </button>
           </div>
           <div className="drafts-menu__new">
-            <input
-              className="drafts-menu__input"
-              value={newDraftName}
-              onChange={(event) => setNewDraftName(event.target.value)}
-              placeholder="Nombre del nuevo borrador"
-              disabled={isBusy}
-            />
+            {isFull ? (
+              <p className="drafts-menu__full">
+                Se alcanzó el máximo de {maxDrafts} borradores.
+              </p>
+            ) : (
+              <input
+                className="drafts-menu__input"
+                value={newDraftName}
+                onChange={(event) => setNewDraftName(event.target.value)}
+                placeholder="Nombre del nuevo borrador"
+                disabled={isBusy}
+              />
+            )}
             <button
               type="button"
               className="drafts-menu__action"
               onClick={handleCreate}
-              disabled={isBusy}
+              disabled={isBusy || isFull}
             >
               Guardar nuevo
             </button>
@@ -111,8 +154,8 @@ export const DraftsMenu = ({
                   key={draft.id}
                   draft={draft}
                   isBusy={isBusy}
-                  onLoad={onLoadDraft}
-                  onSave={onSaveDraft}
+                  onLoad={handleLoad}
+                  onSave={handleSave}
                   onRename={onRenameDraft}
                   onDelete={handleDelete}
                 />
@@ -121,6 +164,7 @@ export const DraftsMenu = ({
           </div>
         </div>
       ) : null}
+      {dialog}
     </div>
   );
 };

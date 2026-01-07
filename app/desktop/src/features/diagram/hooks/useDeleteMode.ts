@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DiagramNodeSelection } from "../types/selection";
-import { deleteNode } from "../../../services/graphService";
+import { useDeleteNodeAction } from "./useDeleteNodeAction";
 
 type UseDeleteModeArgs = {
   isBlocked?: boolean;
@@ -26,10 +26,8 @@ type UseDeleteModeResult = {
   requestDelete: () => void;
   confirmDelete: () => Promise<void>;
   cancelDelete: () => void;
+  requestDeleteForSelection: (selection: DiagramNodeSelection) => void;
 };
-
-const isGateSelection = (selection: DiagramNodeSelection | null) =>
-  selection?.type === "gate" || selection?.type === "collapsedGate";
 
 export const useDeleteMode = ({
   isBlocked = false,
@@ -44,32 +42,38 @@ export const useDeleteMode = ({
     useState<DiagramNodeSelection | null>(null);
   const [selectedSelection, setSelectedSelection] =
     useState<DiagramNodeSelection | null>(null);
-  const [confirmSelection, setConfirmSelection] =
-    useState<DiagramNodeSelection | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const isDeleteBlocked = isBlocked;
 
-  const requiresConfirm = useCallback(
-    (selection: DiagramNodeSelection | null) => {
-      if (!selection) return false;
-      if (isGateSelection(selection)) return true;
-      return !skipConfirmForComponents;
+  const handleDeleteSuccess = useCallback(
+    (selection: DiagramNodeSelection) => {
+      onDeleteSuccess?.(selection);
+      setDraftSelection(null);
+      setSelectedSelection(null);
+      setHoveredNodeId(null);
     },
-    [skipConfirmForComponents],
+    [onDeleteSuccess],
   );
+
+  const deleteAction = useDeleteNodeAction({
+    skipConfirmForComponents,
+    onDeleteSuccess: handleDeleteSuccess,
+    onDeleteError,
+  });
 
   const resetSelection = useCallback(() => {
     setDraftSelection(null);
     setSelectedSelection(null);
     setHoveredNodeId(null);
-    setConfirmSelection(null);
-  }, []);
+    deleteAction.cancelDelete();
+  }, [deleteAction]);
 
+  const previousDeleteMode = useRef(isDeleteMode);
   useEffect(() => {
-    if (!isDeleteMode) {
+    if (previousDeleteMode.current && !isDeleteMode) {
       resetSelection();
     }
+    previousDeleteMode.current = isDeleteMode;
   }, [isDeleteMode, resetSelection]);
 
   useEffect(() => {
@@ -77,46 +81,14 @@ export const useDeleteMode = ({
     setIsDeleteMode(false);
   }, [isDeleteBlocked, isDeleteMode]);
 
-  const performDelete = useCallback(
-    async (selection: DiagramNodeSelection) => {
-      if (isDeleting) return;
-      setIsDeleting(true);
-      try {
-        await deleteNode(selection.id);
-        onDeleteSuccess?.(selection);
-        resetSelection();
-      } catch (error) {
-        console.error("Error deleting node:", error);
-        onDeleteError?.(selection, error);
-      } finally {
-        setIsDeleting(false);
-      }
-    },
-    [isDeleting, onDeleteError, onDeleteSuccess, resetSelection],
-  );
-
   const requestDelete = useCallback(
     (selectionOverride?: DiagramNodeSelection | null) => {
       const selection = selectionOverride ?? selectedSelection;
-      if (!selection || isDeleting) return;
-      if (requiresConfirm(selection)) {
-        setConfirmSelection(selection);
-        return;
-      }
-      void performDelete(selection);
+      if (!selection) return;
+      deleteAction.requestDelete(selection);
     },
-    [isDeleting, performDelete, requiresConfirm, selectedSelection],
+    [deleteAction, selectedSelection],
   );
-
-  const confirmDelete = useCallback(async () => {
-    if (!confirmSelection) return;
-    await performDelete(confirmSelection);
-    setConfirmSelection(null);
-  }, [confirmSelection, performDelete]);
-
-  const cancelDelete = useCallback(() => {
-    setConfirmSelection(null);
-  }, []);
 
   const toggleDeleteMode = useCallback(() => {
     if (isDeleteBlocked) return;
@@ -167,8 +139,8 @@ export const useDeleteMode = ({
       draftSelection,
       selectedSelection,
       hoveredNodeId,
-      confirmSelection,
-      isDeleting,
+      confirmSelection: deleteAction.confirmSelection,
+      isDeleting: deleteAction.isDeleting,
       toggleDeleteMode,
       setSkipConfirmForComponents,
       onNodeHover: handleNodeHover,
@@ -176,13 +148,12 @@ export const useDeleteMode = ({
       onNodeConfirm: handleNodeConfirm,
       onSelectionCancel: handleSelectionCancel,
       requestDelete: () => requestDelete(),
-      confirmDelete,
-      cancelDelete,
+      confirmDelete: deleteAction.confirmDelete,
+      cancelDelete: deleteAction.cancelDelete,
+      requestDeleteForSelection: (selection) => requestDelete(selection),
     }),
     [
-      cancelDelete,
-      confirmDelete,
-      confirmSelection,
+      deleteAction,
       draftSelection,
       handleNodeConfirm,
       handleNodeHover,
@@ -191,7 +162,6 @@ export const useDeleteMode = ({
       hoveredNodeId,
       isDeleteBlocked,
       isDeleteMode,
-      isDeleting,
       requestDelete,
       selectedSelection,
       skipConfirmForComponents,

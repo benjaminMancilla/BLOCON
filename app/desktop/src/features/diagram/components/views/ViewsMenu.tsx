@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ViewSummary } from "../../../../services/viewsService";
+import { GlobalViewItem } from "./GlobalViewItem";
 import { ViewItem } from "./ViewItem";
 
 type ViewsMenuProps = {
@@ -7,6 +8,16 @@ type ViewsMenuProps = {
   isLoading: boolean;
   isBusy: boolean;
   disabled?: boolean;
+  globalView: {
+    exists: boolean;
+    isCollapsed: boolean;
+    isLoading: boolean;
+    onToggleCollapse: () => void;
+    onLoad: () => Promise<void> | void;
+    onSave: () => Promise<void> | void;
+    onReload: () => Promise<void> | void;
+    onDelete: () => Promise<void> | void;
+  };
   onCreateView: (name?: string) => Promise<void>;
   onSaveView: (viewId: string) => Promise<void>;
   onLoadView: (viewId: string) => Promise<void>;
@@ -19,6 +30,7 @@ export const ViewsMenu = ({
   isLoading,
   isBusy,
   disabled,
+  globalView,
   onCreateView,
   onSaveView,
   onLoadView,
@@ -52,6 +64,14 @@ export const ViewsMenu = ({
     );
     if (!confirmed) return;
     await onDeleteView(viewId);
+  };
+
+    const handleGlobalDelete = async () => {
+    const confirmed = window.confirm(
+      "¿Eliminar la vista global? Esta acción no se puede deshacer.",
+    );
+    if (!confirmed) return;
+    await globalView.onDelete();
   };
 
   return (
@@ -99,6 +119,17 @@ export const ViewsMenu = ({
             </button>
           </div>
           <div className="views-menu__content">
+            <GlobalViewItem
+              isCollapsed={globalView.isCollapsed}
+              onToggleCollapse={globalView.onToggleCollapse}
+              exists={globalView.exists}
+              isLoading={globalView.isLoading}
+              isDisabled={isBusy}
+              onLoad={globalView.onLoad}
+              onSave={globalView.onSave}
+              onReload={globalView.onReload}
+              onDelete={handleGlobalDelete}
+            />
             {isLoading ? (
               <p className="views-menu__empty">Cargando vistas...</p>
             ) : views.length === 0 ? (

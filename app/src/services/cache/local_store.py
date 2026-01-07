@@ -14,6 +14,7 @@ from .repositories import (
     DraftRepo,
     DraftsRepo,
     DiagramViewRepo,
+    GlobalDiagramViewRepo,
     SavedViewsRepo,
     EventLogRepo,
 )
@@ -64,6 +65,7 @@ class LocalWorkspaceStore:
         self.draft = DraftRepo(data_dir=self.data_dir)
         self.drafts = DraftsRepo(data_dir=self.data_dir)
         self.diagram_view = DiagramViewRepo(data_dir=self.cache_dir)
+        self.global_view = GlobalDiagramViewRepo(data_dir=self.cache_dir)
         self.saved_views = SavedViewsRepo(data_dir=self.cache_dir)
         self._eventsourcing_store: Any | None = None
 
@@ -127,6 +129,16 @@ class LocalWorkspaceStore:
             f"Cleaned local events on startup ({removed} removed)",
             file=sys.stderr,
         )
+
+    def local_events_count(self, filename: str = "events.local.jsonl") -> int:
+        path = self.eventsourcing_events_path(filename=filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return sum(1 for line in f if line.strip())
+        except FileNotFoundError:
+            return 0
+        except Exception:
+            return 0
     
     def _validate_event_versions(self, events: List[dict], context: str) -> None:
         invalid_indices = [
@@ -163,6 +175,12 @@ class LocalWorkspaceStore:
 
     def save_diagram_view(self, view: Dict[str, Any]) -> None:
         self.diagram_view.save(view or {})
+
+    def load_global_view_cache(self) -> Dict[str, Any] | None:
+        return self.global_view.load()
+
+    def save_global_view_cache(self, view: Dict[str, Any] | None) -> None:
+        self.global_view.save(view)
 
     # --- saved views (multi) ---
     def saved_views_list(self) -> List[Dict[str, Any]]:
@@ -235,6 +253,12 @@ class LocalWorkspaceStore:
    # --- drafts (multi) ---
     def drafts_list(self) -> List[Dict[str, Any]]:
         return self.drafts.list_drafts()
+
+    def drafts_count(self) -> int:
+        return self.drafts.count_drafts()
+
+    def drafts_max(self) -> int:
+        return self.drafts.max_drafts
 
     def drafts_create(
         self,

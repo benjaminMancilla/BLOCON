@@ -1,5 +1,8 @@
 // Components
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/tauri";
+import { ConfigWizard } from "./components/ConfigWizard";
+import { DebugConfig } from "./components/DebugConfig";
 import { DiagramCanvas } from "./features/diagram/components/DiagramCanvas";
 import { DiagramSidePanel } from "./features/diagram/components/DiagramSidePanel";
 import { DiagramTopBar } from "./features/diagram/components/DiagramTopBar";
@@ -16,6 +19,7 @@ import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { ToastContainer } from "./features/diagram/components/ToastContainer";
+import { GradientBackdrop } from "./ui/components/GradientBackDrop";
 
 // Hooks
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";
@@ -32,6 +36,9 @@ import { useComponentSearch } from "./features/diagram/components/addComponent/h
 import { useAddComponent } from "./features/diagram/hooks/useAddComponent";
 import { useRestrictions } from "./features/diagram/hooks/useRestrictions";
 import { useOrganizationPayload } from "./features/diagram/hooks/useOrganizationPayload";
+import { useGlobalView } from "./features/diagram/hooks/useGlobalView";
+import { useUnsavedChangesGuard } from "./features/diagram/hooks/useUnsavedChangesGuard";
+import type { NodeContextMenuTarget } from "./features/diagram/hooks/useNodeContextMenu";
 import {
   useToasts,
   useCloudToasts,
@@ -45,6 +52,7 @@ import { addRootComponent, insertOrganization } from "./services/graphService";
 // Types
 import type { OrganizationUiState } from "./features/diagram/types/organization";
 import type { GateType } from "./features/diagram/types/gates";
+import type { DiagramNodeSelection } from "./features/diagram/types/selection";
 
 // Handlers
 import { useDraftHandlers } from "./features/diagram/hooks/useDraftHandlers";
@@ -55,6 +63,7 @@ import { useFailuresReloadFlow } from "./features/diagram/hooks/useFailuresReloa
 
 const ENTER_DEBOUNCE_MS = 650;
 const MIN_QUERY_LEN = 2;
+const DEBUG = true;
 
 type InsertHighlight = {
   token: number;
@@ -64,7 +73,7 @@ type InsertHighlight = {
   gateType: GateType | null;
 };
 
-function App() {
+function AppContent() {
   // CORE STATE
   const [graphReloadToken, setGraphReloadToken] = useState(0);
   const [organizationUiState, setOrganizationUiState] =
@@ -173,6 +182,14 @@ function App() {
     },
   });
 
+  const globalView = useGlobalView({
+    getCurrentView: diagramView.getViewSnapshot,
+    onViewApplied: async () => {
+      await diagramView.refresh();
+    },
+    toasts,
+  });
+
   // Cloud error recovery
   const cloudErrorRecovery = useCloudErrorRecovery({
     onRetrySuccess: async () => {
@@ -181,6 +198,13 @@ function App() {
       await draftHandlers.refreshDrafts();
       await viewHandlers.refreshViews();
     },
+  });
+
+ const unsavedChangesGuard = useUnsavedChangesGuard({
+    isCloudBusy:
+      cloudActions.cloudActionInFlight !== null ||
+      rebuildFlow.isLoading ||
+      cloudErrorRecovery.actionLoading !== null,
   });
 
   // Delete mode
@@ -218,7 +242,9 @@ function App() {
     isEvaluationBusy: evaluateFlow.isLoading,
     isFailuresReloadBusy: failuresReloadFlow.isLoading,
     isDraftBusy: draftHandlers.actionInFlight !== null,
-    isViewBusy: viewHandlers.actionInFlight !== null,
+    isViewBusy:
+      viewHandlers.actionInFlight !== null ||
+      globalView.actionInFlight !== null,
     isRebuildInProgress: rebuildFlow.isLoading,
     isCloudRecoveryActive:
       cloudErrorRecovery.isModalOpen ||
@@ -255,7 +281,7 @@ function App() {
     [insertValidators]
   );
 
-    const handleComponentSelect = useCallback(
+  const handleComponentSelect = useCallback(
     (componentId: string, componentName: string) => {
       if (isGraphEmpty) {
         addComponent.selectComponent(componentId, componentName, {
@@ -268,6 +294,36 @@ function App() {
       addComponent.selectComponent(componentId, componentName);
     },
     [addComponent, isGraphEmpty]
+  );
+
+  const toContextSelection = useCallback(
+    (target: NodeContextMenuTarget): DiagramNodeSelection => ({
+      id: target.nodeId,
+      type: target.selectionType,
+      name: target.name ?? null,
+    }),
+    [],
+  );
+
+  const handleContextMenuDelete = useCallback(
+    (target: NodeContextMenuTarget) => {
+      deleteMode.requestDeleteForSelection(toContextSelection(target));
+    },
+    [deleteMode, toContextSelection],
+  );
+
+  const handleContextMenuAddHere = useCallback(
+    (target: NodeContextMenuTarget) => {
+      if (!restrictions.canEnterAddMode) return;
+      addComponent.startAddComponentFlow({
+        autoTarget: {
+          hostId: target.nodeId,
+          hostType: target.nodeType === "gate" ? "gate" : "component",
+        },
+        entryPoint: "context_menu",
+      });
+    },
+    [addComponent, restrictions.canEnterAddMode],
   );
 
   const handleConfirmRootInsert = useCallback(async () => {
@@ -400,7 +456,7 @@ function App() {
 
   // RENDER
   return (
-    <div className="app">
+    <GradientBackdrop section="app" className="app">
       <DiagramTopBar
         isAddMode={addComponent.flags.isActive}
         isBlocked={!restrictions.canEnterAddMode && !addComponent.flags.isActive}
@@ -412,6 +468,7 @@ function App() {
         isViewerMode={versionViewer.isActive}
         viewerVersion={versionViewer.version}
         skipDeleteConfirmation={deleteMode.skipConfirmForComponents}
+        reliabilityTotal={activeGraph.reliability_total ?? null}
         cloudSaveState={{
           isBusy: cloudActions.cloudActionInFlight === "save",
           label:
@@ -443,7 +500,9 @@ function App() {
         onEvaluate={evaluateFlow.evaluate}
         onReloadFailures={failuresReloadFlow.reload}
         onToggleAddMode={
-          addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+          addComponent.flags.isActive
+            ? addComponent.cancel
+            : () => addComponent.startAddComponentFlow({ entryPoint: "topbar" })
         }
         onToggleDeleteMode={deleteMode.toggleDeleteMode}
         onToggleVersionHistory={versionHistoryPanel.toggle}
@@ -462,6 +521,16 @@ function App() {
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateView
               }
+              globalView={{
+                exists: globalView.exists,
+                isCollapsed: globalView.isCollapsed,
+                isLoading: globalView.isLoading,
+                onToggleCollapse: globalView.toggleCollapse,
+                onLoad: globalView.loadGlobalView,
+                onSave: globalView.saveGlobalView,
+                onReload: globalView.reloadGlobalView,
+                onDelete: globalView.deleteGlobalView,
+              }}
               onCreateView={viewHandlers.handleCreate}
               onSaveView={viewHandlers.handleSave}
               onLoadView={viewHandlers.handleLoad}
@@ -477,6 +546,8 @@ function App() {
             <DraftsMenu
               drafts={draftHandlers.drafts}
               isLoading={draftHandlers.isLoading}
+              maxDrafts={draftHandlers.maxDrafts}
+              isFull={draftHandlers.isFull}
               isBusy={
                 cloudActions.cloudActionInFlight !== null ||
                 !restrictions.canCreateDraft
@@ -552,10 +623,14 @@ function App() {
           onNodeInfoOpen={nodeInfoPanel.open}
           onGraphReload={reloadGraph}
           onEmptyAdd={
-            addComponent.flags.isActive ? addComponent.cancel : addComponent.start
+            addComponent.flags.isActive
+              ? addComponent.cancel
+              : () => addComponent.startAddComponentFlow({ entryPoint: "topbar" })
           }
           isEmptyAddDisabled={!restrictions.canEnterAddMode}
           isEmptyAddActive={addComponent.flags.isActive}
+          onNodeDelete={handleContextMenuDelete}
+          onNodeAddHere={handleContextMenuAddHere}
         />
         <DeleteActionButton
           isVisible={deleteMode.isDeleteMode}
@@ -656,10 +731,55 @@ function App() {
         />
       ) : null}
 
+      {unsavedChangesGuard.dialog}
+
       {/* Toasts - Sistema Unificado */}
       <ToastContainer toasts={toasts.toasts} onDismiss={toasts.dismiss} />
-    </div>
+    </GradientBackdrop>
   );
+}
+
+function App() {
+  const [hasConfig, setHasConfig] = useState<boolean | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    invoke<boolean>("has_config")
+      .then((result) => {
+        if (!isMounted) return;
+        setHasConfig(result);
+      })
+      .catch((error) => {
+        console.error("Error checking config:", error);
+        if (!isMounted) return;
+        setConfigError(
+          "No se pudo verificar la configuración. Puedes intentar configurarla nuevamente."
+        );
+        setHasConfig(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (hasConfig === null) {
+    return (
+      <div className="config-wizard config-wizard__loading">
+        <div className="config-wizard__spinner">
+          <span>Verificando configuración...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasConfig) {
+    return <ConfigWizard initialHasConfig={false} initialError={configError} />;
+  }
+
+  //if(DEBUG) return <DebugConfig />;
+
+  return <AppContent />;
 }
 
 export default App;

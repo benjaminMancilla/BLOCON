@@ -1,3 +1,10 @@
+import { SurfaceCard } from "../../../ui/components/SurfaceCard";
+import {
+  DangerButton,
+  PrimaryButton,
+  SecondaryButton,
+} from "../../../ui/components/buttons";
+
 type ConfirmDialogProps = {
   eyebrow?: string;
   title: string;
@@ -21,40 +28,37 @@ export const ConfirmDialog = ({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {
-  const confirmClassName =
-    confirmTone === "danger"
-      ? "diagram-modal__button diagram-modal__button--danger"
-      : "diagram-modal__button";
+  const ConfirmButton = confirmTone === "danger" ? DangerButton : PrimaryButton;
 
   return (
     <div className="diagram-modal" role="dialog" aria-modal="true">
       <div className="diagram-modal__backdrop" />
-      <div className="diagram-modal__content">
+      <SurfaceCard className="diagram-modal__content">
         <div>
           <p className="diagram-modal__eyebrow">{eyebrow}</p>
           <h2 className="diagram-modal__title">{title}</h2>
           <p className="diagram-modal__description">{description}</p>
         </div>
         <div className="diagram-modal__actions">
-          <button
+          <SecondaryButton
             type="button"
             className="diagram-modal__button diagram-modal__button--ghost"
             onClick={onCancel}
             disabled={isLoading}
           >
             {cancelLabel}
-          </button>
-          <button
+          </SecondaryButton>
+          <ConfirmButton
             type="button"
-            className={confirmClassName}
+            className="diagram-modal__button"
             onClick={onConfirm}
             disabled={isLoading}
             aria-busy={isLoading}
           >
             {confirmLabel}
-          </button>
+          </ConfirmButton>
         </div>
-      </div>
+      </SurfaceCard>
     </div>
   );
 };

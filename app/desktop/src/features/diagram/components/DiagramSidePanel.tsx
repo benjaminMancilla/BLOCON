@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from "react";
+import { AnimatedPanel } from "../../../ui/components/AnimatedPanel";
+import { SurfaceCard } from "../../../ui/components/SurfaceCard";
 
 type DiagramSidePanelProps = {
   children: ReactNode;
@@ -12,7 +14,8 @@ export const DiagramSidePanel = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <aside
+    <AnimatedPanel
+      as="aside"
       className={`diagram-side-panel${className ? ` ${className}` : ""}${
         isCollapsed ? " diagram-side-panel--collapsed" : ""
       }`}
@@ -25,7 +28,7 @@ export const DiagramSidePanel = ({
       >
         {isCollapsed ? "›" : "‹"}
       </button>
-      <div className="diagram-side-panel__body">{children}</div>
-    </aside>
+      <SurfaceCard className="diagram-side-panel__body">{children}</SurfaceCard>
+    </AnimatedPanel>
   );
 };

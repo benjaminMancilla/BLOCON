@@ -12,7 +12,10 @@ export type OrganizationInsertPosition = {
   referenceId: string | null;
 };
 
-export type OrganizationInsertData = AddComponentFormState & {
+export type OrganizationInsertData = Pick<
+  AddComponentFormState,
+  "componentId" | "calculationType"
+> & {
   target: OrganizationInsertTarget | null;
   position: OrganizationInsertPosition;
   k?: number | null;

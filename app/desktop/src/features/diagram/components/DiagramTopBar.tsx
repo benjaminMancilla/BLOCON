@@ -1,8 +1,21 @@
 import type { ReactNode } from "react";
+import {
+  Activity,
+  Cloud,
+  Eye,
+  FileStack,
+  History,
+  LayoutGrid,
+  PencilRuler,
+} from "lucide-react";
+import { TopbarReliabilityIndicator } from "./ReliabilityIndicator";
+import { Pill } from "../../../ui/components/Pill";
+import { SectionIcon } from "../../../ui/components/SectionIcon";
 
 type DiagramTopBarProps = {
   title?: string;
   subtitle?: string;
+  reliabilityTotal?: number | null;
   isAddMode?: boolean;
   isBlocked?: boolean;
   isAddDisabled?: boolean;
@@ -49,7 +62,8 @@ type DiagramTopBarProps = {
 
 export const DiagramTopBar = ({
   title = "BLOCON",
-  subtitle = "Lienzo base de diagrama",
+  subtitle = "Generadora Metropolitana",
+  reliabilityTotal = null,
   isAddMode = false,
   isBlocked = false,
   isAddDisabled = false,
@@ -90,20 +104,26 @@ export const DiagramTopBar = ({
         isBlocked ? " diagram-topbar--blocked" : ""
       }`}
     >
-      <div>
-        <p className="diagram-topbar__eyebrow">Diagrama</p>
-        <h1 className="diagram-topbar__title">{title}</h1>
-        <p className="diagram-topbar__subtitle">{subtitle}</p>
-        {isViewerMode ? (
-          <p className="diagram-topbar__viewer-label">
-            VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
-          </p>
-        ) : null}
+      <div className="diagram-topbar__summary">
+        <div className="diagram-topbar__titles">
+          <p className="diagram-topbar__eyebrow">Diagrama</p>
+          <h1 className="diagram-topbar__title">{title}</h1>
+          <p className="diagram-topbar__subtitle">{subtitle}</p>
+          {isViewerMode ? (
+            <Pill tone="warning" className="diagram-topbar__viewer-label">
+              VISUALIZANDO VERSIÓN {viewerVersion ?? "?"}
+            </Pill>
+          ) : null}
+        </div>
+        <TopbarReliabilityIndicator reliabilityTotal={reliabilityTotal} />
       </div>
       <div className="diagram-topbar__actions">
         {isViewerMode ? (
           <div className="diagram-topbar__section diagram-topbar__section--viewer">
-            <p className="diagram-topbar__section-title">Visualizador</p>
+            <p className="diagram-topbar__section-title">
+              <SectionIcon tone="purple" icon={<Eye size={16} />} />
+              Visualizador
+            </p>
             <div className="diagram-topbar__section-buttons">
               <button
                 type="button"
@@ -116,7 +136,10 @@ export const DiagramTopBar = ({
           </div>
         ) : null}
         <div className="diagram-topbar__section">
-          <p className="diagram-topbar__section-title">Cloud</p>
+          <p className="diagram-topbar__section-title">
+            <SectionIcon tone="blue" icon={<Cloud size={16} />} />
+            Cloud
+          </p>
           <div className="diagram-topbar__section-buttons">
             <button
               type="button"
@@ -146,7 +169,10 @@ export const DiagramTopBar = ({
         </div>
         {evaluateState || failuresReloadState ? (
           <div className="diagram-topbar__section">
-            <p className="diagram-topbar__section-title">Análisis</p>
+            <p className="diagram-topbar__section-title">
+              <SectionIcon tone="orange" icon={<Activity size={16} />} />
+              Análisis
+            </p>
             <div className="diagram-topbar__section-buttons">
               {evaluateState ? (
                 <button
@@ -181,18 +207,27 @@ export const DiagramTopBar = ({
         ) : null}
         {viewsMenu ? (
           <div className="diagram-topbar__section diagram-topbar__section--inline">
-            <p className="diagram-topbar__section-title">Vistas</p>
+            <p className="diagram-topbar__section-title">
+              <SectionIcon tone="teal" icon={<LayoutGrid size={16} />} />
+              Vistas
+            </p>
             <div className="diagram-topbar__section-buttons">{viewsMenu}</div>
           </div>
         ) : null}
         {draftsMenu ? (
           <div className="diagram-topbar__section diagram-topbar__section--inline">
-            <p className="diagram-topbar__section-title">Borradores</p>
+            <p className="diagram-topbar__section-title">
+              <SectionIcon tone="blue" icon={<FileStack size={16} />} />
+              Borradores
+            </p>
             <div className="diagram-topbar__section-buttons">{draftsMenu}</div>
           </div>
         ) : null}
         <div className="diagram-topbar__section">
-          <p className="diagram-topbar__section-title">Edición</p>
+          <p className="diagram-topbar__section-title">
+            <SectionIcon tone="purple" icon={<PencilRuler size={16} />} />
+            Edición
+          </p>
           <div className="diagram-topbar__section-buttons">
             <button
               type="button"
@@ -242,7 +277,10 @@ export const DiagramTopBar = ({
           </div>
         </div>
         <div className="diagram-topbar__section">
-          <p className="diagram-topbar__section-title">Versiones</p>
+          <p className="diagram-topbar__section-title">
+            <SectionIcon tone="orange" icon={<History size={16} />} />
+            Versiones
+          </p>
           <div className="diagram-topbar__section-buttons">
             <button
               type="button"

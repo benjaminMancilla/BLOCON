@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
 from .base import BaseHandler
 from ..coordinators import DraftCoordinator, CloudCoordinator
+from ...cache.repositories.draft import DraftsFullError
 
 
 class DraftHandler(BaseHandler):
@@ -37,7 +38,7 @@ class DraftHandler(BaseHandler):
     def handle_list_drafts(self) -> None:
         """GET /drafts - Retorna lista de drafts."""
         drafts = self.coordinator.list_drafts()
-        self._send_json(200, {"drafts": drafts})
+        self._send_json(200, drafts)
     
     # ========== Handlers POST ==========
     
@@ -52,7 +53,24 @@ class DraftHandler(BaseHandler):
         if isinstance(payload, dict):
             name = payload.get("name")
         
-        result = self.coordinator.create_draft(name)
+        try:
+            result = self.coordinator.create_draft(name)
+        except DraftsFullError as exc:
+            self._send_json(
+                409,
+                {
+                    "status": "error",
+                    "error": {
+                        "kind": "drafts",
+                        "code": "DRAFTS_FULL",
+                        "message": "Draft limit reached",
+                        "maxDrafts": exc.max_drafts,
+                        "draftCount": exc.draft_count,
+                    },
+                },
+            )
+            return
+
         self._send_json(200, {"status": "ok", "draft": result})
     
     def handle_load_draft(self, draft_id: str) -> None:

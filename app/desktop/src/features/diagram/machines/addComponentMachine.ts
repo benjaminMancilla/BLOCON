@@ -45,7 +45,7 @@ export function addComponentReducer(
 ): AddComponentState {
   // Manejar RESET globalmente - puede ocurrir desde cualquier estado
   if (event.type === "RESET") {
-    return { type: "idle" };
+    return { type: "searchingComponent" };
   }
 
   // Manejar CANCEL globalmente - vuelve a idle desde cualquier estado
@@ -74,6 +74,23 @@ export function addComponentReducer(
         return {
           type: "selectingTarget",
           component: state.component,
+        };
+      }
+      if (event.type === "SELECT_TARGET") {
+        // Si es un gate, va directo a organization
+        if (event.target.type === "gate") {
+          return {
+            type: "organizing",
+            component: state.component,
+            target: event.target,
+            gateType: null,
+          };
+        }
+        // Si es component, necesita elegir gate
+        return {
+          type: "choosingGate",
+          component: state.component,
+          target: event.target,
         };
       }
       if (event.type === "CLEAR_COMPONENT") {

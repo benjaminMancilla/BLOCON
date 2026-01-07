@@ -22,6 +22,7 @@ import { useSelectionMode } from "./canvas/hooks/useSelectionMode";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { useNodeContextMenu } from "../hooks/useNodeContextMenu";
 import type { NodeContextMenuTarget } from "../hooks/useNodeContextMenu";
+import { buildLastFailureTypeById } from "../utils/failureCache";
 
 const ORGANIZATION_PADDING = 32;
 
@@ -68,6 +69,8 @@ type DiagramCanvasProps = {
   onOrganizationStateChange?: (state: OrganizationUiState | null) => void;
   canOpenNodeContextMenu?: boolean;
   onNodeInfoOpen?: (nodeId: string) => void;
+  onNodeDelete?: (target: NodeContextMenuTarget) => void;
+  onNodeAddHere?: (target: NodeContextMenuTarget) => void;
   onGraphReload?: () => void;
   onEmptyAdd?: () => void;
   isEmptyAddDisabled?: boolean;
@@ -111,13 +114,14 @@ export const DiagramCanvas = ({
   onOrganizationStateChange,
   canOpenNodeContextMenu = true,
   onNodeInfoOpen,
+  onNodeDelete,
+  onNodeAddHere,
   onGraphReload,
   onEmptyAdd,
   isEmptyAddDisabled = false,
   isEmptyAddActive = false,
 }: DiagramCanvasProps) => {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
-  const { cameraStyle, handlers, camera } = useDiagramCamera();
   const { collapsedGateIdSet, collapseGate, expandGate } = viewState;
   const [hoveredGateId, setHoveredGateId] = useState<string | null>(null);
   const nodeContextMenu = useNodeContextMenu();
@@ -150,10 +154,40 @@ export const DiagramCanvas = ({
     onCancel: onOrganizationCancel,
   });
 
-  const layout = useMemo(
-    () => buildDiagramLayout(organization.graph, organization.collapsedGateIdSet),
-    [organization.collapsedGateIdSet, organization.graph]
+  const lastFailureById = useMemo(
+    () => buildLastFailureTypeById(graph.failures_cache),
+    [graph.failures_cache]
   );
+
+  const layout = useMemo(
+    () => {
+      const baseLayout = buildDiagramLayout(
+        organization.graph,
+        organization.collapsedGateIdSet
+      );
+      if (lastFailureById.size === 0) {
+        return baseLayout;
+      }
+      return {
+        ...baseLayout,
+        nodes: baseLayout.nodes.map((node) =>
+          node.type === "component"
+            ? {
+                ...node,
+                lastFailureType: lastFailureById.get(node.id) ?? null,
+              }
+            : node
+        ),
+      };
+    },
+    [organization.collapsedGateIdSet, organization.graph, lastFailureById]
+  );
+
+  const { cameraStyle, handlers, camera } = useDiagramCamera({
+    viewportRef: surfaceRef,
+    nodes: layout.nodes,
+    gateAreas: layout.gateAreas,
+  });
 
   const hasDiagram = status === "ready" && layout.nodes.length > 0;
   const layoutNodeById = useMemo(
@@ -489,6 +523,8 @@ export const DiagramCanvas = ({
         target={nodeContextMenu.target}
         onClose={nodeContextMenu.close}
         onViewInfo={onNodeInfoOpen}
+        onDelete={onNodeDelete}
+        onAddHere={onNodeAddHere}
         menuRef={nodeContextMenu.menuRef}
       />
     </section>

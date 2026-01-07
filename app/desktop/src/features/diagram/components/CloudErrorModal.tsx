@@ -1,4 +1,6 @@
 import type { CloudError } from "../../../services/cloudErrors";
+import { SurfaceCard } from "../../../ui/components/SurfaceCard";
+import { PrimaryButton, SecondaryButton } from "../../../ui/components/buttons";
 
 type CloudErrorModalProps = {
   open: boolean;
@@ -22,7 +24,7 @@ export const CloudErrorModal = ({
   return (
     <div className="diagram-modal" role="dialog" aria-modal="true">
       <div className="diagram-modal__backdrop" />
-      <div className="diagram-modal__content">
+      <SurfaceCard className="diagram-modal__content">
         <div>
           <p className="diagram-modal__eyebrow">Cloud</p>
           <h2 className="diagram-modal__title">Problema de conexión</h2>
@@ -38,7 +40,7 @@ export const CloudErrorModal = ({
           ) : null}
         </div>
         <div className="diagram-modal__actions">
-          <button
+          <SecondaryButton
             type="button"
             className="diagram-modal__button diagram-modal__button--ghost"
             onClick={onCancel}
@@ -49,8 +51,8 @@ export const CloudErrorModal = ({
               <span className="diagram-modal__spinner" aria-hidden="true" />
             ) : null}
             Cancelar
-          </button>
-          <button
+          </SecondaryButton>
+          <PrimaryButton
             type="button"
             className="diagram-modal__button"
             onClick={onRetry}
@@ -61,9 +63,9 @@ export const CloudErrorModal = ({
               <span className="diagram-modal__spinner" aria-hidden="true" />
             ) : null}
             Reintentar
-          </button>
+          </PrimaryButton>
         </div>
-      </div>
+      </SurfaceCard>
     </div>
   );
 };

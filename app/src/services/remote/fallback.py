@@ -1,7 +1,10 @@
 from __future__ import annotations
 import logging
+import os
 from typing import TypeVar, Callable, Any
-from .errors import normalize_cloud_error
+from .errors import normalize_cloud_error, CloudOperationError
+from .runtime import operation_context
+from .runtime import get_runtime_context
 
 LOG = logging.getLogger(__name__)
 T = TypeVar("T")
@@ -32,7 +35,8 @@ def try_cloud_with_fallback(
         Excepción normalizada si falla y allow_fallback=False
     """
     try:
-        result = cloud_fn()
+        with operation_context(operation):
+            result = cloud_fn()
         if update_local is not None:
             try:
                 update_local(result)
@@ -42,14 +46,23 @@ def try_cloud_with_fallback(
     except Exception as exc:
         if not allow_fallback:
             raise normalize_cloud_error(operation, exc) from exc
-        LOG.debug("Cloud operation %s failed, using local fallback", operation)
+        LOG.exception(
+            "Cloud operation %s failed, using local fallback", operation,
+        )
         return local_fn()
 
 
 def require_cloud_client(client, operation: str):
     """Valida que el cliente cloud esté disponible."""
     if client is None:
-        raise normalize_cloud_error(
-            operation,
-            RuntimeError(f"SharePoint client not configured for {operation}")
+        ctx = get_runtime_context()
+        config_path = ctx.config_path
+        config_exists = bool(config_path and os.path.exists(config_path))
+        code = "config_missing" if not config_exists else "config_invalid"
+        raise CloudOperationError(
+            operation=operation,
+            retryable=False,
+            message=f"SharePoint client not configured for {operation}",
+            details="SharePoint configuration not available.",
+            code=code,
         )

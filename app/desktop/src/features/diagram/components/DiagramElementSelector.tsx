@@ -9,9 +9,10 @@ type DiagramElementSelectorProps = {
   status: SelectionStatus;
   draftSelection: DiagramNodeSelection | null;
   confirmedSelection: DiagramNodeSelection | null;
+  isAutoTarget?: boolean;
   onSelectionConfirmed?: (selection: DiagramNodeSelection) => void;
-  onSelectionCleared?: () => void;  // Limpia la selección actual
-  onSelectionCanceled?: () => void;  // Cancela el MODO selección (NUEVO)
+  onSelectionCleared?: () => void;
+  onSelectionCanceled?: () => void;
   onSelectionStart?: () => void;
 };
 
@@ -25,6 +26,7 @@ export const DiagramElementSelector = ({
   status,
   draftSelection,
   confirmedSelection,
+  isAutoTarget = false,
   onSelectionConfirmed,
   onSelectionCleared,
   onSelectionCanceled,
@@ -56,6 +58,11 @@ export const DiagramElementSelector = ({
   };
 
   const isSelected = status === "selected";
+  const displayTitle = selectionToDisplay
+    ? isAutoTarget
+      ? `Target: ${selectionToDisplay.id}`
+      : selectionToDisplay.name ?? selectionToDisplay.id
+    : "";
   return (
     <section
       className={`add-component-panel__diagram-selector${
@@ -90,7 +97,7 @@ export const DiagramElementSelector = ({
             <div className="add-component-panel__diagram-card">
               <div className="add-component-panel__diagram-card-header">
                 <div className="add-component-panel__diagram-title">
-                  {selectionToDisplay.name ?? selectionToDisplay.id}
+                  {displayTitle}
                 </div>
                 {status === "selected" ? (
                   <button

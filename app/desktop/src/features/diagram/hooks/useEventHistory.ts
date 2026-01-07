@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   fetchEventHistoryPage,
   type EventHistoryItem,
@@ -9,7 +9,7 @@ type UseEventHistoryOptions = {
   pageSize?: number;
 };
 
-type EventHistoryState = {
+export type EventHistoryState = {
   events: EventHistoryItem[];
   total: number;
   offset: number;
@@ -22,6 +22,7 @@ type EventHistoryState = {
   goNext: () => void;
   goPrevious: () => void;
   reset: () => void;
+  refresh: () => void;
 };
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -36,7 +37,9 @@ export const useEventHistory = ({
   const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const wasOpen = useRef(false);
+  
+  const hasLoadedData = useRef(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const reset = useCallback(() => {
     setEvents([]);
@@ -44,30 +47,32 @@ export const useEventHistory = ({
     setOffset(0);
     setPage(0);
     setErrorMessage(null);
+    hasLoadedData.current = false;
+  }, []);
+
+  const refresh = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+    hasLoadedData.current = false;
   }, []);
 
   useEffect(() => {
-    if (isOpen && !wasOpen.current) {
-      reset();
-    }
-    if (!isOpen && wasOpen.current) {
-      reset();
-    }
-    wasOpen.current = isOpen;
-  }, [isOpen, reset]);
-
-  useEffect(() => {
     if (!isOpen) return;
+    if (hasLoadedData.current && events.length > 0 && refreshKey === 0) {
+      return;
+    }
+
     let isActive = true;
     const nextOffset = page * pageSize;
     setIsLoading(true);
     setErrorMessage(null);
+    
     fetchEventHistoryPage({ offset: nextOffset, limit: pageSize })
       .then((response) => {
         if (!isActive) return;
         setEvents(response.events ?? []);
         setTotal(response.total ?? 0);
         setOffset(response.offset ?? nextOffset);
+        hasLoadedData.current = true;
       })
       .catch(() => {
         if (!isActive) return;
@@ -77,10 +82,11 @@ export const useEventHistory = ({
         if (!isActive) return;
         setIsLoading(false);
       });
+    
     return () => {
       isActive = false;
     };
-  }, [isOpen, page, pageSize]);
+  }, [isOpen, page, pageSize, refreshKey, events.length]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const canGoPrevious = page > 0;
@@ -88,10 +94,12 @@ export const useEventHistory = ({
 
   const goPrevious = useCallback(() => {
     setPage((current) => Math.max(0, current - 1));
+    hasLoadedData.current = false;
   }, []);
 
   const goNext = useCallback(() => {
     setPage((current) => current + 1);
+    hasLoadedData.current = false;
   }, []);
 
   return {
@@ -107,5 +115,6 @@ export const useEventHistory = ({
     goNext,
     goPrevious,
     reset,
+    refresh,
   };
 };

@@ -1,4 +1,6 @@
 import type { DiagramNodeSelection } from "../types/selection";
+import { SurfaceCard } from "../../../ui/components/SurfaceCard";
+import { DangerButton, SecondaryButton } from "../../../ui/components/buttons";
 
 type DeleteConfirmDialogProps = {
   selection: DiagramNodeSelection;
@@ -27,22 +29,22 @@ export const DeleteConfirmDialog = ({
   return (
     <div className="diagram-modal" role="dialog" aria-modal="true">
       <div className="diagram-modal__backdrop" />
-      <div className="diagram-modal__content">
+      <SurfaceCard className="diagram-modal__content">
         <div>
           <p className="diagram-modal__eyebrow">Borrar</p>
           <h2 className="diagram-modal__title">{title}</h2>
           <p className="diagram-modal__description">{description}</p>
         </div>
         <div className="diagram-modal__actions">
-          <button
+          <SecondaryButton
             type="button"
             className="diagram-modal__button diagram-modal__button--ghost"
             onClick={onCancel}
             disabled={isLoading}
           >
             Cancelar
-          </button>
-          <button
+          </SecondaryButton>
+          <DangerButton
             type="button"
             className="diagram-modal__button diagram-modal__button--danger"
             onClick={onConfirm}
@@ -50,9 +52,9 @@ export const DeleteConfirmDialog = ({
             aria-busy={isLoading}
           >
             {isLoading ? "Borrando..." : "Borrar"}
-          </button>
+          </DangerButton>
         </div>
-      </div>
+      </SurfaceCard>
     </div>
   );
 };

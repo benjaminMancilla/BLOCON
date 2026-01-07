@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import type { EventHistoryItem } from "../../../services/eventHistoryService";
 import {
   searchEventHistoryPage,
@@ -44,6 +44,8 @@ export const useEventSearch = ({
   const [page, setPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const lastLoadedPage = useRef<number>(-1);
+  const lastLoadedCriteria = useRef<string>("");
 
   const criteria = useMemo(
     () => parseEventSearchInput(submittedQuery),
@@ -58,6 +60,8 @@ export const useEventSearch = ({
     setPage(0);
     setErrorMessage(null);
     setIsLoading(false);
+    lastLoadedPage.current = -1;
+    lastLoadedCriteria.current = "";
   }, []);
 
   const updateQuery = useCallback(
@@ -79,21 +83,20 @@ export const useEventSearch = ({
     setEvents([]);
     setTotal(0);
     setErrorMessage(null);
+    lastLoadedPage.current = -1;
+    lastLoadedCriteria.current = "";
     if (!trimmed) {
       resetResults();
     }
   }, [query, resetResults]);
 
   useEffect(() => {
-    if (!isOpen) {
-      setQuery("");
-      setSubmittedQuery("");
-      resetResults();
-    }
-  }, [isOpen, resetResults]);
-
-  useEffect(() => {
     if (!isOpen || !criteria) return;
+    const criteriaKey = JSON.stringify(criteria);
+    if (lastLoadedPage.current === page && lastLoadedCriteria.current === criteriaKey) {
+      return;
+    }
+
     let isCurrent = true;
     const nextOffset = page * pageSize;
 
@@ -106,6 +109,8 @@ export const useEventSearch = ({
         setEvents(response.events ?? []);
         setTotal(response.total ?? 0);
         setOffset(response.offset ?? nextOffset);
+        lastLoadedPage.current = page;
+        lastLoadedCriteria.current = criteriaKey;
       })
       .catch(() => {
         if (!isCurrent) return;
