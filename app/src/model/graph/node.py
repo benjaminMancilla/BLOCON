@@ -2,7 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Literal, Any
-from .dist import Dist, has_enough_records
+from .dist import Dist, has_enough_records, optimize_curve_params
 from .guid import new_gate_guid
 
 GateSubtype = Literal["AND", "OR", "KOON"]
@@ -12,6 +12,7 @@ GateSubtype = Literal["AND", "OR", "KOON"]
 class Node:
     id: str
     reliability: Optional[float] = None
+    curve_params: Optional[Dict[str, Any]] = None
 
     @property
     def type(self) -> str:
@@ -25,11 +26,14 @@ class Node:
 
     def reset_evaluation(self) -> None:
         self.reliability = None
+        self.curve_params = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = {"id": self.id, "type": self.type}
         if self.reliability is not None:
             data["reliability"] = self.reliability
+        if self.curve_params is not None:
+            data["curve_params"] = self.curve_params
         return data
 
     def evaluate(self, evaluator: Any, node_id: str, memo: Dict[str, float]) -> float:
@@ -57,6 +61,17 @@ class ComponentNode(Node):
             self.conflict = not enough
         except Exception:
             self.conflict = False
+
+        params = optimize_curve_params(
+            self.dist.kind,
+            node_id,
+            project_root=evaluator.project_root,
+            cache=evaluator.failures_cache,
+        )
+        if params is None:
+            self.curve_params = None
+        else:
+            self.curve_params = {"kind": self.dist.kind, "params": params}
 
         return self.dist.reliability(
             node_id,

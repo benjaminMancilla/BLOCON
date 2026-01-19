@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Dict, Optional, Protocol, Any
 
 if TYPE_CHECKING:
     from .graph import ReliabilityGraph
@@ -46,7 +46,23 @@ class ReliabilityEvaluator:
         node = self.graph.nodes[node_id]
         
         result = node.evaluate(self, node_id, memo)
+        self._set_curve_params(node_id, node)
         
         memo[node_id] = result
         node.reliability = result
         return result
+    
+    def _set_curve_params(self, node_id: str, node: Any) -> None:
+        if not getattr(node, "is_gate", None):
+            return
+        if not node.is_gate():
+            return
+        children = self.graph.children.get(node_id, [])
+        child_params = {
+            child_id: self.graph.nodes[child_id].curve_params
+            for child_id in children
+        }
+        node.curve_params = {
+            "subtype": getattr(node, "subtype", None),
+            "children": child_params,
+        }
