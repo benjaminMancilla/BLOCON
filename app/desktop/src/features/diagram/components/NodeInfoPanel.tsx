@@ -95,6 +95,10 @@ export const NodeInfoPanel = ({
   if (!isOpen) return null;
 
   const snapshot = data?.snapshot ?? {};
+  const curveParams =
+    "curve_params" in snapshot
+      ? (snapshot.curve_params as Record<string, unknown> | null)
+      : null;
   const cache =
     data?.cache && typeof data.cache === "object" ? data.cache : null;
   const conflict = getSnapshotBoolean(snapshot, "conflict");
@@ -334,6 +338,7 @@ export const NodeInfoPanel = ({
               nodeId={data.id} 
               nodeType="component" 
               failureHistoryCount={data.failures?.count ?? 0}
+              curveParams={curveParams}
             />
             <div className="node-info-panel__section node-info-panel__section--stacked">
               <h3 className="node-info-panel__section-title">Historial de fallas</h3>
@@ -690,7 +695,11 @@ export const NodeInfoPanel = ({
                 </span>
               </div>
             </div>
-            <ReliabilityChartPanel nodeId={data.id} nodeType="gate" />
+            <ReliabilityChartPanel 
+              nodeId={data.id} 
+              nodeType="gate" 
+              curveParams={curveParams}
+            />
             <div className="node-info-panel__section node-info-panel__section--settings">
               <h3 className="node-info-panel__section-title">Ajustes</h3>
               {isKoonGate ? (
