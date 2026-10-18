@@ -48,6 +48,7 @@ src-tauri/tauri.dev.conf.json
 .DS_Store
 
 !package.json
+!package-lock.json
 !tsconfig.json
 !src-tauri/tauri.conf.json
 !app/desktop/src-tauri/tauri.conf.json
@@ -59,6 +60,3 @@ src-tauri/tauri.dev.conf.json
 bin/
 target/
 temp_dist/
-
-# Cargo lock
-Cargo.lock

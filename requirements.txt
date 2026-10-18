@@ -1,0 +1,15 @@
+# Backend (app/src)
+requests==2.32.5
+python-dotenv==1.2.1
+tenacity==9.1.2
+
+# Build del sidecar
+pyinstaller==6.17.0
+
+# Tests
+pytest==9.0.2
+pytest-cov==7.0.0
+
+# Solo scripts/update_*.py
+pandas==2.3.3
+openpyxl==3.1.5
