@@ -11,6 +11,10 @@ export type NodeDetailsResponse = {
     count: number;
     records: FailureRecord[];
   };
+  curve_params?: {
+    kind: string;
+    params: Record<string, number>;
+  } | null;
 };
 
 export type FailureRecord = Record<string, string | number | boolean | null>;

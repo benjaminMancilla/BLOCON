@@ -72,14 +72,14 @@ export function useReliabilityCurve(
         ? (curveParams.params as Record<string, unknown>)
         : curveParams;
 
-    const lambda = getNumberValue(params, 'lambda');
-    const alpha = getNumberValue(params, 'alpha');
-    const beta = getNumberValue(params, 'beta');
+    const lambda = getNumberValue(params as Record<string, unknown>, 'lambda');
+    const eta = getNumberValue(params as Record<string, unknown>, 'eta');
+    const beta = getNumberValue(params as Record<string, unknown>, 'beta');
 
     if (curveType === 'exponential' && lambda === null) {
       return { data: [], state: 'needs_evaluation' as const, parameters: null };
     }
-    if (curveType === 'weibull' && (alpha === null || beta === null)) {
+    if (curveType === 'weibull' && (eta === null || beta === null)) {
       return { data: [], state: 'needs_evaluation' as const, parameters: null };
     }
     if (curveType !== 'exponential' && curveType !== 'weibull') {
@@ -101,8 +101,8 @@ export function useReliabilityCurve(
     const parameterLabel =
       curveType === 'exponential' && lambda !== null
         ? `λ: ${formatParameter(lambda)}`
-        : curveType === 'weibull' && alpha !== null && beta !== null
-          ? `α: ${formatParameter(alpha)}, β: ${formatParameter(beta)}`
+        : curveType === 'weibull' && eta !== null && beta !== null
+          ? `η: ${formatParameter(eta)}, β: ${formatParameter(beta)}`
           : null;
 
     const points: ReliabilityPoint[] = [];
@@ -116,8 +116,8 @@ export function useReliabilityCurve(
       const reliability =
         curveType === 'exponential' && lambda !== null
           ? Math.exp(-lambda * deltaTimeDays)
-          : curveType === 'weibull' && alpha !== null && beta !== null
-            ? Math.exp(-Math.pow(deltaTimeDays / alpha, beta))
+          : curveType === 'weibull' && eta !== null && beta !== null
+            ? Math.exp(-Math.pow(deltaTimeDays / eta, beta))
             : 0;
       points.push({ time, reliability: Number(reliability.toFixed(4)) });
     }
