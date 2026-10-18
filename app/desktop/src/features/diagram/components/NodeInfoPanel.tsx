@@ -11,6 +11,7 @@ import {
   formatCalculationTypeLabel,
   normalizeCalculationType,
 } from "../icons/calculationTypeIcons";
+import { ReliabilityChartPanel } from './ReliabilityChartPanel';
 
 const formatReliability = (reliability: number | null) => {
   if (reliability === null) return "—";
@@ -329,6 +330,12 @@ export const NodeInfoPanel = ({
                 {formatCalculationTypeLabel(calculationType)}
               </span>
             </div>
+            <ReliabilityChartPanel 
+              nodeId={data.id} 
+              nodeType="component" 
+              failureHistoryCount={data.failures?.count ?? 0}
+              curveParams={data.curve_params}
+            />
             <div className="node-info-panel__section node-info-panel__section--stacked">
               <h3 className="node-info-panel__section-title">Historial de fallas</h3>
               <NodeFailuresTable failures={data?.failures} />
@@ -684,6 +691,11 @@ export const NodeInfoPanel = ({
                 </span>
               </div>
             </div>
+            <ReliabilityChartPanel 
+              nodeId={data.id} 
+              nodeType="gate" 
+              curveParams={data.curve_params}
+            />
             <div className="node-info-panel__section node-info-panel__section--settings">
               <h3 className="node-info-panel__section-title">Ajustes</h3>
               {isKoonGate ? (

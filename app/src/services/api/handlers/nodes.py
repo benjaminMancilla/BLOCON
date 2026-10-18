@@ -86,6 +86,7 @@ class NodeDetailsHandler(BaseHandler):
             "snapshot": snapshot,
             "cache": cache,
             "failures": self._serialize_component_failures(node_id),
+            "curve_params": snapshot_node.get("curve_params"),
         }
 
     def _serialize_gate_details(
@@ -109,6 +110,7 @@ class NodeDetailsHandler(BaseHandler):
             "kind": "gate",
             "id": node_id,
             "snapshot": snapshot,
+            "curve_params": snapshot_node.get("curve_params"),
         }
 
     def _serialize_component_failures(self, node_id: str) -> dict[str, Any]:

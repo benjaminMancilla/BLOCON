@@ -9,6 +9,7 @@ import tempfile
 import msvcrt
 import threading
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse, unquote
 from typing import ClassVar
@@ -149,6 +150,35 @@ def background_init(shared: SharedState) -> None:
     except Exception as e:
         print(f"Warning: Background init failed: {e}", file=sys.stderr)
         _sharepoint_ready.set()
+        
+
+class LimitedThreadingHTTPServer(HTTPServer):
+    """
+    Servidor HTTP que utiliza un ThreadPoolExecutor para manejar requests.
+    Permite concurrencia limitada, evitando el bloqueo del hilo principal
+    durante operaciones I/O largas (como reintentos a SharePoint).
+    """
+    def __init__(self, server_address, RequestHandlerClass, max_threads=10):
+        super().__init__(server_address, RequestHandlerClass)
+        self.pool = ThreadPoolExecutor(max_workers=max_threads)
+
+    def process_request(self, request, client_address):
+        """Encola la solicitud en el thread pool en lugar de bloquear."""
+        self.pool.submit(self._handle_request_thread, request, client_address)
+
+    def _handle_request_thread(self, request, client_address):
+        """Lógica de manejo de request (standard de socketserver) ejecutada en un thread."""
+        try:
+            self.finish_request(request, client_address)
+            self.shutdown_request(request)
+        except Exception:
+            self.handle_error(request, client_address)
+            self.shutdown_request(request)
+
+    def server_close(self):
+        """Asegura que el pool se limpie al cerrar el servidor."""
+        super().server_close()
+        self.pool.shutdown(wait=False)
 
 
 # ========== Request Handler Refactorizado ==========
@@ -582,8 +612,8 @@ def main() -> None:
     init_thread.start()
     server = None
     try:
-        server = HTTPServer((HOST, PORT), GraphRequestHandler)
-        print(f"API server listening on http://{HOST}:{PORT}")
+        server = LimitedThreadingHTTPServer((HOST, PORT), GraphRequestHandler, max_threads=5)
+        print(f"API server listening on http://{HOST}:{PORT} (Thread Pool: 5 workers)")
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nShutting down server...")

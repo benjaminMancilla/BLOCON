@@ -19,7 +19,7 @@ import { ViewsMenu } from "./features/diagram/components/views/ViewsMenu";
 import { RebuildConfirmDialog } from "./features/diagram/components/RebuildConfirmDialog";
 import { VersionHistoryPanelContainer } from "./features/diagram/components/VersionHistoryPanelContainer";
 import { ToastContainer } from "./features/diagram/components/ToastContainer";
-import { GradientBackdrop } from "./ui/components/GradientBackDrop";
+import { GradientBackdrop } from "./ui/components/GradientBackdrop";
 
 // Hooks
 import { useDiagramGraph } from "./features/diagram/hooks/useDiagramGraph";

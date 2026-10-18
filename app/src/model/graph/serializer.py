@@ -59,6 +59,8 @@ class GraphSerializer:
                 # Restore reliability if present
                 if "reliability" in nd:
                     g.nodes[nd["id"]].reliability = nd["reliability"]
+                if "curve_params" in nd:
+                    g.nodes[nd["id"]].curve_params = nd["curve_params"]
                 
                 # Restore conflict flag
                 g.nodes[nd["id"]].conflict = bool(nd.get("conflict", False))
@@ -79,6 +81,8 @@ class GraphSerializer:
                 # Restore reliability if present
                 if "reliability" in nd:
                     g.nodes[nd["id"]].reliability = nd["reliability"]
+                if "curve_params" in nd:
+                    g.nodes[nd["id"]].curve_params = nd["curve_params"]
         
         # Load edges
         for e in data.get("edges", []):
